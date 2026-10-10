@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 
+from tests.fakes import fake_terminals_on_path
 from tilepane import cli, monitors
 from tilepane.invocation import Task, UsageError, parse
 
@@ -121,6 +122,7 @@ class CliTest(unittest.TestCase):
         os.environ["XDG_STATE_HOME"] = os.path.join(self.dir.name, "state")
         self.addCleanup(lambda: os.environ.__setitem__("XDG_STATE_HOME", old) if old is not None
                         else os.environ.pop("XDG_STATE_HOME", None))
+        fake_terminals_on_path(self)
 
     def write(self, name, data):
         path = os.path.join(self.dir.name, name)

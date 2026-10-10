@@ -58,3 +58,24 @@ class FakeBackend:
 
     def disconnect(self):
         self.disconnected = True
+
+
+def fake_terminals_on_path(test, names=("xterm",)):
+    """Put stub terminal binaries first on PATH for the duration of a test.
+
+    Tests that open windows through a fake backend still resolve the terminal
+    with shutil.which; this keeps them independent of what the machine has.
+    """
+    import os
+    import tempfile
+
+    tmp = tempfile.TemporaryDirectory()
+    test.addCleanup(tmp.cleanup)
+    for name in names:
+        path = os.path.join(tmp.name, name)
+        with open(path, "w") as fh:
+            fh.write("#!/bin/sh\nexit 0\n")
+        os.chmod(path, 0o755)
+    old = os.environ.get("PATH", "")
+    os.environ["PATH"] = tmp.name + os.pathsep + old
+    test.addCleanup(os.environ.__setitem__, "PATH", old)

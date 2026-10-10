@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from tests.fakes import FakeBackend
+from tests.fakes import FakeBackend, fake_terminals_on_path
 from tilepane import cli, manager, monitors, opener, state, terminals
 from tilepane.geometry import LeafRect, Rect
 from tilepane.state import Record, StateStore
@@ -165,6 +165,7 @@ class CliStateTest(unittest.TestCase):
             json.dump(LAYOUT, fh)
         self.backend = FakeBackend()
         self.store = StateStore(os.path.join(self.tmp.name, "state"))
+        fake_terminals_on_path(self)
 
     def run_cli(self, *argv):
         out, err = io.StringIO(), io.StringIO()
