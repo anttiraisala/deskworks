@@ -173,11 +173,16 @@ class ValidationTest(unittest.TestCase):
     def test_split_structure(self):
         node = lambda **kw: {"layouts": [{"name": "a", "split": kw}]}
         self.assert_error(node(a={}, b={}), "needs 'dir'")
-        self.assert_error(node(dir="columns", a={}), "'b' is missing")
         self.assert_error(node(dir="columns", children=[]), "non-empty")
         self.assert_error(node(dir="columns", children=[{}], a={}), "cannot be combined")
         self.assert_error(node(dir="columns", a={}, b={}, sizes=["1frac"]), "needs 'children'")
         self.assert_error(node(dir="diagonal", a={}, b={}), "one of")
+
+    def test_missing_children_are_allowed(self):
+        node = lambda **kw: {"layouts": [{"name": "a", "split": kw}]}
+        for split in (node(dir="columns", a={"run": "x"}), node(dir="columns", b={"run": "x"}),
+                      node(dir="columns"), node(dir="columns", at="40%")):
+            self.assertEqual(errors_of(split), [], split)
 
     def test_dir_aliases_validate(self):
         for d in ("columns", "rows", "v", "vertical", "h", "horizontal"):
@@ -391,3 +396,41 @@ class HelpersTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EmptyPaneTest(unittest.TestCase):
+    def resolved_leaves(self, split):
+        cfg = config.load_text(json.dumps({"name": "e", "split": split}), "e.json")
+        r = config.resolve_layout(cfg, cfg.layouts[0])
+        return list(config.iter_leaves(r["split"]))
+
+    def test_missing_or_bare_pane_is_empty(self):
+        leaves = self.resolved_leaves({"dir": "columns", "b": {"run": "htop"}})
+        self.assertEqual([(lf["id"], lf.get("empty", False)) for lf in leaves],
+                         [("0", True), ("1", False)])
+        leaves = self.resolved_leaves({"dir": "columns", "a": {}, "b": {"run": "htop"}})
+        self.assertTrue(leaves[0]["empty"])
+
+    def test_split_without_children_is_all_empty(self):
+        leaves = self.resolved_leaves({"dir": "rows"})
+        self.assertEqual([lf.get("empty") for lf in leaves], [True, True])
+        self.assertEqual(self.resolved_leaves({})[0].get("empty"), True)
+
+    def test_any_window_setting_asks_for_a_window(self):
+        for leaf in ({"cwd": "~"}, {"title": "t"}, {"terminal": "xterm"}, {"empty": False},
+                     {"env": {"A": "1"}}):
+            with self.subTest(leaf=leaf):
+                leaves = self.resolved_leaves({"dir": "rows", "a": leaf, "b": {}})
+                self.assertNotIn("empty", leaves[0])
+
+    def test_id_description_and_when_alone_stay_empty(self):
+        for leaf in ({"id": "x"}, {"description": "spare"}, {"when": "true"}, {"empty": True},
+                     {"empty": True, "title": "t"}):
+            with self.subTest(leaf=leaf):
+                leaves = self.resolved_leaves({"dir": "rows", "a": leaf, "b": {"run": "x"}})
+                self.assertTrue(leaves[0]["empty"])
+
+    def test_inherited_settings_do_not_fill_an_empty_pane(self):
+        leaves = self.resolved_leaves({"dir": "rows", "terminal": "xterm", "cwd": "/tmp",
+                                       "b": {"run": "x"}})
+        self.assertTrue(leaves[0]["empty"])

@@ -124,7 +124,7 @@ Built-in values: `terminal` `"auto"`, `margin` 8, `outer_margin` none, `at_basis
   - `"300px"`: pixels from the left/top (a bare number means pixels)
   - `"-300px"` / `"-40%"`: measured from the right/bottom
   - Default `"50%"`. `0`, `100%`, or a value larger than the area is an error.
-- `a`, `b`: child nodes (a split or a leaf), arbitrary depth.
+- `a`, `b`: child nodes (a split or a leaf), arbitrary depth. A missing `a` or `b` is an empty pane; a split with neither divides the area into two empty panes (nothing opens, which is allowed).
 - An optional `margin` per node overrides the inherited margin for everything below it.
 
 ### N-way split
@@ -136,7 +136,7 @@ In addition to the binary tree, allow a `children` list and `sizes` (in the styl
 `sizes` entries are `Nfrac` (a share of the space left after the fixed sizes, divided proportionally), `Npx` or `N%`. Without `sizes`, all children are `1frac`. If no entry is a `frac`, the last child takes any leftover space. Sizes that exceed the area are an error. `children` cannot be combined with `a`, `b` or `at`.
 
 ### Leaf
-- `run`: a command (string) or a list of commands. Strings are run through the user's shell as `$SHELL -lc <command>` (`/bin/sh` if `$SHELL` is unset). A list is executed **sequentially in the same terminal** (see section 10). Without `run`, the pane opens an interactive shell.
+- `run`: a command (string) or a list of commands. Strings are run through the user's shell as `$SHELL -lc <command>` (`/bin/sh` if `$SHELL` is unset). A list is executed **sequentially in the same terminal** (see section 10). Without `run`, a leaf that has any other window setting (`cwd`, `title`, `terminal`, `env`, ...) opens an interactive shell.
 - `cwd`: working directory. `~` and `$VAR` are expanded. A directory that does not exist is an error shown in the pane.
 - `title`: window title. Programs may overwrite it; windows are not identified by title.
 - `id`: optional stable identifier, unique within the layout (letters, digits, `_`, `-`, `.`). Without it the tree path (`1.0`) is used. `id` is what state management uses to match windows to panes.
@@ -147,7 +147,7 @@ In addition to the binary tree, allow a `children` list and `sizes` (in the styl
 - `env`: extra environment variables (string values; `~` and `$VAR` expanded).
 - `mode`, `interval`, `stop_on_error`: see section 10.
 - `when`: a shell command. When it exits non-zero the pane is removed and its sibling takes the space (a binary split with one child left is replaced by that child, an N-way split drops the child and its size). If every pane is removed, the layout fails. Use it so one layout works on machines without, for example, a GPU. `when` commands are run only when opening windows (or with `--eval-when`).
-- `empty`: `true` reserves the rectangle but opens no window. It cannot be combined with `run`.
+- **Empty panes.** A leaf with no keys (`{}`), or only `id`, `description` and `when`, or a missing `a`/`b`, opens no window: the rectangle stays empty. Only keys written on the leaf itself count; settings inherited from above do not fill an empty pane. `empty: true` says the same explicitly (and keeps the pane empty whatever else it has); `empty: false` asks for a window (an interactive shell) on a leaf that has nothing else. `empty: true` cannot be combined with `run`.
 - `decorations`: `false` removes window borders when the terminal and window manager allow it.
 
 ## 3. Geometry (core logic)

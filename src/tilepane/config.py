@@ -321,10 +321,9 @@ def _validate_split(node: dict, path: str, pb: _Problems, ids: dict[str, str]) -
         return
     if "sizes" in node:
         pb.error(_join(path, "sizes"), "needs 'children'")
+    # A missing a or b is an empty pane.
     for key in ("a", "b"):
-        if key not in node:
-            pb.error(path, f"a split needs both 'a' and 'b' (or 'children'); '{key}' is missing")
-        else:
+        if key in node:
             _validate_node(node[key], _join(path, key), pb, ids)
 
 
@@ -470,11 +469,30 @@ def is_leaf(node: dict) -> bool:
     return not (SPLIT_STRUCTURE & node.keys())
 
 
+# Leaf keys that do not ask for a window on their own: a leaf with nothing
+# else (or no leaf at all, a missing a or b) is an empty pane.
+_NO_WINDOW_KEYS = {"id", "description", "when", "empty"}
+
+
+def wants_window(leaf: dict) -> bool:
+    """Does this leaf, as written, get a terminal window?"""
+    if "empty" in leaf:
+        return leaf["empty"] is not True
+    return bool(leaf.keys() - _NO_WINDOW_KEYS)
+
+
+def children(node: dict) -> list[dict]:
+    """The child nodes of a split; a missing a or b is an empty leaf."""
+    if "children" in node:
+        return node["children"]
+    return [node.get("a", {}), node.get("b", {})]
+
+
 def iter_leaves(node: dict) -> Iterator[dict]:
     if is_leaf(node):
         yield node
         return
-    for child in node["children"] if "children" in node else (node["a"], node["b"]):
+    for child in children(node):
         yield from iter_leaves(child)
 
 
@@ -503,9 +521,11 @@ def _resolve_node(node: dict, inherited: dict, at_basis: str, path: tuple[int, .
         leaf = dict(eff)
         leaf.setdefault("env", {})
         leaf["mode"] = node.get("mode", "sequence")
-        for key in ("run", "title", "interval", "when", "empty", "description"):
+        for key in ("run", "title", "interval", "when", "description"):
             if key in node:
                 leaf[key] = node[key]
+        if not wants_window(node):
+            leaf["empty"] = True
         # Every resolved leaf has an id: the explicit one, or its path in the
         # written tree. The path is taken before `when` removes panes, so ids
         # stay the same whether or not a sibling is left out.
@@ -525,8 +545,9 @@ def _resolve_node(node: dict, inherited: dict, at_basis: str, path: tuple[int, .
             out["sizes"] = list(node["sizes"])
     else:
         out["at"] = node.get("at", "50%")
-        out["a"] = _resolve_node(node["a"], eff, basis, path + (0,))
-        out["b"] = _resolve_node(node["b"], eff, basis, path + (1,))
+        a, b = children(node)
+        out["a"] = _resolve_node(a, eff, basis, path + (0,))
+        out["b"] = _resolve_node(b, eff, basis, path + (1,))
     return out
 
 

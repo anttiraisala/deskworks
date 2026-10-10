@@ -401,6 +401,15 @@ class CliWorkspaceTest(unittest.TestCase):
         self.assertIn("closed 1 window(s)", out)
         self.assertIn("1 window(s) did not close", err)
 
+    def test_layout_with_only_empty_panes_opens_nothing(self):
+        path = os.path.join(self.tmp.name, "nothing.json")
+        with open(path, "w") as fh:
+            json.dump({"name": "nothing", "split": {"dir": "columns"}}, fh)
+        code, out, err = self.run_cli(path)
+        self.assertEqual(code, 0, err)
+        self.assertIn("0 opened, 0 re-placed", out)
+        self.assertEqual(self.backend._open, set())
+
     def test_workspace_errors(self):
         code, _, err = self.run_cli(self.path, "--workspace", "9")
         self.assertEqual(code, 1)

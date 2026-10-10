@@ -141,7 +141,15 @@ A layout is a tree of splits and panes, written in JSON:
 }
 ```
 
-`dir` is `columns` (panes side by side) or `rows` (stacked). Every key, with type, default and inheritance, is listed in [docs/CONFIG.md](docs/CONFIG.md). That file is generated from the JSON schema in [src/tilepane/tilepane.schema.json](src/tilepane/tilepane.schema.json); add `"$schema"` to your file to get completion and tooltips in VS Code (see [examples/meters.json](examples/meters.json)).
+`dir` is `columns` (panes side by side) or `rows` (stacked). A pane you leave out, or write as `{}`, stays empty: no window opens there. Here the left 40 % is left empty:
+
+```json
+{ "name": "right-side", "split": {
+    "dir": "columns", "at": "40%",
+    "b": { "dir": "rows", "a": { "run": "htop" }, "b": { "run": "watch -n1 sensors" } } } }
+```
+
+ Every key, with type, default and inheritance, is listed in [docs/CONFIG.md](docs/CONFIG.md). That file is generated from the JSON schema in [src/tilepane/tilepane.schema.json](src/tilepane/tilepane.schema.json); add `"$schema"` to your file to get completion and tooltips in VS Code (see [examples/meters.json](examples/meters.json)).
 
 A layout file is a program: opening it runs the commands in it. Only open files you trust. `--dry-run` shows the commands without running anything.
 

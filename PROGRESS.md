@@ -98,3 +98,9 @@ Implemented:
 - Closing a window with its close button was already handled (dead windows are dropped on every run; reopening opens just that pane).
 - Tested live for the first time in a container: Xvfb + Openbox (4 workspaces) + xterm. Demo, workspace separation, `--workspace 3`, `--close` per workspace and `--workspace all`, `--toggle --workspace 1` all behaved as described; the xterm live tests pass there too. Not tested: Cinnamon itself, gnome-terminal, Compiz viewports (not told apart yet).
 - 311 tests pass.
+
+### 2026-10-10: empty panes by default
+- Decided with the user: a pane that is left out (missing `a`/`b`) or written as `{}` stays empty; a split with neither child is allowed and opens nothing. A leaf gets a window when it has any setting of its own other than `id`, `description` and `when` (so `{"cwd": "~"}` is a shell); inherited settings do not count. `empty: true` stays as the explicit form, `empty: false` asks for a shell.
+- Before this, `{}` opened an interactive shell and a missing `a`/`b` was an error.
+- Workspaces confirmed working by the user on Linux Mint (Cinnamon).
+- 318 tests pass.

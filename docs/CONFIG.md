@@ -110,8 +110,8 @@ A split node: a node that has `dir`.
 |---|---|---|---|---|
 | `dir` | `"columns"`, `"rows"`, `"v"`, `"vertical"`, `"h"`, `"horizontal"` | none | no | How a split arranges its children. "columns": side by side, a on the left. "rows": stacked, a on top. The aliases "v"/"vertical" mean columns and "h"/"horizontal" mean rows (v is a vertical divider line; tmux uses the opposite convention). |
 | `at` | string or number | `"50%"` | no | Where a two-child split divides its area, measured from the area before margins: "60%", "300px" (a bare number means pixels), measured from the left or top. A negative value ("-300px", "-40%") is measured from the right or bottom. 0, 100% or more than the area is an error. Examples: `"60%"`, `"300px"`, `"-300px"`, `"-40%"`. |
-| `a` | node (split or leaf) | none | no | First child of a two-child split: the left (columns) or top (rows) node. Use together with b and at. |
-| `b` | node (split or leaf) | none | no | Second child of a two-child split: the right (columns) or bottom (rows) node. Takes the space that at leaves over. |
+| `a` | node (split or leaf) | none | no | First child of a two-child split: the left (columns) or top (rows) node. Use together with b and at. Leave it out (or write {}) to keep that part of the screen empty. |
+| `b` | node (split or leaf) | none | no | Second child of a two-child split: the right (columns) or bottom (rows) node. Takes the space that at leaves over. Leave it out (or write {}) to keep that part of the screen empty. |
 | `children` | list of node (split or leaf) | none | no | The children of an N-way split, instead of a, b and at. Sizes come from sizes; without it the children share the space equally. |
 | `sizes` | list of string or number | none | no | Sizes of the children of an N-way split, one entry per child: "2frac" (a share of the space left over, divided proportionally), "300px" or "25%". If no entry is a frac, the last child takes the leftover. Examples: `["1frac", "2frac", "300px"]`. |
 | `description` | string | none | no | Free text about the file, layout, split node or leaf. Ignored by tilepane; JSON has no comments, so use this instead. |
@@ -135,13 +135,13 @@ A leaf: a node with none of the split keys.
 
 | Key | Type | Default | Inherits | Description |
 |---|---|---|---|---|
-| `run` | string or list of string | none | no | The command, run through your shell as $SHELL -lc. A list is run one command after another in the same terminal (see mode and stop_on_error). Without run the pane opens an interactive shell. Examples: `"htop"`, `["cd ~/app", "source venv/bin/activate", "python main.py"]`. |
+| `run` | string or list of string | none | no | The command, run through your shell as $SHELL -lc. A list is run one command after another in the same terminal (see mode and stop_on_error). Without run, a pane that has any other setting (cwd, title, terminal, ...) opens an interactive shell; a pane with no settings stays empty. Examples: `"htop"`, `["cd ~/app", "source venv/bin/activate", "python main.py"]`. |
 | `title` | string | none | no | Window title. Programs and shells may overwrite it, so tilepane does not use it to find its windows. Examples: `"htop"`. |
 | `id` | string | none | no | Stable identifier of the pane, unique within the layout (letters, digits, _, - and .; not only digits and dots). Used to match windows to panes when a layout is already open. Without it the tree path (for example 1.0) is used, which changes when the tree is edited. Examples: `"cpu"`. |
 | `mode` | `"sequence"`, `"cycle"`, `"parallel"` | `"sequence"` | no | How a list of commands runs: "sequence" one after another, "cycle" rotate every interval seconds in the same window, "parallel" side by side (planned). |
 | `interval` | number | none | no | Seconds each command runs before the next one takes over. Required when mode is "cycle". Examples: `10`. |
 | `when` | string | none | no | A shell command. If it exits non-zero, the pane is left out and its sibling takes the space, so one layout works on machines without, for example, a GPU. Run only when opening windows (or with --dry-run --eval-when). Examples: `"command -v nvidia-smi"`. |
-| `empty` | true or false | `false` | no | true reserves the rectangle but opens no window. Cannot be combined with run. |
+| `empty` | true or false | `false` | no | true reserves the rectangle but opens no window. A pane with no settings (or a missing a or b) is already empty; empty makes it explicit. false gives a pane with no other settings an interactive shell. true cannot be combined with run. |
 | `description` | string | none | no | Free text about the file, layout, split node or leaf. Ignored by tilepane; JSON has no comments, so use this instead. |
 | `terminal` | string or object | `"auto"` | yes | The terminal that runs the pane: "auto" (kitty, alacritty, gnome-terminal, xterm, first found), a terminal name, or an object {"cmd": [...]} with a command template that contains the {command} placeholder (and optionally {title}). Examples: `"gnome-terminal"`, `{"cmd": ["foot", "--title", "{title}", "--", "{command}"]}`. |
 | `profile` | string | none | yes | Terminal-specific profile name (for example a gnome-terminal profile). A terminal that cannot use it produces a warning. |
