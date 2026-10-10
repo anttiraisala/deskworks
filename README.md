@@ -151,7 +151,20 @@ Every pane can choose its own terminal (the window: `"terminal": "xterm"`) and i
     "b": { "dir": "rows", "a": { "run": "htop" }, "b": { "run": "watch -n1 sensors" } } } }
 ```
 
- Every key, with type, default and inheritance, is listed in [docs/CONFIG.md](docs/CONFIG.md). That file is generated from the JSON schema in [src/tilepane/tilepane.schema.json](src/tilepane/tilepane.schema.json); add `"$schema"` to your file to get completion and tooltips in VS Code (see [examples/meters.json](examples/meters.json)).
+### Several commands in one pane
+
+Give `run` a list, and the commands run one after another in the same terminal window. Each starts when the previous one ends:
+
+```json
+{ "name": "info", "split": {
+    "dir": "columns",
+    "a": { "run": ["date", "whoami", "ls -la"], "cwd": "~" },
+    "b": { "run": "htop" } } }
+```
+
+The left window prints the date, then your user name, then the files in your home directory. When the list is done the window stays open with a command prompt (`"on_exit": "close"` closes it instead, `"restart"` runs the list again). The next command starts even if the previous one failed; `"stop_on_error": true` stops at the first failure. To time a command, write it as one entry: `"time ls -la"`.
+
+Every key, with type, default and inheritance, is listed in [docs/CONFIG.md](docs/CONFIG.md). That file is generated from the JSON schema in [src/tilepane/tilepane.schema.json](src/tilepane/tilepane.schema.json); add `"$schema"` to your file to get completion and tooltips in VS Code (see [examples/meters.json](examples/meters.json)).
 
 A layout file is a program: opening it runs the commands in it. Only open files you trust. `--dry-run` shows the commands without running anything.
 
