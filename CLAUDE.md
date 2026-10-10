@@ -80,6 +80,26 @@ Search for the old behaviour by name (`grep -rn` for the key, option or phrase)
 rather than relying on memory. When a step is finished, read through the whole
 repository once for anything stale and fix it in the same branch.
 
+### Log files keep their history
+
+Two kinds of files are treated differently:
+
+- **Log files** record how the work went: `PROGRESS.md` (its "Log" section)
+  and `docs/SPEC-REVIEW.md` (the review as it was made). Old entries stay as
+  they were written, even when what they say is no longer true; that history
+  is the point. Never rewrite, shorten or "update" an old entry, and never
+  delete one. New information is added as a new dated entry at the end; when
+  it changes an earlier decision, the new entry says so ("Before this, ...").
+  Only a plain mistake (a typo, a wrong file name) may be corrected in place.
+  The current-state parts of a log file are updated, not appended to: the
+  status table at the top of `PROGRESS.md`.
+- **Every other file** describes the project as it is now (README.md, SPEC.md,
+  CLAUDE.md, docs/CONFIG.md, code, comments, help texts). These are rewritten
+  so they are true today, with no leftover description of old behaviour.
+
+A file that is not listed here and looks like a log (dated entries, newest
+last) is a log file too; when unsure, ask before changing old entries.
+
 ## Recording work
 
 - Every finished step gets an entry at the end of PROGRESS.md (what was built,
