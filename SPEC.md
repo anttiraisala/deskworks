@@ -81,9 +81,9 @@ A single-layout file may be flat: `name`, `margin`, `split` at the top level, wi
 In addition to the binary tree, allow a `children` list and `sizes` (in the style of CSS grid), so that for example three columns are easy to write:
 
 ```json
-{ "dir": "v", "sizes": ["1fr", "2fr", "300px"], "children": [ {...}, {...}, {...} ] }
+{ "dir": "v", "sizes": ["1frac", "2frac", "300px"], "children": [ {...}, {...}, {...} ] }
 ```
-Internally convert to a binary tree or compute directly. `fr` divides the remaining space proportionally.
+Internally convert to a binary tree or compute directly. `frac` divides the remaining space proportionally.
 
 ### Leaf
 - `run`: a command (string) or a list of commands. Executed through the shell. A list is executed **sequentially in the same terminal** (see section 10).
@@ -153,7 +153,7 @@ State management: the program marks the windows it opens (title/class + a state 
 ## 7. Implementation order
 
 1. `--doctor`: find out the user's environment (session type, desktop, versions, monitors, available terminals). **Do this yourself by running the commands; do not ask the user.** Report the results and propose a backend.
-2. Geometry core + unit tests (margin, outer_margin, negative `at`, percentages, rounding, deep trees, `fr` sizes).
+2. Geometry core + unit tests (margin, outer_margin, negative `at`, percentages, rounding, deep trees, `frac` sizes).
 3. Config loading and validation (JSON schema), `--dry-run`.
 4. One backend all the way through (the one that fits the user's environment): one terminal, one window at the right place, then the whole layout.
 5. Monitor support, `--monitors`, and multi-task command lines (section 14).

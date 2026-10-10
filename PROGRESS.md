@@ -30,7 +30,10 @@ Implementation follows the order in SPEC.md section 7. Newest entries last.
 - Odd margins are split floor/ceil (start side gets the floor) so the gap between neighbours is exactly `margin`.
 - `outer_margin` shrinks the area first; leaves on the outer edge get no extra inset (tested: edge is not counted twice).
 - Boundaries are rounded once and shared by neighbours; a random-tree property test checks exact tiling, no overlaps and exact gaps.
-- Choices not fixed by the spec: without an `fr` entry the last child absorbs leftover space; oversize sizes, empty panes and panes smaller than their margins raise `GeometryError`; `at_basis: "visible"` uses the split node's margin.
+- Choices not fixed by the spec: without an `frac` entry the last child absorbs leftover space; oversize sizes, empty panes and panes smaller than their margins raise `GeometryError`; `at_basis: "visible"` uses the split node's margin.
 - `dir` follows the spec: `v` = children side by side, `h` = stacked. This is the opposite of tmux's `-h`/`-v` naming, so the README must state it clearly.
 - Defaults (`defaults.margin` etc.) are not applied inside `compute`; step 3 merges them into the layout before calling.
 - 67 tests pass.
+
+### 2026-10-10: rename
+- The fraction size unit is now `frac` instead of `fr` (`"sizes": ["1frac", "2frac", "300px"]`) in SPEC.md, geometry.py and tests.

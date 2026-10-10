@@ -161,7 +161,7 @@ class AtBasisTest(unittest.TestCase):
             compute(two("v", "50%", at_basis="inner"), AREA)
 
 
-class FrSizesTest(unittest.TestCase):
+class FracSizesTest(unittest.TestCase):
     @staticmethod
     def cols(sizes, width=1000, **extra):
         layout = {"split": {"dir": "v", "sizes": sizes,
@@ -169,8 +169,8 @@ class FrSizesTest(unittest.TestCase):
                   **extra}
         return [lr.outer for lr in compute(layout, Rect(0, 0, width, 100))]
 
-    def test_fr_and_px(self):
-        c = self.cols(["1fr", "2fr", "300px"])
+    def test_frac_and_px(self):
+        c = self.cols(["1frac", "2frac", "300px"])
         self.assertEqual([r.width for r in c], [233, 467, 300])
         self.assertEqual(c[2].right, 1000)
 
@@ -179,30 +179,30 @@ class FrSizesTest(unittest.TestCase):
         self.assertEqual([r.height for r in outers(layout).values()], [125] * 4)
 
     def test_rounding_shares_boundaries(self):
-        c = self.cols(["1fr", "1fr", "1fr"], width=100)
+        c = self.cols(["1frac", "1frac", "1frac"], width=100)
         self.assertEqual([r.width for r in c], [33, 34, 33])
         self.assertEqual(c[0].right, c[1].x)
         self.assertEqual(c[1].right, c[2].x)
         self.assertEqual(c[2].right, 100)
 
     def test_percent_entry(self):
-        c = self.cols(["25%", "1fr"])
+        c = self.cols(["25%", "1frac"])
         self.assertEqual([r.width for r in c], [250, 750])
 
-    def test_without_fr_last_child_absorbs_leftover(self):
+    def test_without_frac_last_child_absorbs_leftover(self):
         c = self.cols(["200px", "300px"])
         self.assertEqual([r.width for r in c], [200, 800])
 
-    def test_fr_with_visible_basis(self):
-        c = self.cols(["300px", "1fr"], margin=8, at_basis="visible")
+    def test_frac_with_visible_basis(self):
+        c = self.cols(["300px", "1frac"], margin=8, at_basis="visible")
         self.assertEqual(c[0].width, 308)
 
     def test_sizes_exceed_area(self):
         with self.assertRaises(GeometryError):
-            self.cols(["800px", "800px", "1fr"])
+            self.cols(["800px", "800px", "1frac"])
 
     def test_sizes_length_mismatch(self):
-        layout = {"split": {"dir": "v", "sizes": ["1fr"], "children": [leaf(), leaf()]}}
+        layout = {"split": {"dir": "v", "sizes": ["1frac"], "children": [leaf(), leaf()]}}
         with self.assertRaises(GeometryError):
             compute(layout, AREA)
 
@@ -253,8 +253,8 @@ class PropertyTest(unittest.TestCase):
         d = rng.choice(["v", "h"])
         if rng.random() < 0.4:
             n = rng.randint(2, 4)
-            return {"dir": d, "sizes": [rng.choice(["1fr", "2fr", "25%"]) for _ in range(n - 1)]
-                    + ["1fr"],
+            return {"dir": d, "sizes": [rng.choice(["1frac", "2frac", "25%"]) for _ in range(n - 1)]
+                    + ["1frac"],
                     "children": [PropertyTest.random_node(rng, depth - 1) for _ in range(n)]}
         at = rng.choice([f"{rng.randint(30, 70)}%", f"-{rng.randint(30, 70)}%"])
         return {"dir": d, "at": at,
@@ -333,7 +333,7 @@ class ErrorTest(unittest.TestCase):
         self.check({"split": {"dir": "v", "children": []}})
 
     def test_bad_at(self):
-        for at in ("abc", "50 %%", "1fr", "0%", "0px", True, None, "--5px"):
+        for at in ("abc", "50 %%", "1frac", "0%", "0px", True, None, "--5px"):
             with self.subTest(at=at):
                 self.check({"split": {"dir": "v", "at": at, "a": leaf(), "b": leaf()}})
 

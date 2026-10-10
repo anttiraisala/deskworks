@@ -17,8 +17,8 @@ Rules (SPEC.md section 3):
   exactly `outer_margin`; it is not counted twice.
 * All split boundaries are rounded to integers once, and adjacent panes share
   the same boundary value, so there are no gaps and no overlaps.
-* Sizes: `N%` of the area being split, `Npx`, `Nfr` (share of the space left
-  over, `sizes` only). A bare number means pixels. If `sizes` has no `fr`
+* Sizes: `N%` of the area being split, `Npx`, `Nfrac` (share of the space left
+  over, `sizes` only). A bare number means pixels. If `sizes` has no `frac`
   entry, the last child absorbs the leftover space.
 * `at_basis: "visible"` makes a pixel size the size of the visible window
   instead of the pre-margin rectangle. It uses the margin of the split node,
@@ -63,7 +63,7 @@ class LeafRect:
 
 @dataclass(frozen=True)
 class _Size:
-    kind: str        # "px" | "%" | "fr"
+    kind: str        # "px" | "%" | "frac"
     value: float
 
 
@@ -74,7 +74,7 @@ class _Ctx:
     outer: bool      # outer_margin is set
 
 
-_SIZE_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*(px|%|fr)?\s*$")
+_SIZE_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*(px|%|frac)?\s*$")
 _VERTICAL = {"v", "vertical"}
 _HORIZONTAL = {"h", "horizontal"}
 _SPLIT_KEYS = {"dir", "a", "b", "at", "children", "sizes"}
@@ -95,7 +95,7 @@ def _margin(value: Any, what: str) -> int:
 
 
 def _parse_size(value: Any, what: str, *, allow_negative: bool = False,
-                allow_fr: bool = True) -> _Size:
+                allow_frac: bool = True) -> _Size:
     if isinstance(value, bool):
         raise GeometryError(f"{what}: invalid size {value!r}")
     if isinstance(value, (int, float)):
@@ -104,11 +104,11 @@ def _parse_size(value: Any, what: str, *, allow_negative: bool = False,
         text = str(value)
     m = _SIZE_RE.match(text)
     if not m:
-        raise GeometryError(f"{what}: invalid size {value!r} (use 60%, 300px, 1fr)")
+        raise GeometryError(f"{what}: invalid size {value!r} (use 60%, 300px, 1frac)")
     number, kind = float(m[1]), m[2] or "px"
-    if kind == "fr" and not allow_fr:
-        raise GeometryError(f"{what}: 'fr' is only allowed in 'sizes', got {value!r}")
-    if number == 0 or (number < 0 and not (allow_negative and kind != "fr")):
+    if kind == "frac" and not allow_frac:
+        raise GeometryError(f"{what}: 'frac' is only allowed in 'sizes', got {value!r}")
+    if number == 0 or (number < 0 and not (allow_negative and kind != "frac")):
         raise GeometryError(f"{what}: size must be positive, got {value!r}")
     return _Size(kind, number)
 
@@ -220,7 +220,7 @@ def _children_and_sizes(node: dict, where: str) -> tuple[list, list[_Size]]:
             raise GeometryError(f"{where}: 'children' must be a non-empty list")
         raw = node.get("sizes")
         if raw is None:
-            return children, [_Size("fr", 1.0)] * len(children)
+            return children, [_Size("frac", 1.0)] * len(children)
         if not isinstance(raw, list) or len(raw) != len(children):
             raise GeometryError(
                 f"{where}: 'sizes' must be a list with one entry per child")
@@ -232,8 +232,8 @@ def _children_and_sizes(node: dict, where: str) -> tuple[list, list[_Size]]:
     if "a" not in node or "b" not in node:
         raise GeometryError(f"{where}: a split needs both 'a' and 'b' (or 'children')")
     at = _parse_size(node.get("at", "50%"), f"{where} at",
-                     allow_negative=True, allow_fr=False)
-    rest = _Size("fr", 1.0)
+                     allow_negative=True, allow_frac=False)
+    rest = _Size("frac", 1.0)
     if at.value > 0:
         sizes = [at, rest]
     else:
@@ -245,10 +245,10 @@ def _distribute(sizes: list[_Size], extent: int, insets: list[tuple[int, int]],
                 basis: str, where: str) -> list[float]:
     out: list[Optional[float]] = [None] * len(sizes)
     fixed = 0.0
-    fr_total = 0.0
+    frac_total = 0.0
     for i, s in enumerate(sizes):
-        if s.kind == "fr":
-            fr_total += s.value
+        if s.kind == "frac":
+            frac_total += s.value
             continue
         if s.kind == "px":
             e = s.value + (sum(insets[i]) if basis == "visible" else 0)
@@ -259,10 +259,10 @@ def _distribute(sizes: list[_Size], extent: int, insets: list[tuple[int, int]],
     remaining = extent - fixed
     if remaining < -1e-9:
         raise GeometryError(f"{where}: sizes exceed the available {extent}px")
-    if fr_total > 0:
+    if frac_total > 0:
         for i, s in enumerate(sizes):
-            if s.kind == "fr":
-                out[i] = remaining * s.value / fr_total
+            if s.kind == "frac":
+                out[i] = remaining * s.value / frac_total
     else:
         out[-1] = (out[-1] or 0.0) + remaining
     return [float(v) for v in out]  # type: ignore[arg-type]
