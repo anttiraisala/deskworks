@@ -110,6 +110,10 @@ Puuttuu tai kesken:
 - editorin merkkiruudukon esikatselu
 - Compiz/Unityn työtilat (ne toteutetaan siellä eri tavalla)
 
+Uusien toimintojen ehdotukset ja suositeltu järjestys ovat SPEC.md:n luvussa 6
+("Open work and proposals"). Seuraavaksi suositeltu: `--watch` ja lokitiedosto,
+sitten `--install-autostart` ja `--install-shortcut`, sitten `--dry-run --ascii`.
+
 Kehitys tehdään haarassa `claude-personal`; `master` pidetään ennallaan, kunnes
 omistaja päättää yhdistää.
 
