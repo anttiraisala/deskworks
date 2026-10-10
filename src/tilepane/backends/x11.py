@@ -20,6 +20,7 @@ from . import BackendError, Placement, WindowInfo
 _SOURCE_APPLICATION = 1 << 12
 _HAS_XYWH = (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11)
 _GRAVITY_NORTH_WEST = 1
+_ALL_DESKTOPS = 0xFFFFFFFF
 
 
 def available() -> tuple[bool, str]:
@@ -86,7 +87,9 @@ class X11Backend:
             title = name.value.decode(errors="replace") if name is not None else (win.get_wm_name() or "")
             if isinstance(title, bytes):
                 title = title.decode(errors="replace")
-            return WindowInfo(wid, (cls[0], cls[1]), pid[0] if pid else None, title)
+            desk = self._cardinals(win, "_NET_WM_DESKTOP")
+            desktop = desk[0] if desk and desk[0] != _ALL_DESKTOPS else None
+            return WindowInfo(wid, (cls[0], cls[1]), pid[0] if pid else None, title, desktop)
         except error.XError:
             return None
 
@@ -105,6 +108,25 @@ class X11Backend:
             if time.monotonic() >= deadline:
                 return None
             time.sleep(0.05)
+
+    # --- workspaces (EWMH desktops) -------------------------------------------
+
+    def current_desktop(self) -> Optional[int]:
+        vals = self._cardinals(self.root, "_NET_CURRENT_DESKTOP")
+        return vals[0] if vals else None
+
+    def desktop_count(self) -> Optional[int]:
+        vals = self._cardinals(self.root, "_NET_NUMBER_OF_DESKTOPS")
+        return vals[0] if vals else None
+
+    def move_to_desktop(self, window_id: int, desktop: int) -> None:
+        from Xlib import error
+
+        try:
+            self._send(self._window(window_id), "_NET_WM_DESKTOP", [desktop, 1, 0, 0, 0])
+        except error.XError as exc:
+            raise BackendError(f"window {window_id:#x} could not be moved to workspace "
+                               f"{desktop + 1}: {exc}") from exc
 
     def close(self, window_id: int) -> None:
         self._send(self._window(window_id), "_NET_CLOSE_WINDOW",

@@ -90,3 +90,11 @@ Implemented:
 - Dry-run shows a pane's title in brackets before its command.
 - Not checked live: this was built in a container without an X server or terminals, so the demo has not been opened on a real screen yet. `tilepane --demo --monitor 3` on the development machine is the check.
 - 294 tests pass (5 live tests skipped).
+
+### 2026-10-10: workspaces
+- Requested by the user: windows opened on one workspace must survive opening the same layout on another workspace, and `--close` closes on the current workspace by default.
+- State records carry the workspace (EWMH `_NET_WM_DESKTOP`, refreshed from the window on every run; sticky windows match every workspace). Reconcile, `--toggle`, demo replacement and `--close` (including `--close all`) work on the current workspace. `--workspace N` (1-based, as desktops number them) picks another; `--workspace all` (with `--close` only) closes everywhere. New windows opened with `--workspace N` are moved there.
+- Closing now checks that windows went away and asks once more; a window that stays open is reported (exit code 1) and kept in the state. Found while testing: under Openbox two runs left windows open after `--close` and the cause could not be pinned down (40 later attempts were clean). Terminals are never killed, because one gnome-terminal server owns every tilepane window.
+- Closing a window with its close button was already handled (dead windows are dropped on every run; reopening opens just that pane).
+- Tested live for the first time in a container: Xvfb + Openbox (4 workspaces) + xterm. Demo, workspace separation, `--workspace 3`, `--close` per workspace and `--workspace all`, `--toggle --workspace 1` all behaved as described; the xterm live tests pass there too. Not tested: Cinnamon itself, gnome-terminal, Compiz viewports (not told apart yet).
+- 311 tests pass.

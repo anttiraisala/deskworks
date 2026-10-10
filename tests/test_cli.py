@@ -114,6 +114,15 @@ class ParseTest(unittest.TestCase):
             with self.subTest(argv=argv), self.assertRaises(UsageError):
                 parse(argv)
 
+    def test_workspace_option(self):
+        self.assertEqual(parse(["a.json"]).workspace, "current")
+        self.assertEqual(parse(["a.json", "--workspace", "2"]).workspace, "2")
+        self.assertEqual(parse(["--close", "all", "--workspace", "all"]).workspace, "all")
+        for argv in (["a.json", "--workspace", "0"], ["a.json", "--workspace", "x"],
+                     ["a.json", "--workspace", "all"], ["--toggle", "a.json", "--workspace", "all"]):
+            with self.subTest(argv=argv), self.assertRaises(UsageError):
+                parse(argv)
+
     def test_for_works_with_layout_files(self):
         self.assertEqual(parse(["a.json", "--for", "30s"]).lifetime, 30.0)
 

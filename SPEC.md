@@ -37,7 +37,7 @@ tilepane --explain on_exit                     # print the description of a conf
 tilepane --demo                                # random split with fun commands (see section 10)
 ```
 
-Other options: `--for DURATION` (close the windows opened in this run after that long, see section 10), `-v`/`--verbose` (print decisions: chosen terminal, monitor, rectangles), `--strict` (unknown configuration keys are errors), `--wait-monitors N` (retry monitor detection for up to N seconds, for use at login), `--eval-when` (with `--dry-run`: evaluate `when` conditions; by default dry-run runs nothing), `--version`, `-h`/`--help`.
+Other options: `--workspace N|current|all` (see State management), `--for DURATION` (close the windows opened in this run after that long, see section 10), `-v`/`--verbose` (print decisions: chosen terminal, monitor, rectangles), `--strict` (unknown configuration keys are errors), `--wait-monitors N` (retry monitor detection for up to N seconds, for use at login), `--eval-when` (with `--dry-run`: evaluate `when` conditions; by default dry-run runs nothing), `--version`, `-h`/`--help`.
 
 ### Argument interpretation
 
@@ -182,7 +182,7 @@ Backends are chosen at runtime (`$XDG_SESSION_TYPE`, `$XDG_CURRENT_DESKTOP`, the
 
 - No resident process (except `--watch`, the editor and a possible daemon). Each pane runs a small wrapper (`python -m tilepane.runner <spec>`) inside the terminal; it handles `run` lists, `on_exit`, restarts, `cycle` mode and `--for`, which avoids shell quoting problems.
 - A window counts as opened when its map event is seen; timeout 5 s per window. A window that never appears fails the task and the other tasks continue. Windows are started in parallel where the terminal allows it.
-- Panes are opened one after another; the new window is the one that appears in the window list after the terminal starts (class `tilepane` narrows it down). Stacking order follows task and pane order (last on top). Focus is not changed unless a leaf is marked for it (reserved). Windows open on the current workspace unless `workspace` is set (reserved).
+- Panes are opened one after another; the new window is the one that appears in the window list after the terminal starts (class `tilepane` narrows it down). Stacking order follows task and pane order (last on top). Focus is not changed unless a leaf is marked for it (reserved). Windows open on the current workspace, or on the one given with `--workspace N` (see State management). A `workspace` key in the layout file is reserved.
 - With `--wait-monitors N`, monitor detection and alias resolution are retried for up to N seconds; use it in autostart, where monitors or panels may not be ready at login.
 
 ### Terminals
@@ -194,6 +194,15 @@ Backends are chosen at runtime (`$XDG_SESSION_TYPE`, `$XDG_CURRENT_DESKTOP`, the
 The program marks the windows it opens (class/instance + PID + a state file in `~/.local/state/tilepane/`). The state key is (absolute config path, layout name, monitor connector). `--close NAME` closes every instance of that layout on every monitor (narrow it with `--monitor`); `--close all` closes everything tilepane opened. `--toggle` works per task: a task is open when at least one of its windows is alive. Stale state (reboot, crash, windows closed by hand) is detected by checking that the recorded windows still exist.
 
 If a layout is already open, tilepane reconciles instead of opening duplicates: windows are matched to panes by leaf id and re-placed, missing ones are opened, and extra ones are closed only with `--prune`.
+
+**Workspaces.** Every record also holds the workspace (EWMH desktop) its window is on, read from the window itself on every run, so a window moved to another workspace by hand belongs to that one and a window on all workspaces matches any. A layout instance is (state key, workspace):
+
+- Opening, re-placing, `--toggle` and a new `--demo` work on the current workspace. A layout opened on workspace 1 and again on workspace 2 has two sets of windows; the first set is left alone.
+- `--close NAME` and `--close all` close on the current workspace only. `--workspace N` picks another one, `--workspace all` closes on every workspace.
+- `--workspace N` (1 = the first workspace, as desktops show them) also opens on that workspace: new windows are moved there after they appear.
+- A window manager that reports no workspaces behaves as one workspace. Compiz/Unity implements workspaces as viewports of one large desktop, which this does not tell apart (a later addition).
+
+Closing asks each window to close (`_NET_CLOSE_WINDOW`), checks that it went, and asks once more. A window that still stays open is reported and kept in the state, so the next `--close` tries it again. tilepane never kills a terminal process: with gnome-terminal one server owns every tilepane window. A window closed by hand (its close button) is noticed the next time tilepane runs: it is dropped from the state, and opening the layout again opens only that pane.
 
 ## 5. Browser editor (`tilepane --edit`)
 
@@ -214,7 +223,7 @@ The local server can write files and, through "Test here", start commands from J
 - Layout inheritance/templates (`"extends": "3"`, reusable `templates`).
 - GNOME shortcut and autostart examples in the README; `tilepane --install-autostart`.
 - Borderless, always-on-top, sticky (on all workspaces) options: `above`, `sticky`, `workspace`, `skip_taskbar`, `below`.
-- Per-workspace opening (`"workspace": 2`).
+- A `workspace` key in the layout file (the command line option `--workspace` exists).
 - `tilepane --snapshot`: save the current window arrangement as a layout.
 - Shell completion for layout and monitor names.
 - `--watch`: when the JSON file is saved (or the editor saves it), the layout is updated on screen immediately.

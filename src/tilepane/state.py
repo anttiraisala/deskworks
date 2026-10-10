@@ -1,8 +1,8 @@
 """State file: which windows tilepane opened (SPEC.md section 4, state management).
 
 One JSON file in `$XDG_STATE_HOME/tilepane/` (default ~/.local/state/tilepane/).
-A record ties a window to the key (config path, layout name, monitor connector)
-and the pane (leaf id) it belongs to. Updates are done under a file lock and
+A record ties a window to the key (config path, layout name, monitor connector),
+the pane (leaf id) and the workspace it belongs to. Updates are done under a file lock and
 written atomically, so two tilepane runs cannot corrupt each other.
 """
 
@@ -29,6 +29,10 @@ class Record:
     leaf: str            # leaf id
     pid: Optional[int] = None
     opened: float = field(default_factory=time.time)
+    # Workspace (0-based) the window is on; None when it is on all of them or the
+    # window manager has none. Refreshed from the window itself on every run, so
+    # a window moved to another workspace by hand belongs to that one.
+    workspace: Optional[int] = None
 
     @property
     def key(self) -> tuple[str, str, str]:

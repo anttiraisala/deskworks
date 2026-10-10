@@ -13,13 +13,16 @@ class FakeBackend:
 
     name = "fake"
 
-    def __init__(self, appear=True, wm_class=("tilepane", "tilepane")):
+    def __init__(self, appear=True, wm_class=("tilepane", "tilepane"), desktop=None):
         self.appear = appear
+        self.desktop = desktop          # current workspace; None: no workspaces
+        self.desktops: dict[int, object] = {}
         self.wm_class = wm_class
         self._next = 1
         self._open: set[int] = set()
         self.placed: list[tuple[int, object, str]] = []
         self.closed: list[int] = []
+        self.refuse: set[int] = set()   # windows that ignore close requests
         self.disconnected = False
 
     def windows(self):
@@ -33,7 +36,8 @@ class FakeBackend:
         wid = self._next
         self._next += 1
         self._open.add(wid)
-        info = WindowInfo(wid, self.wm_class, 100, "t")
+        self.desktops[wid] = self.desktop
+        info = WindowInfo(wid, self.wm_class, 100, "t", self.desktop)
         return info if match(info) else None
 
     def place(self, window_id, target, snap, decorations=True):
@@ -45,12 +49,22 @@ class FakeBackend:
         return Extents(0, 0, 30, 0), Extents(), SizeHints(14, 2, 10, 22, 54, 46)
 
     def find(self, wm_class):
-        return [WindowInfo(w, self.wm_class, 100, "t") for w in sorted(self._open)
-                if self.wm_class[1] == wm_class]
+        return [WindowInfo(w, self.wm_class, 100, "t", self.desktops.get(w))
+                for w in sorted(self._open) if self.wm_class[1] == wm_class]
+
+    def current_desktop(self):
+        return self.desktop
+
+    def desktop_count(self):
+        return None if self.desktop is None else 4
+
+    def move_to_desktop(self, window_id, desktop):
+        self.desktops[window_id] = desktop
 
     def close(self, window_id):
         self.closed.append(window_id)
-        self._open.discard(window_id)
+        if window_id not in self.refuse:
+            self._open.discard(window_id)
 
     def vanish(self, window_id):
         """The user closed this window by hand."""

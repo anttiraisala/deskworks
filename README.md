@@ -107,9 +107,23 @@ tilepane --explain on_exit                            # describe any configurati
 
 Without installing: `PYTHONPATH=src python3 -m tilepane.cli --dry-run examples/meters.json`.
 
+## Workspaces
+
+tilepane keeps each workspace separate. Open a layout on workspace 1, switch to workspace 2 and open it again: workspace 2 gets its own windows, and the ones on workspace 1 stay where they are.
+
+```
+tilepane examples/meters.json                  # opens on the current workspace
+tilepane examples/meters.json --workspace 3    # opens on workspace 3 (1 = first)
+tilepane --close all                           # closes tilepane's windows on this workspace only
+tilepane --close all --workspace 2             # ... on workspace 2
+tilepane --close all --workspace all           # ... on every workspace
+```
+
+`--toggle` and `--demo` also work per workspace. You can close any window normally with its close button; tilepane notices it the next time it runs, and opening the layout again brings back just that pane. A window you move to another workspace by hand counts as part of that workspace from then on.
+
 ## Status
 
-The project is under construction. Implemented so far: environment check, monitor numbering and per-monitor work area, the geometry engine, configuration loading and validation, `--dry-run`, opening windows on X11 with gnome-terminal or xterm, window state (`--close`, `--toggle`, re-placing open layouts), `snap`, `decorations` and `--demo`. The browser editor and the Wayland backends follow the plan in [SPEC.md](SPEC.md); progress is in [PROGRESS.md](PROGRESS.md).
+The project is under construction. Implemented so far: environment check, monitor numbering and per-monitor work area, the geometry engine, configuration loading and validation, `--dry-run`, opening windows on X11 with gnome-terminal or xterm, window state (`--close`, `--toggle`, re-placing open layouts), workspaces, `snap`, `decorations` and `--demo`. The browser editor and the Wayland backends follow the plan in [SPEC.md](SPEC.md); progress is in [PROGRESS.md](PROGRESS.md).
 
 ## Configuration
 

@@ -20,7 +20,8 @@ Open terminal windows at precisely defined screen positions.
                                          several tasks; --monitor and --layout
                                          belong to the task before them
   tilepane --dry-run FILE [NAME]         print the computed rectangles only
-  tilepane --close 3                     close the windows of layout 3 (--close all: everything)
+  tilepane --close 3                     close the windows of layout 3 on this workspace
+                                         (--close all: everything; --workspace all: everywhere)
   tilepane --toggle 3                    open if closed, close if open
   tilepane --demo [N]                    random layout with N fun commands (3-6 by default)
   tilepane --list [FILE]                 list layouts
@@ -32,6 +33,8 @@ options:
   --json FILE, --config FILE   start a task with this layout file
   --layout NAME                select a layout in the current task
   --monitor SPEC               number, connector, alias, primary, all; comma-separated
+  --workspace SPEC             current (default), a workspace number (1 = first),
+                               or with --close: all
   --dry-run                    compute and print, open nothing
   --eval-when                  with --dry-run: evaluate 'when' conditions
   --prune                      when re-opening, close windows whose pane no longer exists
@@ -48,7 +51,7 @@ Key reference: docs/CONFIG.md, or tilepane --explain KEY.
 """
 
 VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--wait-monitors",
-                 "--for", "--seed", "--save"}
+                 "--for", "--seed", "--save", "--workspace"}
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
                 "--close", "--toggle", "--prune", "--demo",
                 "--monitors", "--list", "--version", "--help", "-h"}
@@ -84,6 +87,7 @@ class Invocation:
     seed: Optional[str] = None
     save: Optional[str] = None
     lifetime: Optional[float] = None      # --for, in seconds
+    workspace: str = "current"            # "current", "all" or a 1-based number
 
 
 def is_file_argument(arg: str) -> bool:
@@ -176,6 +180,11 @@ def parse(argv: list[str]) -> Invocation:
                 inv.lifetime = parse_duration(value)
             except DemoError as exc:
                 raise UsageError(str(exc)) from None
+        elif opt == "--workspace":
+            if value not in ("current", "all") and not (value.isdigit() and int(value) >= 1):
+                raise UsageError(f"--workspace takes current, all or a workspace number "
+                                 f"(1 = first), got '{value}'")
+            inv.workspace = value
         elif opt == "--seed":
             inv.seed = value
         elif opt == "--save":
@@ -222,6 +231,8 @@ def parse(argv: list[str]) -> Invocation:
     else:
         if not argv:
             inv.action = "help"
+    if inv.workspace == "all" and inv.action != "close":
+        raise UsageError("--workspace all only works with --close")
     if inv.action in ("close", "toggle") and not inv.tasks:
         raise UsageError(f"--{inv.action} needs a layout name or a file"
                          + (" (or 'all')" if inv.action == "close" else ""))

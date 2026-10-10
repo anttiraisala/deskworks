@@ -23,6 +23,7 @@ class WindowInfo:
     wm_class: tuple[str, str]     # (instance, class)
     pid: Optional[int]
     title: str
+    desktop: Optional[int] = None   # workspace (0-based); None: on all, or not known
 
 
 @dataclass
@@ -53,6 +54,12 @@ class Backend(Protocol):
     def metrics(self, window_id: int) -> Optional[tuple]: ...
 
     def find(self, wm_class: str) -> list[WindowInfo]: ...
+
+    def current_desktop(self) -> Optional[int]: ...
+
+    def desktop_count(self) -> Optional[int]: ...
+
+    def move_to_desktop(self, window_id: int, desktop: int) -> None: ...
 
     def close(self, window_id: int) -> None: ...
 

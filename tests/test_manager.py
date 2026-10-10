@@ -151,6 +151,74 @@ class ManagerTest(unittest.TestCase):
         self.assertEqual((self.backend._open, self.store.load()), (set(), []))
         self.assertEqual(self.mgr.close(), 0)
 
+    def test_workspaces_keep_their_own_windows(self):
+        self.backend.desktop = 0
+        self.mgr.open_unit(self.KEY, [self.left, self.right], workspace=0)
+        self.backend.desktop = 1
+        rep = self.mgr.open_unit(self.KEY, [self.left, self.right], workspace=1)
+        self.assertEqual((rep.opened, rep.replaced), (2, 0))
+        self.assertEqual(len(self.backend._open), 4)
+        # Opening again on workspace 0 re-places that workspace's windows only.
+        rep = self.mgr.open_unit(self.KEY, [self.left, self.right], workspace=0)
+        self.assertEqual((rep.opened, rep.replaced), (0, 2))
+        self.assertEqual(sorted(r.workspace for r in self.store.load()), [0, 0, 1, 1])
+
+    def test_close_on_one_workspace(self):
+        for ws in (0, 1):
+            self.backend.desktop = ws
+            self.mgr.open_unit(self.KEY, [self.left], workspace=ws)
+        self.assertEqual(self.mgr.close(workspace=1), 1)
+        self.assertEqual([r.workspace for r in self.store.load()], [0])
+        self.assertEqual(self.mgr.close(workspace=None), 1)
+
+    def test_is_open_per_workspace(self):
+        self.backend.desktop = 0
+        self.mgr.open_unit(self.KEY, [self.left], workspace=0)
+        self.assertTrue(self.mgr.is_open(self.KEY, 0))
+        self.assertFalse(self.mgr.is_open(self.KEY, 1))
+        self.assertTrue(self.mgr.is_open(self.KEY, None))
+
+    def test_window_moved_by_hand_follows_its_workspace(self):
+        self.backend.desktop = 0
+        self.mgr.open_unit(self.KEY, [self.left], workspace=0)
+        xid = self.store.load()[0].xid
+        self.backend.move_to_desktop(xid, 2)
+        self.assertFalse(self.mgr.is_open(self.KEY, 0))
+        self.assertEqual(self.store.load()[0].workspace, 2)
+
+    def test_window_on_all_workspaces_matches_any(self):
+        self.backend.desktop = 0
+        self.mgr.open_unit(self.KEY, [self.left], workspace=0)
+        self.backend.move_to_desktop(self.store.load()[0].xid, None)   # made sticky
+        rep = self.mgr.open_unit(self.KEY, [self.left], workspace=3)
+        self.assertEqual((rep.opened, rep.replaced), (0, 1))
+
+    def test_opening_on_another_workspace_moves_new_windows(self):
+        self.backend.desktop = 0
+        self.mgr.open_unit(self.KEY, [self.left], workspace=2)
+        xid = self.store.load()[0].xid
+        self.assertEqual(self.backend.desktops[xid], 2)
+        self.assertEqual(self.store.load()[0].workspace, 2)
+
+    def test_no_workspaces_behaves_as_one(self):
+        self.mgr.open_unit(self.KEY, [self.left], workspace=None)
+        rep = self.mgr.open_unit(self.KEY, [self.left], workspace=None)
+        self.assertEqual((rep.opened, rep.replaced), (0, 1))
+
+    def test_window_that_ignores_close_is_asked_again_and_kept(self):
+        self.mgr.close_timeout = 0.05
+        self.mgr.open_unit(self.KEY, [self.left, self.right])
+        stubborn = self.store.load()[0].xid
+        self.backend.refuse.add(stubborn)
+        self.assertEqual(self.mgr.close(), 1)
+        self.assertEqual(self.mgr.refused, [stubborn])
+        self.assertEqual(self.backend.closed.count(stubborn), 2)
+        self.assertEqual([r.xid for r in self.store.load()], [stubborn])
+        # The next close tries it again.
+        self.backend.refuse.clear()
+        self.assertEqual(self.mgr.close(), 1)
+        self.assertEqual((self.mgr.refused, self.store.load()), ([], []))
+
     def test_source_path_is_absolute(self):
         self.assertEqual(manager.source_path("x.json", "/d.json"), os.path.abspath("x.json"))
         self.assertEqual(manager.source_path(None, "/d.json"), "/d.json")
@@ -244,3 +312,100 @@ class CliStateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CliWorkspaceTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = os.path.join(self.tmp.name, "a.json")
+        with open(self.path, "w") as fh:
+            json.dump(LAYOUT, fh)
+        self.backend = FakeBackend(desktop=0)
+        self.store = StateStore(os.path.join(self.tmp.name, "state"))
+        fake_terminals_on_path(self)
+
+    def run_cli(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(list(argv), out=out, err=err, detected=MONS, backend=self.backend,
+                        popen=lambda *a, **k: None, store=self.store)
+        return code, out.getvalue(), err.getvalue()
+
+    def on(self, ws):
+        self.backend.desktop = ws
+
+    def test_reopen_on_another_workspace_keeps_the_old_windows(self):
+        self.run_cli(self.path)
+        self.on(1)
+        code, out, err = self.run_cli(self.path)
+        self.assertEqual(code, 0, err)
+        self.assertIn("(workspace 2): 2 opened, 0 re-placed", out)
+        self.assertEqual(self.backend.closed, [])
+        self.assertEqual(len(self.backend._open), 4)
+
+    def test_close_defaults_to_the_current_workspace(self):
+        self.run_cli(self.path)
+        self.on(1)
+        self.run_cli(self.path)
+        code, out, _ = self.run_cli("--close", "all")
+        self.assertIn("closed 2 window(s) (workspace 2)", out)
+        self.assertEqual(len(self.backend._open), 2)
+        self.on(0)
+        code, out, _ = self.run_cli("--close", self.path, "two")
+        self.assertIn("closed 2 window(s)", out)
+        self.assertEqual(self.backend._open, set())
+
+    def test_close_on_all_or_a_given_workspace(self):
+        self.run_cli(self.path)
+        self.on(1)
+        self.run_cli(self.path)
+        self.on(2)
+        _, out, _ = self.run_cli("--close", "all", "--workspace", "1")
+        self.assertIn("closed 2 window(s) (workspace 1)", out)
+        self.run_cli(self.path)
+        _, out, _ = self.run_cli("--close", "all", "--workspace", "all")
+        self.assertIn("closed 4 window(s)", out)
+        self.assertEqual(self.backend._open, set())
+
+    def test_toggle_is_per_workspace(self):
+        self.run_cli("--toggle", self.path)
+        self.on(1)
+        _, out, _ = self.run_cli("--toggle", self.path)
+        self.assertIn("2 opened", out)
+        _, out, _ = self.run_cli("--toggle", self.path)
+        self.assertIn("(workspace 2): closed 2", out)
+        self.assertEqual(len(self.backend._open), 2)
+
+    def test_open_on_a_given_workspace(self):
+        code, out, err = self.run_cli(self.path, "--workspace", "3")
+        self.assertEqual(code, 0, err)
+        self.assertIn("(workspace 3)", out)
+        self.assertEqual(set(self.backend.desktops.values()), {2})
+
+    def test_demo_replaces_only_on_the_same_workspace(self):
+        self.run_cli("--demo", "2", "--seed", "1")
+        self.on(1)
+        self.run_cli("--demo", "2", "--seed", "1")
+        self.assertEqual(self.backend.closed, [])
+        self.run_cli("--demo", "3", "--seed", "2")
+        self.assertEqual(len(self.backend.closed), 2)
+        self.assertEqual(len(self.backend._open), 5)
+
+    def test_close_reports_windows_that_stay_open(self):
+        manager.Manager.close_timeout, old = 0.05, manager.Manager.close_timeout
+        self.addCleanup(setattr, manager.Manager, "close_timeout", old)
+        self.run_cli(self.path)
+        self.backend.refuse.add(min(self.backend._open))
+        code, out, err = self.run_cli("--close", "all")
+        self.assertEqual(code, 1)
+        self.assertIn("closed 1 window(s)", out)
+        self.assertIn("1 window(s) did not close", err)
+
+    def test_workspace_errors(self):
+        code, _, err = self.run_cli(self.path, "--workspace", "9")
+        self.assertEqual(code, 1)
+        self.assertIn("only 4 workspaces", err)
+        self.backend.desktop = None
+        code, _, err = self.run_cli(self.path, "--workspace", "2")
+        self.assertEqual(code, 1)
+        self.assertIn("does not report workspaces", err)

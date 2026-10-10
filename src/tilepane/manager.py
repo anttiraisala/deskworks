@@ -4,11 +4,17 @@ A layout instance is identified by its key: (config path, layout name, monitor
 connector). Opening a layout that is already open reconciles it: windows are
 matched to panes by leaf id and moved to the computed rectangles, missing panes
 are opened, and windows whose pane is gone are closed only with `prune`.
+
+Workspaces keep instances apart: a layout opened on workspace 1 and again on
+workspace 2 has two sets of windows. `workspace` arguments are 0-based EWMH
+desktop numbers; None matches every workspace (and is what a window manager
+without workspaces gives). A window on all workspaces matches any of them.
 """
 
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -39,26 +45,36 @@ class UnitReport:
 
 
 class Manager:
+    close_timeout = 2.0     # seconds to wait for a window to go after asking it to close
+
     def __init__(self, backend: Backend, store: StateStore, opener: Opener):
         self.backend, self.store, self.opener = backend, store, opener
-
-    def _alive(self) -> set[int]:
-        return {w.id for w in self.backend.find(WINDOW_CLASS)}
+        self.refused: list[int] = []      # windows the last close() could not close
 
     def _drop_dead(self, records: list[Record]) -> None:
-        alive = self._alive()
+        """Forget windows that are gone, and note which workspace the others are on now."""
+        alive = {w.id: w for w in self.backend.find(WINDOW_CLASS)}
         records[:] = [r for r in records if r.xid in alive]
+        for r in records:
+            r.workspace = alive[r.xid].desktop
 
-    def is_open(self, key: Key) -> bool:
+    @staticmethod
+    def _on(rec: Record, workspace: Optional[int]) -> bool:
+        return workspace is None or rec.workspace is None or rec.workspace == workspace
+
+    def is_open(self, key: Key, workspace: Optional[int] = None) -> bool:
         with self.store.transaction() as records:
             self._drop_dead(records)
-            return any(r.key == key for r in records)
+            return any(r.key == key and self._on(r, workspace) for r in records)
 
-    def open_unit(self, key: Key, leaves: list[LeafRect], *, prune: bool = False) -> UnitReport:
+    def open_unit(self, key: Key, leaves: list[LeafRect], *, prune: bool = False,
+                  workspace: Optional[int] = None) -> UnitReport:
         report = UnitReport()
+        # New windows appear on the current workspace; move them when another was asked for.
+        move = workspace is not None and self.backend.current_desktop() != workspace
         with self.store.transaction() as records:
             self._drop_dead(records)
-            mine = {r.leaf: r for r in records if r.key == key}
+            mine = {r.leaf: r for r in records if r.key == key and self._on(r, workspace)}
             wanted = {lr.leaf.get("id", lr.id) for lr in leaves if not lr.leaf.get("empty")}
 
             for lr in leaves:
@@ -74,8 +90,13 @@ class Manager:
                 else:
                     result = self.opener.open_pane(lr)
                     if result.ok and result.window_id is not None:
+                        if move:
+                            try:
+                                self.backend.move_to_desktop(result.window_id, workspace)
+                            except BackendError as exc:
+                                result.warnings.append(str(exc))
                         records.append(Record(result.window_id, *key, leaf_id,
-                                              pid=result.pid))
+                                              pid=result.pid, workspace=workspace))
                         report.opened += 1
                 report.results.append(result)
 
@@ -111,19 +132,39 @@ class Manager:
             pass
 
     def close(self, *, source: Optional[str] = None, layout: Optional[str] = None,
-              monitor: Optional[str] = None) -> int:
-        """Close the windows that match; None matches anything. Returns how many."""
-        count = 0
+              monitor: Optional[str] = None, workspace: Optional[int] = None) -> int:
+        """Close the windows that match; None matches anything. Returns how many closed.
+
+        A close request can be lost, so the windows are checked afterwards and
+        asked once more. Windows that still stay open are listed in `refused`
+        and kept in the state, so the next close tries them again.
+        """
+        self.refused = []
         with self.store.transaction() as records:
             self._drop_dead(records)
-            keep = []
-            for r in records:
-                if ((source is None or r.source == source)
-                        and (layout is None or r.layout == layout)
-                        and (monitor is None or r.monitor == monitor)):
-                    self._close(r.xid)
-                    count += 1
-                else:
-                    keep.append(r)
-            records[:] = keep
-        return count
+            chosen = [r for r in records
+                      if (source is None or r.source == source)
+                      and (layout is None or r.layout == layout)
+                      and (monitor is None or r.monitor == monitor)
+                      and self._on(r, workspace)]
+            if not chosen:
+                return 0
+            pending = {r.xid for r in chosen}
+            for attempt in range(2):
+                for xid in sorted(pending):
+                    self._close(xid)
+                pending = self._wait_gone(pending, self.close_timeout)
+                if not pending:
+                    break
+            self.refused = sorted(pending)
+            records[:] = [r for r in records if r not in chosen or r.xid in pending]
+        return len(chosen) - len(pending)
+
+    def _wait_gone(self, xids: set[int], timeout: float) -> set[int]:
+        """The windows of `xids` that are still open after waiting up to `timeout`."""
+        deadline = time.monotonic() + timeout
+        while True:
+            left = xids & self.backend.windows()
+            if not left or time.monotonic() >= deadline:
+                return left
+            time.sleep(0.05)
