@@ -37,3 +37,7 @@ Implementation follows the order in SPEC.md section 7. Newest entries last.
 
 ### 2026-10-10: rename
 - The fraction size unit is now `frac` instead of `fr` (`"sizes": ["1frac", "2frac", "300px"]`) in SPEC.md, geometry.py and tests.
+
+### 2026-10-10: spec review
+- `docs/SPEC-REVIEW.md`: plan for documenting JSON keys (schema as source of truth, generated `docs/CONFIG.md`, README quick start), 30+ numbered findings (A: schema decisions before step 3, B: backend risks, C: behaviour gaps, D: editor security, E: wording), and a list of extra feature ideas.
+- Decisions pending from the user: `dir` naming (A3), unknown-key policy (A2), leaf `id` and `when` panes (A4, A5), whether SPEC.md is updated with the proposals before step 3.
