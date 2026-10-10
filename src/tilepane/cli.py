@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass
 from typing import Iterator, Optional, TextIO
 
-from . import __version__, backends, config, docgen, doctor, geometry, monitors, opener, workarea
+from . import (__version__, backends, config, docgen, doctor, geometry, manager, monitors,
+               opener, state, workarea)
 from .invocation import HELP, Invocation, Task, UsageError, parse
 
 
@@ -56,7 +58,8 @@ def _format_result(result: opener.PaneResult, verbose: bool) -> str:
     a = p.actual
     cells = f"  {p.cols}x{p.rows} cells" if p.cols is not None else ""
     state = "" if p.exact else "  (window manager gave a different size)"
-    line = (f"  {result.id}: {result.terminal}  {a.x},{a.y} {a.width}x{a.height}{cells}{state}")
+    what = result.terminal if result.action == "opened" else "re-placed"
+    line = (f"  {result.id}: {what}  {a.x},{a.y} {a.width}x{a.height}{cells}{state}")
     if verbose:
         w = p.wanted
         line += (f"\n      wanted {w.x},{w.y} {w.width}x{w.height}; planned "
@@ -74,12 +77,17 @@ class _Unit:
     leaves: list[geometry.LeafRect]
     area: geometry.Rect
 
+    @property
+    def key(self) -> manager.Key:
+        return (os.path.abspath(self.cfg.source), self.name, self.monitor.name)
+
 
 class _Runner:
     def __init__(self, inv: Invocation, out: TextIO, err: TextIO,
                  detected: Optional[list[monitors.Monitor]], backend=None, popen=None,
-                 work_areas: Optional[dict] = None):
+                 work_areas: Optional[dict] = None, store: Optional[state.StateStore] = None):
         self.inv, self.out, self.err = inv, out, err
+        self._store = store
         self._backend, self._popen = backend, popen
         # Monitors handed in by a test: do not query X for the work area either.
         self._work: Optional[tuple[dict, str]] = (
@@ -193,26 +201,39 @@ class _Runner:
                   file=self.out if not self.failed else self.err)
         return 1 if self.failed else 0
 
-    def open_windows(self) -> int:
+    def _manager(self) -> tuple[Optional[manager.Manager], Optional[object]]:
         backend, reason = (self._backend, "") if self._backend else backends.choose()
         if backend is None:
-            self.error(f"cannot open windows: {reason}")
+            self.error(f"cannot reach the window system: {reason}")
+            return None, None
+        op = opener.Opener(backend, **({"popen": self._popen} if self._popen else {}))
+        return manager.Manager(backend, self._store or state.StateStore(), op), backend
+
+    def _report_unit(self, unit: _Unit, rep: manager.UnitReport) -> None:
+        total = len(rep.results)
+        print(f'layout "{unit.name}" on {_monitor_label(unit.monitor)}: '
+              f"{rep.opened} opened, {rep.replaced} re-placed"
+              + (f", {rep.pruned} pruned" if rep.pruned else "")
+              + (f", {len(rep.failed)} of {total} failed" if rep.failed else ""),
+              file=self.out)
+        for r in rep.results:
+            print(_format_result(r, self.inv.verbose), file=self.err if not r.ok else self.out)
+            for w in r.warnings:
+                print(f"  warning: {r.id}: {w}", file=self.err)
+        if rep.extra:
+            print(f"  note: windows for panes that no longer exist: {', '.join(rep.extra)} "
+                  "(--prune closes them)", file=self.out)
+
+    def open_windows(self) -> int:
+        mgr, backend = self._manager()
+        if mgr is None:
             return 1
         ok = 0
         try:
-            op = opener.Opener(backend, **({"popen": self._popen} if self._popen else {}))
             for unit in self.units(config.run_when):
-                results = op.open_layout(unit.leaves)
-                bad = [r for r in results if not r.ok]
-                print(f'layout "{unit.name}" on {_monitor_label(unit.monitor)}: '
-                      f"{len(results) - len(bad)} of {len(results)} windows opened",
-                      file=self.out)
-                for r in results:
-                    print(_format_result(r, self.inv.verbose),
-                          file=self.err if not r.ok else self.out)
-                    for w in r.warnings:
-                        print(f"  warning: {r.id}: {w}", file=self.err)
-                if bad:
+                rep = mgr.open_unit(unit.key, unit.leaves, prune=self.inv.prune)
+                self._report_unit(unit, rep)
+                if rep.failed:
                     self.failed += 1
                 else:
                     ok += 1
@@ -221,6 +242,68 @@ class _Runner:
         if ok + self.failed > 1 or self.failed:
             print(f"opened: {ok} ok, {self.failed} failed",
                   file=self.out if not self.failed else self.err)
+        return 1 if self.failed else 0
+
+    def toggle_windows(self) -> int:
+        mgr, backend = self._manager()
+        if mgr is None:
+            return 1
+        ok = 0
+        try:
+            for unit in self.units(config.run_when):
+                if mgr.is_open(unit.key):
+                    n = mgr.close(source=unit.key[0], layout=unit.name, monitor=unit.monitor.name)
+                    print(f'layout "{unit.name}" on {_monitor_label(unit.monitor)}: closed {n} '
+                          "window(s)", file=self.out)
+                    ok += 1
+                    continue
+                rep = mgr.open_unit(unit.key, unit.leaves, prune=self.inv.prune)
+                self._report_unit(unit, rep)
+                if rep.failed:
+                    self.failed += 1
+                else:
+                    ok += 1
+        finally:
+            backend.disconnect()
+        return 1 if self.failed else 0
+
+    def close_windows(self) -> int:
+        mgr, backend = self._manager()
+        if mgr is None:
+            return 1
+        tasks = self.inv.tasks
+        try:
+            if (len(tasks) == 1 and tasks[0].source is None and tasks[0].layouts == ["all"]):
+                n = mgr.close()
+                print(f"closed {n} window(s)", file=self.out)
+                return 0
+            for task in tasks:
+                source = manager.source_path(task.source, config.default_config_path())
+                names = list(dict.fromkeys(task.layouts)) or [None]
+                spec = task.monitor or self.inv.default_monitor
+                try:
+                    if spec:
+                        cfg = self.load(task)
+                        mons = [m.name for m in monitors.resolve_many(spec, self.monitors(), cfg.monitors)]
+                    else:
+                        mons = [None]
+                except config.ConfigError as exc:
+                    for e in exc.errors:
+                        self.error(e)
+                    self.failed += 1
+                    continue
+                except monitors.MonitorError as exc:
+                    self.error(f"{source}: {exc}")
+                    self.failed += 1
+                    continue
+                for name in names:
+                    count = sum(mgr.close(source=source, layout=name, monitor=m) for m in mons)
+                    label = f'layout "{name}"' if name else f"all layouts of {source}"
+                    where = f" on {', '.join(mons)}" if mons != [None] else ""
+                    print(f"{label}{where}: closed {count} window(s)" if count
+                          else f"{label}{where}: nothing was open", file=self.out)
+        finally:
+            backend.disconnect()
         return 1 if self.failed else 0
 
     def list_layouts(self) -> int:
@@ -242,7 +325,7 @@ class _Runner:
 def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
          err: Optional[TextIO] = None,
          detected: Optional[list[monitors.Monitor]] = None, backend=None, popen=None,
-         work_areas: Optional[dict] = None) -> int:
+         work_areas: Optional[dict] = None, store: Optional[state.StateStore] = None) -> int:
     out = out or sys.stdout
     err = err or sys.stderr
     try:
@@ -279,9 +362,13 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
         print(text, file=out)
         return 0
 
-    runner = _Runner(inv, out, err, detected, backend, popen, work_areas)
+    runner = _Runner(inv, out, err, detected, backend, popen, work_areas, store)
     if inv.action == "list":
         return runner.list_layouts()
+    if inv.action == "close":
+        return runner.close_windows()
+    if inv.action == "toggle":
+        return runner.toggle_windows()
     if inv.dry_run:
         return runner.dry_run()
     return runner.open_windows()

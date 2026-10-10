@@ -44,10 +44,16 @@ class FakeBackend:
         return Extents(0, 0, 30, 0), Extents(), SizeHints(14, 2, 10, 22, 54, 46)
 
     def find(self, wm_class):
-        return []
+        return [WindowInfo(w, self.wm_class, 100, "t") for w in sorted(self._open)
+                if self.wm_class[1] == wm_class]
 
     def close(self, window_id):
         self.closed.append(window_id)
+        self._open.discard(window_id)
+
+    def vanish(self, window_id):
+        """The user closed this window by hand."""
+        self._open.discard(window_id)
 
     def disconnect(self):
         self.disconnected = True

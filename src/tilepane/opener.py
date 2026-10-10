@@ -32,6 +32,8 @@ class PaneResult:
     ok: bool
     terminal: str = ""
     window_id: Optional[int] = None
+    pid: Optional[int] = None
+    action: str = "opened"          # "opened" or "replaced" (an existing window was moved)
     placement: Optional[Placement] = None
     warnings: list[str] = field(default_factory=list)
     error: Optional[str] = None
@@ -88,7 +90,7 @@ class Opener:
         for lr in leaves:
             if lr.leaf.get("empty"):
                 continue
-            result = self._open_pane(lr)
+            result = self.open_pane(lr)
             results.append(result)
             if on_result:
                 on_result(result)
@@ -110,7 +112,7 @@ class Opener:
             return None
         return terminals.Geometry(p.cols, p.rows, p.x, p.y)
 
-    def _open_pane(self, lr: LeafRect) -> PaneResult:
+    def open_pane(self, lr: LeafRect) -> PaneResult:
         leaf = lr.leaf
         pane_id = leaf.get("id", lr.id)
         result = PaneResult(pane_id, ok=False)
@@ -148,6 +150,7 @@ class Opener:
             result.error = f"no {term.name} window appeared within {self.timeout:g} s"
             return result
         result.window_id = win.id
+        result.pid = win.pid
 
         try:
             placement = self.backend.place(win.id, lr.rect, leaf.get("snap", "cell"))

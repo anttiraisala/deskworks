@@ -18,6 +18,8 @@ Open terminal windows at precisely defined screen positions.
                                          several tasks; --monitor and --layout
                                          belong to the task before them
   tilepane --dry-run FILE [NAME]         print the computed rectangles only
+  tilepane --close 3                     close the windows of layout 3 (--close all: everything)
+  tilepane --toggle 3                    open if closed, close if open
   tilepane --list [FILE]                 list layouts
   tilepane --explain KEY                 describe a configuration key
   tilepane --monitors                    list monitors (numbers, names, sizes)
@@ -29,6 +31,7 @@ options:
   --monitor SPEC               number, connector, alias, primary, all; comma-separated
   --dry-run                    compute and print, open nothing
   --eval-when                  with --dry-run: evaluate 'when' conditions
+  --prune                      when re-opening, close windows whose pane no longer exists
   --strict                     unknown configuration keys are errors
   --wait-monitors SECONDS      retry monitor detection for up to this long
   -v, --verbose                print more detail
@@ -40,9 +43,10 @@ Key reference: docs/CONFIG.md, or tilepane --explain KEY.
 
 VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--wait-monitors"}
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
+                "--close", "--toggle", "--prune",
                 "--monitors", "--list", "--version", "--help", "-h"}
 # Options from SPEC.md that exist but are built in a later step.
-NOT_YET = {"--close": 6, "--toggle": 6, "--prune": 6, "--demo": 7, "--for": 7,
+NOT_YET = {"--demo": 7, "--for": 7,
            "--seed": 7, "--save": 7, "--edit": 8, "--watch": 9}
 ALL_OPTIONS = VALUE_OPTIONS | FLAG_OPTIONS | set(NOT_YET)
 
@@ -60,10 +64,11 @@ class Task:
 
 @dataclass
 class Invocation:
-    action: str = "run"                   # run, help, version, doctor, monitors, list, explain
+    action: str = "run"                   # run, help, version, doctor, monitors, list, explain, close, toggle
     tasks: list[Task] = field(default_factory=list)
     dry_run: bool = False
     eval_when: bool = False
+    prune: bool = False
     strict: bool = False
     verbose: bool = False
     wait_monitors: float = 0.0
@@ -151,6 +156,10 @@ def parse(argv: list[str]) -> Invocation:
             inv.dry_run = True
         elif opt == "--eval-when":
             inv.eval_when = True
+        elif opt == "--prune":
+            inv.prune = True
+        elif opt in ("--close", "--toggle"):
+            actions.append(opt[2:])
         elif opt == "--strict":
             inv.strict = True
         elif opt in ("--verbose", "-v"):
@@ -166,11 +175,16 @@ def parse(argv: list[str]) -> Invocation:
         elif opt == "--list":
             actions.append("list")
 
-    for action in ("help", "version", "doctor", "monitors", "explain", "list"):
+    if "close" in actions and "toggle" in actions:
+        raise UsageError("--close and --toggle cannot be combined")
+    for action in ("help", "version", "doctor", "monitors", "explain", "list", "close", "toggle"):
         if action in actions:
             inv.action = action
             break
     else:
         if not argv:
             inv.action = "help"
+    if inv.action in ("close", "toggle") and not inv.tasks:
+        raise UsageError(f"--{inv.action} needs a layout name or a file"
+                         + (" (or 'all')" if inv.action == "close" else ""))
     return inv

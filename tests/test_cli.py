@@ -92,10 +92,21 @@ class ParseTest(unittest.TestCase):
         self.assertIn("--dry-run", str(cm.exception))
 
     def test_not_yet_implemented_options(self):
-        for opt in ("--close", "--toggle", "--demo", "--edit"):
+        for opt in ("--demo", "--edit", "--watch"):
             with self.subTest(opt=opt), self.assertRaises(UsageError) as cm:
                 parse([opt])
             self.assertIn("not implemented yet", str(cm.exception))
+
+    def test_close_and_toggle_are_actions_with_tasks(self):
+        inv = parse(["--close", "3", "--monitor", "1"])
+        self.assertEqual((inv.action, inv.tasks[0].layouts, inv.tasks[0].monitor), ("close", ["3"], "1"))
+        self.assertEqual(parse(["--toggle", "a.json"]).action, "toggle")
+        self.assertTrue(parse(["--prune", "a.json"]).prune)
+
+    def test_close_and_toggle_need_a_target(self):
+        for argv in (["--close"], ["--toggle"], ["--close", "--toggle", "3"]):
+            with self.subTest(argv=argv), self.assertRaises(UsageError):
+                parse(argv)
 
     def test_double_dash_makes_rest_positional(self):
         self.assertEqual(self.tasks("--", "--weird"), [(None, ["--weird"], None)])
@@ -105,6 +116,11 @@ class CliTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
+        # Never touch the real state file.
+        old = os.environ.get("XDG_STATE_HOME")
+        os.environ["XDG_STATE_HOME"] = os.path.join(self.dir.name, "state")
+        self.addCleanup(lambda: os.environ.__setitem__("XDG_STATE_HOME", old) if old is not None
+                        else os.environ.pop("XDG_STATE_HOME", None))
 
     def write(self, name, data):
         path = os.path.join(self.dir.name, name)
@@ -248,7 +264,7 @@ class CliTest(unittest.TestCase):
                         backend=backend, popen=lambda cmd, **kw: started.append(cmd))
         self.assertEqual(code, 0, err.getvalue())
         self.assertEqual(len(started), 2)
-        self.assertIn("2 of 2 windows opened", out.getvalue())
+        self.assertIn("2 opened, 0 re-placed", out.getvalue())
         self.assertEqual([p[0] for p in backend.placed], [1, 2])
         self.assertEqual(backend.placed[0][1].x, 1920)
         self.assertTrue(backend.disconnected)
