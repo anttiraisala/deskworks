@@ -7,6 +7,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .demo import DemoError, parse_duration
+
 HELP = """\
 usage: tilepane [options] [FILE.json | LAYOUT ...]
 
@@ -20,6 +22,7 @@ Open terminal windows at precisely defined screen positions.
   tilepane --dry-run FILE [NAME]         print the computed rectangles only
   tilepane --close 3                     close the windows of layout 3 (--close all: everything)
   tilepane --toggle 3                    open if closed, close if open
+  tilepane --demo [N]                    random layout with N fun commands (3-6 by default)
   tilepane --list [FILE]                 list layouts
   tilepane --explain KEY                 describe a configuration key
   tilepane --monitors                    list monitors (numbers, names, sizes)
@@ -32,6 +35,9 @@ options:
   --dry-run                    compute and print, open nothing
   --eval-when                  with --dry-run: evaluate 'when' conditions
   --prune                      when re-opening, close windows whose pane no longer exists
+  --for DURATION               close the new windows after this long (30s, 5m, 1h)
+  --seed S                     with --demo: repeat an earlier demo
+  --save FILE                  with --demo: also write the layout to FILE
   --strict                     unknown configuration keys are errors
   --wait-monitors SECONDS      retry monitor detection for up to this long
   -v, --verbose                print more detail
@@ -41,13 +47,13 @@ Default config: $XDG_CONFIG_HOME/tilepane/config.json (~/.config/tilepane/config
 Key reference: docs/CONFIG.md, or tilepane --explain KEY.
 """
 
-VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--wait-monitors"}
+VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--wait-monitors",
+                 "--for", "--seed", "--save"}
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
-                "--close", "--toggle", "--prune",
+                "--close", "--toggle", "--prune", "--demo",
                 "--monitors", "--list", "--version", "--help", "-h"}
 # Options from SPEC.md that exist but are built in a later step.
-NOT_YET = {"--demo": 7, "--for": 7,
-           "--seed": 7, "--save": 7, "--edit": 8, "--watch": 9}
+NOT_YET = {"--edit": 8, "--watch": 9}
 ALL_OPTIONS = VALUE_OPTIONS | FLAG_OPTIONS | set(NOT_YET)
 
 
@@ -64,7 +70,7 @@ class Task:
 
 @dataclass
 class Invocation:
-    action: str = "run"                   # run, help, version, doctor, monitors, list, explain, close, toggle
+    action: str = "run"                   # run, help, version, doctor, monitors, list, explain, close, toggle, demo
     tasks: list[Task] = field(default_factory=list)
     dry_run: bool = False
     eval_when: bool = False
@@ -74,6 +80,10 @@ class Invocation:
     wait_monitors: float = 0.0
     explain: Optional[str] = None
     default_monitor: Optional[str] = None
+    demo_panes: Optional[int] = None      # --demo N; None means a random count
+    seed: Optional[str] = None
+    save: Optional[str] = None
+    lifetime: Optional[float] = None      # --for, in seconds
 
 
 def is_file_argument(arg: str) -> bool:
@@ -124,6 +134,15 @@ def parse(argv: list[str]) -> Invocation:
                 raise UsageError(f"{opt} needs a value")
             if value == "":
                 raise UsageError(f"{opt} needs a value")
+        elif opt == "--demo":
+            # The pane count is optional: --demo, --demo 4, --demo=4.
+            count = inline if has_value else (argv[i] if i < len(argv) and argv[i].isdigit() else None)
+            if count is not None and not has_value:
+                i += 1
+            if count is not None:
+                if not count.isdigit() or int(count) < 1:
+                    raise UsageError(f"--demo takes a number of panes, got '{count}'")
+                inv.demo_panes = int(count)
         elif has_value:
             raise UsageError(f"{opt} does not take a value")
 
@@ -152,6 +171,17 @@ def parse(argv: list[str]) -> Invocation:
                 raise UsageError(f"--wait-monitors needs a number of seconds, got '{value}'") from None
             if inv.wait_monitors < 0:
                 raise UsageError("--wait-monitors must not be negative")
+        elif opt == "--for":
+            try:
+                inv.lifetime = parse_duration(value)
+            except DemoError as exc:
+                raise UsageError(str(exc)) from None
+        elif opt == "--seed":
+            inv.seed = value
+        elif opt == "--save":
+            inv.save = value
+        elif opt == "--demo":
+            actions.append("demo")
         elif opt == "--dry-run":
             inv.dry_run = True
         elif opt == "--eval-when":
@@ -177,7 +207,15 @@ def parse(argv: list[str]) -> Invocation:
 
     if "close" in actions and "toggle" in actions:
         raise UsageError("--close and --toggle cannot be combined")
-    for action in ("help", "version", "doctor", "monitors", "explain", "list", "close", "toggle"):
+    if "demo" in actions:
+        if inv.tasks:
+            raise UsageError("--demo makes its own layout; it cannot be combined with files or layout names")
+        if "close" in actions or "toggle" in actions:
+            raise UsageError("--demo cannot be combined with --close or --toggle (use --close all)")
+    elif inv.seed is not None or inv.save is not None:
+        raise UsageError(f"{'--seed' if inv.seed is not None else '--save'} only works with --demo")
+    for action in ("help", "version", "doctor", "monitors", "explain", "list", "close", "toggle",
+                   "demo"):
         if action in actions:
             inv.action = action
             break

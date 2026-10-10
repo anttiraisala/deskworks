@@ -12,8 +12,8 @@ Implementation follows the order in SPEC.md section 7. Newest entries last.
 | 4 | One backend end to end (X11 / python-xlib, gnome-terminal, xterm) | done |
 | 5 | Aliases and hotplug, multi-task execution polish | next (largely covered by steps 3, 4 and 6) |
 | 6 | `on_exit`, `snap`, state management, `--close` / `--toggle` | done |
-| 7 | `--demo` | next |
-| 8 | Browser editor | pending |
+| 7 | `--demo` | done |
+| 8 | Browser editor | next |
 | 9 | README, installation, example configuration | pending |
 
 ## Log
@@ -77,3 +77,16 @@ Implemented:
 - Live tests (`TILEPANE_LIVE=1`): cell and pixel snap, undecorated, reopen/close; they run on monitor 3 and close their windows.
 - 262 tests pass, 5 live tests pass when enabled.
 - Still open: `profile`/`font_size`, `mode: cycle/parallel`, parallel window start, kitty/alacritty adapters, hotplug handling, Wayland backends.
+
+### 2026-10-10: tests without terminals
+- Development continues on branch `claude-personal` (from `master`).
+- Nine CLI tests failed on machines without gnome-terminal or xterm (for example a cloud container) because the terminal is looked up with `shutil.which` even with the fake backend. `tests/fakes.py: fake_terminals_on_path` puts a stub `xterm` first on `PATH` for those tests.
+
+### 2026-10-10: step 7 (`--demo`)
+- `demo.py` (pure apart from `shutil.which`): a random split tree for the monitor's work area, margin 4-16, split points 20-80 % written as `%`, `-%`, `px` or `-px`, the long side cut more often. Every pane is at least 240x120 px; the generator only makes splits that leave room for the panes on each side, so 1-12 panes always tile without errors.
+- Command pool from SPEC.md section 10, each with an `sh`/`/proc` fallback and its own title. Streaming commands that may be installed but unusable (`dmesg -w`, `journalctl -f`, `ping`, `sensors`, `nvidia-smi`) fall back when they exit within a second. Fallbacks are checked with `sh -n` and all of them were run under plain `sh`.
+- The demo goes through the normal loader (`config.load_text`, strict), so it is an ordinary layout: dry-run, state, reconcile and `--close all` work unchanged. Seed always printed; `--save` writes a flat file (or one with `layouts` for several monitors) that reopens with the same rectangles.
+- `--for DURATION` lives in the runner (`lifetime` in the spec) and works with any layout. At the deadline the runner signals its process group (ignoring the signal itself), hangs up an interactive shell's own group, and exits so the window closes. Checked with a real process in its own session: stopped after 1.1 s, nothing left running.
+- Dry-run shows a pane's title in brackets before its command.
+- Not checked live: this was built in a container without an X server or terminals, so the demo has not been opened on a real screen yet. `tilepane --demo --monitor 3` on the development machine is the check.
+- 294 tests pass (5 live tests skipped).

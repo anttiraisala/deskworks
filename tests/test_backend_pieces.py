@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -205,6 +206,51 @@ class RunnerTest(unittest.TestCase):
     def test_bad_spec(self):
         self.assertEqual(runner.main(["not json"]), 2)
         self.assertEqual(runner.main([]), 2)
+
+    def fake_shell(self):
+        """A $SHELL that runs -lc commands and otherwise 'stays open' for a while."""
+        path = os.path.join(self.tmp.name, "shell")
+        Path(path).write_text('#!/bin/sh\nif [ "$1" = -lc ]; then exec /bin/sh -c "$2"; fi\n'
+                              f'echo shell >> {self.log}; exec sleep 5\n')
+        os.chmod(path, 0o755)
+        old = os.environ.get("SHELL")
+        os.environ["SHELL"] = path
+        self.addCleanup(lambda: os.environ.__setitem__("SHELL", old) if old is not None
+                        else os.environ.pop("SHELL", None))
+
+    def stop(self, proc):
+        # Tests must not signal their own process group.
+        proc.terminate()
+        proc.wait()
+
+    def test_lifetime_stops_a_running_command(self):
+        self.fake_shell()
+        self.sleeps = []
+        start = time.monotonic()
+        code = runner.run({"commands": ["sleep 5", f"echo late >> {self.log}"], "lifetime": 0.3},
+                          execvp=lambda *a: self.execs.append(a), out=self.out, stop=self.stop)
+        self.assertEqual(code, 0)
+        self.assertLess(time.monotonic() - start, 3)
+        self.assertEqual(self.lines(), [])
+        self.assertEqual(self.execs, [])
+
+    def test_lifetime_also_ends_the_shell_after_the_commands(self):
+        self.fake_shell()
+        start = time.monotonic()
+        runner.run({"commands": [f"echo a >> {self.log}"], "lifetime": 0.5},
+                   execvp=lambda *a: self.execs.append(a), out=self.out, stop=self.stop)
+        self.assertLess(time.monotonic() - start, 3)
+        self.assertEqual(self.lines(), ["a", "shell"])
+        self.assertEqual(self.execs, [])
+
+    def test_lifetime_ends_restart_loop(self):
+        self.fake_shell()
+        sleeps = []
+        runner.run({"commands": ["true"], "on_exit": "restart", "restart_delay": 10,
+                    "lifetime": 1}, execvp=lambda *a: self.execs.append(a), out=self.out,
+                   sleep=sleeps.append, stop=self.stop)
+        self.assertEqual(sleeps, [])
+        self.assertEqual(self.execs, [])
 
     def test_ctrl_c_still_reaches_children(self):
         # The runner must install a handler, not SIG_IGN, or children would inherit "ignore".

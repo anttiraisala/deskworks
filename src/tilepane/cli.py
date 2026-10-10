@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import os
+import random
 import sys
 from dataclasses import dataclass
 from typing import Iterator, Optional, TextIO
 
-from . import (__version__, backends, config, docgen, doctor, geometry, manager, monitors,
-               opener, state, workarea)
+from . import (__version__, backends, config, demo, docgen, doctor, geometry, manager,
+               monitors, opener, state, workarea)
 from .invocation import HELP, Invocation, Task, UsageError, parse
+
+
+# State key source for a demo that was not saved to a file.
+DEMO_SOURCE = "<demo>"
 
 
 def _pane_summary(leaf: dict, when_evaluated: bool) -> str:
@@ -18,6 +24,8 @@ def _pane_summary(leaf: dict, when_evaluated: bool) -> str:
     else:
         run = leaf.get("run")
         text = "(shell)" if run is None else "; ".join(run) if isinstance(run, list) else run
+        if leaf.get("title"):
+            text = f"[{leaf['title']}] {text}"
     if len(text) > 48:
         text = text[:45] + "..."
     if "when" in leaf and not when_evaluated:
@@ -206,7 +214,8 @@ class _Runner:
         if backend is None:
             self.error(f"cannot reach the window system: {reason}")
             return None, None
-        op = opener.Opener(backend, **({"popen": self._popen} if self._popen else {}))
+        op = opener.Opener(backend, lifetime=self.inv.lifetime,
+                           **({"popen": self._popen} if self._popen else {}))
         return manager.Manager(backend, self._store or state.StateStore(), op), backend
 
     def _report_unit(self, unit: _Unit, rep: manager.UnitReport) -> None:
@@ -306,6 +315,82 @@ class _Runner:
             backend.disconnect()
         return 1 if self.failed else 0
 
+    def _demo_layouts(self, seed: str) -> tuple[list[tuple[monitors.Monitor, geometry.Rect]], dict]:
+        """One random layout per target monitor, as the text of a configuration file."""
+        rng = random.Random(seed)
+        spec = self.inv.default_monitor or "0"
+        mons = monitors.resolve_many(spec, self.monitors(), {})
+        placed, layouts = [], []
+        for mon in mons:
+            area = self.area(mon, "work")
+            name = "demo" if len(mons) == 1 else f"demo-{mon.number}"
+            try:
+                layouts.append(demo.build(rng, area.width, area.height, panes=self.inv.demo_panes,
+                                          name=name, seed=seed))
+            except demo.DemoError as exc:
+                self.error(f"--demo on {_monitor_label(mon)}: {exc}")
+                self.failed += 1
+                continue
+            placed.append((mon, area))
+        if len(layouts) == 1:
+            return placed, layouts[0]
+        head = {k: layouts[0][k] for k in ("$schema", "version")} if layouts else {}
+        body = [{k: v for k, v in lay.items() if k not in ("$schema", "version")} for lay in layouts]
+        return placed, {**head, "layouts": body}
+
+    def demo(self) -> int:
+        seed = self.inv.seed if self.inv.seed is not None else str(random.SystemRandom().randrange(10**6))
+        print(f"demo: seed {seed} (repeat it with --seed {seed})", file=self.out)
+        try:
+            placed, data = self._demo_layouts(seed)
+        except monitors.MonitorError as exc:
+            self.error(f"--demo: {exc}")
+            return 1
+        if not placed:
+            return 1
+        text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+        if self.inv.save:
+            try:
+                with open(self.inv.save, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+            except OSError as exc:
+                self.error(f"--save {self.inv.save}: {exc.strerror or exc}")
+                return 1
+            print(f"demo: saved to {self.inv.save} (edit it, then open it with "
+                  f"tilepane {self.inv.save})", file=self.out)
+        # Through the normal loader, so a demo is an ordinary layout in every respect.
+        source = os.path.abspath(self.inv.save) if self.inv.save else DEMO_SOURCE
+        cfg = config.load_text(text, source, strict=True)
+        units = []
+        for (mon, area), lay in zip(placed, cfg.layouts):
+            resolved = config.resolve_layout(cfg, lay)
+            units.append(_Unit(cfg, lay["name"], mon, resolved, geometry.compute(resolved, area),
+                               area))
+        label = f"--demo --seed {seed}"
+        if self.inv.dry_run:
+            for unit in units:
+                print(_format_layout(unit.name, label, unit.monitor, unit.area, unit.leaves,
+                                     verbose=self.inv.verbose, when_evaluated=False),
+                      file=self.out)
+            return 1 if self.failed else 0
+
+        mgr, backend = self._manager()
+        if mgr is None:
+            return 1
+        try:
+            for unit in units:
+                key = (source, unit.name, unit.monitor.name)
+                # A new demo replaces the previous one on the same monitor.
+                mgr.close(source=DEMO_SOURCE, monitor=unit.monitor.name)
+                mgr.close(source=source, layout=unit.name, monitor=unit.monitor.name)
+                rep = mgr.open_unit(key, unit.leaves)
+                self._report_unit(unit, rep)
+                if rep.failed:
+                    self.failed += 1
+        finally:
+            backend.disconnect()
+        return 1 if self.failed else 0
+
     def list_layouts(self) -> int:
         failed = 0
         for task in self.inv.tasks or [Task()]:
@@ -369,6 +454,8 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
         return runner.close_windows()
     if inv.action == "toggle":
         return runner.toggle_windows()
+    if inv.action == "demo":
+        return runner.demo()
     if inv.dry_run:
         return runner.dry_run()
     return runner.open_windows()

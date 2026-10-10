@@ -39,9 +39,9 @@ class PaneResult:
     error: Optional[str] = None
 
 
-def runner_spec(leaf: dict) -> dict:
+def runner_spec(leaf: dict, lifetime: Optional[float] = None) -> dict:
     run = leaf.get("run")
-    return {
+    spec = {
         "commands": [] if run is None else [run] if isinstance(run, str) else list(run),
         "cwd": leaf.get("cwd"),
         "env": leaf.get("env") or {},
@@ -51,6 +51,9 @@ def runner_spec(leaf: dict) -> dict:
         "max_restarts": leaf.get("max_restarts", 0),
         "stop_on_error": leaf.get("stop_on_error", False),
     }
+    if lifetime:
+        spec["lifetime"] = lifetime
+    return spec
 
 
 def requested_extras(leaf: dict) -> list[str]:
@@ -77,8 +80,10 @@ class Opener:
     def __init__(self, backend: Backend, *,
                  popen: Callable = subprocess.Popen,
                  resolve_terminal: Callable = terminals.resolve,
-                 timeout: float = WINDOW_TIMEOUT):
+                 timeout: float = WINDOW_TIMEOUT,
+                 lifetime: Optional[float] = None):
         self.backend = backend
+        self.lifetime = lifetime        # --for: seconds before every new window closes
         self.popen = popen
         self.resolve_terminal = resolve_terminal
         self.timeout = timeout
@@ -130,7 +135,7 @@ class Opener:
             result.warnings.append(f"mode '{leaf['mode']}' is not implemented yet; "
                                    "the commands run in sequence")
 
-        argv = [sys.executable, _RUNNER, json.dumps(runner_spec(leaf))]
+        argv = [sys.executable, _RUNNER, json.dumps(runner_spec(leaf, self.lifetime))]
         req = terminals.LaunchRequest(
             title=default_title(leaf), argv=argv, geometry=self._geometry(term, lr),
             x=lr.rect.x, y=lr.rect.y, width=lr.rect.width, height=lr.rect.height)

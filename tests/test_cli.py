@@ -93,10 +93,29 @@ class ParseTest(unittest.TestCase):
         self.assertIn("--dry-run", str(cm.exception))
 
     def test_not_yet_implemented_options(self):
-        for opt in ("--demo", "--edit", "--watch"):
+        for opt in ("--edit", "--watch"):
             with self.subTest(opt=opt), self.assertRaises(UsageError) as cm:
                 parse([opt])
             self.assertIn("not implemented yet", str(cm.exception))
+
+    def test_demo_options(self):
+        inv = parse(["--demo"])
+        self.assertEqual((inv.action, inv.demo_panes, inv.tasks), ("demo", None, []))
+        self.assertEqual(parse(["--demo", "4"]).demo_panes, 4)
+        self.assertEqual(parse(["--demo=5"]).demo_panes, 5)
+        inv = parse(["--monitor", "1", "--demo", "--seed", "abc", "--save", "d.json", "--for", "2m"])
+        self.assertEqual((inv.default_monitor, inv.seed, inv.save, inv.lifetime),
+                         ("1", "abc", "d.json", 120.0))
+
+    def test_demo_usage_errors(self):
+        for argv in (["--demo=x"], ["--demo=0"], ["--demo", "a.json"], ["--demo", "--close", "all"],
+                     ["--seed", "1", "a.json"], ["--save", "x.json", "a.json"],
+                     ["--for", "soon", "a.json"], ["--for", "0", "a.json"]):
+            with self.subTest(argv=argv), self.assertRaises(UsageError):
+                parse(argv)
+
+    def test_for_works_with_layout_files(self):
+        self.assertEqual(parse(["a.json", "--for", "30s"]).lifetime, 30.0)
 
     def test_close_and_toggle_are_actions_with_tasks(self):
         inv = parse(["--close", "3", "--monitor", "1"])
@@ -142,7 +161,7 @@ class CliTest(unittest.TestCase):
         self.assertIn('layout "two"', out)
         self.assertIn("monitor 0 DP-1 1920x1200+0+240", out)
         self.assertRegex(out, r"0\s+0\s+240\s+960\s+1200\s+htop")
-        self.assertRegex(out, r"1\s+960\s+240\s+960\s+1200\s+a; b")
+        self.assertRegex(out, r"1\s+960\s+240\s+960\s+1200\s+\[x\] a; b")
 
     def test_monitor_selection_and_offsets(self):
         path = self.write("a.json", TWO_COLUMNS)

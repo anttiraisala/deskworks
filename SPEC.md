@@ -37,7 +37,7 @@ tilepane --explain on_exit                     # print the description of a conf
 tilepane --demo                                # random split with fun commands (see section 10)
 ```
 
-Other options: `-v`/`--verbose` (print decisions: chosen terminal, monitor, rectangles), `--strict` (unknown configuration keys are errors), `--wait-monitors N` (retry monitor detection for up to N seconds, for use at login), `--eval-when` (with `--dry-run`: evaluate `when` conditions; by default dry-run runs nothing), `--version`, `-h`/`--help`.
+Other options: `--for DURATION` (close the windows opened in this run after that long, see section 10), `-v`/`--verbose` (print decisions: chosen terminal, monitor, rectangles), `--strict` (unknown configuration keys are errors), `--wait-monitors N` (retry monitor detection for up to N seconds, for use at login), `--eval-when` (with `--dry-run`: evaluate `when` conditions; by default dry-run runs nothing), `--version`, `-h`/`--help`.
 
 ### Argument interpretation
 
@@ -281,6 +281,8 @@ Later optional extras, selected with the `mode` field:
 - Command pool; pick only commands that are found (`which`), and for missing ones use plain shell loops:
   `top`, `htop`, `watch -n1 date`, `watch -n2 'ls -la'`, `vmstat 1`, `watch -n1 'cat /proc/loadavg'`, `watch -n5 df -h`, `journalctl -f`, `dmesg -w`, `ping 1.1.1.1`, `watch -t -n1 'date +%T | figlet'`, `cmatrix`, `sl`, `fortune | cowsay`, `cal`, `sensors`, `nvidia-smi -l 1`.
 - It must not require installed packages, and every command has a fallback command. A command that exists but fails (`dmesg -w` is restricted on Ubuntu, `journalctl -f` needs group membership, `ping` needs a network) is handled by running it under a check and falling back to the shell loop if it exits within a second.
+- Decisions made when it was built (step 7): the seed is always printed so any demo can be repeated; `--demo N` takes 1 to 12 panes, and the generator keeps every pane at least 240x120 px (before margins), so a pane count that does not fit the monitor is an error. Missing commands share fallbacks, so panes are picked to run different commands while the pool lasts. Pool commands that use shell syntax run through `sh -c`, so the user's login shell (fish, zsh) does not matter. `--monitor all` (or a list) makes one layout per monitor (`demo-0`, `demo-1`, ...). A new demo replaces the previous unsaved demo on the same monitor; `--close all` closes demos too. A demo saved with `--save` is tracked under that file, so `tilepane demo.json` later re-places the same windows instead of opening duplicates.
+- `--for DURATION` (`30s`, `5m`, `1h`, or seconds) is handled by the runner and works with any layout, not only the demo: when the time runs out the pane's commands (and a shell started after them) are stopped and the window closes, whatever `on_exit` says. It applies to windows opened in that run; windows that are only re-placed keep their earlier lifetime.
 
 ## 11. Layout files
 
