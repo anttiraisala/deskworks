@@ -61,6 +61,25 @@ gnome-terminal and Cinnamon itself cannot be tested this way.
 Careful: `pkill -f PATTERN` also matches the shell running the command when the
 pattern appears in it, and kills that shell. Use `pkill -x NAME` or explicit PIDs.
 
+## Keep every file up to date
+
+After each change, and before every commit, go through all files the change
+could affect and make them agree with the code as it now is. Do not stop at
+the file you edited. Check in particular:
+
+- comments and docstrings in the changed modules and in the modules that call
+  them (module docstrings often describe behaviour in a few lines);
+- `HELP` in `invocation.py`, error and status messages, `--doctor` output;
+- the schema descriptions (they become `docs/CONFIG.md`, `--explain` and the
+  editor's field help), then run `docgen`;
+- README.md, SPEC.md, PROGRESS.md, CLAUDE.md, `examples/` and the editor's
+  texts in `editor.html`;
+- test names and docstrings that describe the old behaviour.
+
+Search for the old behaviour by name (`grep -rn` for the key, option or phrase)
+rather than relying on memory. When a step is finished, read through the whole
+repository once for anything stale and fix it in the same branch.
+
 ## Recording work
 
 - Every finished step gets an entry at the end of PROGRESS.md (what was built,
