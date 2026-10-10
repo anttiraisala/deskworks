@@ -292,7 +292,8 @@ class OpenerTest(unittest.TestCase):
         r = op.open_layout([leaf_rect("0", Rect(0, 0, 500, 500), decorations=False,
                                       font_size=12, mode="cycle")])[0]
         text = " ".join(r.warnings)
-        self.assertIn("decorations", text)
+        self.assertNotIn("decorations", text)     # handled by the backend, not the terminal
+        self.assertFalse(self.backend.decorations)
         self.assertIn("font_size", text)
         self.assertIn("mode 'cycle'", text)
 

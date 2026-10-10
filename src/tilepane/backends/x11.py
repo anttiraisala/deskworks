@@ -133,6 +133,14 @@ class X11Backend:
         return hints_from_wm(h.flags, (h.base_width, h.base_height),
                              (h.width_inc, h.height_inc), (h.min_width, h.min_height))
 
+    def _drop_increments(self, win) -> None:
+        """Remove the resize increments, so the size is not rounded to character cells."""
+        h = win.get_wm_normal_hints()
+        if h is not None and h.flags & 64:       # PResizeInc
+            h.flags &= ~64
+            win.set_wm_normal_hints(h)
+            self.d.flush()
+
     def metrics(self, window_id: int) -> Optional[tuple]:
         """(frame extents, gtk extents, size hints) of a window, to estimate later windows."""
         from Xlib import error
@@ -157,12 +165,35 @@ class X11Backend:
             if atom in current:
                 self._send(win, "_NET_WM_STATE", [0, atom, 0, 1, 0])
 
-    def place(self, window_id: int, target: Rect, snap: str) -> Placement:
+    def _set_decorations(self, win, on: bool) -> bool:
+        """Ask the window manager to draw (or not draw) the title bar and border.
+
+        Returns True when the frame extents changed as a result. Uses the Motif
+        hints, which most window managers honor.
+        """
+        before = self._frame_extents(win)
+        atom = self._atom("_MOTIF_WM_HINTS")
+        win.change_property(atom, atom, 32, [2, 0, 1 if on else 0, 0, 0])   # flag: decorations
+        self.d.flush()
+        deadline = time.monotonic() + 0.8
+        while time.monotonic() < deadline:
+            time.sleep(0.05)
+            if self._frame_extents(win) != before:
+                return True
+        return False
+
+    def place(self, window_id: int, target: Rect, snap: str,
+              decorations: bool = True) -> Placement:
         from Xlib import error
 
         try:
             win = self._window(window_id)
+            notes: list[str] = []
+            if not decorations and not self._set_decorations(win, False):
+                notes.append("the window manager did not remove the window decorations")
             frame, gtk = self._frame_extents(win), self._gtk_extents(win)
+            if snap == "pixel":
+                self._drop_increments(win)
             hints = self._size_hints(win)
             p = plan(target, frame, gtk, hints, snap)
             self._clear_states(win)
@@ -180,6 +211,6 @@ class X11Backend:
                         break
                 if actual == p.visible:
                     break
-            return Placement(target, p.visible, actual, p.cols, p.rows, list(p.notes))
+            return Placement(target, p.visible, actual, p.cols, p.rows, notes + list(p.notes))
         except error.XError as exc:
             raise BackendError(f"window {window_id:#x} went away or refused: {exc}") from exc

@@ -153,7 +153,8 @@ class Opener:
         result.pid = win.pid
 
         try:
-            placement = self.backend.place(win.id, lr.rect, leaf.get("snap", "cell"))
+            placement = self.backend.place(win.id, lr.rect, leaf.get("snap", "cell"),
+                                           leaf.get("decorations", True))
         except (BackendError, PlacementError) as exc:
             result.error = f"window opened but could not be placed: {exc}"
             return result

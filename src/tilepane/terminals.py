@@ -58,7 +58,7 @@ class GnomeTerminal(Terminal):
     name = "gnome-terminal"
     binary = "gnome-terminal"
     # --class starts a dedicated server whose windows get WM_CLASS class "tilepane".
-    unsupported = ("decorations", "profile", "font_size")
+    unsupported = ("profile", "font_size")
 
     def command(self, req: LaunchRequest) -> list[str]:
         cmd = [self.binary, f"--class={WINDOW_CLASS}", f"--title={req.title}"]
@@ -71,7 +71,7 @@ class GnomeTerminal(Terminal):
 class Xterm(Terminal):
     name = "xterm"
     binary = "xterm"
-    unsupported = ("decorations", "profile", "font_size")
+    unsupported = ("profile", "font_size")
 
     def command(self, req: LaunchRequest) -> list[str]:
         cmd = [self.binary, "-class", WINDOW_CLASS, "-name", WINDOW_CLASS, "-T", req.title]
@@ -90,7 +90,7 @@ class CustomTerminal(Terminal):
     """
 
     window_class = None
-    unsupported = ("decorations", "profile", "font_size")
+    unsupported = ("profile", "font_size")
 
     def __init__(self, cmd: list[str]):
         self.cmd = cmd

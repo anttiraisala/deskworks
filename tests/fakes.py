@@ -36,8 +36,9 @@ class FakeBackend:
         info = WindowInfo(wid, self.wm_class, 100, "t")
         return info if match(info) else None
 
-    def place(self, window_id, target, snap):
+    def place(self, window_id, target, snap, decorations=True):
         self.placed.append((window_id, target, snap))
+        self.decorations = decorations
         return Placement(target, target, target, 10, 20)
 
     def metrics(self, window_id):

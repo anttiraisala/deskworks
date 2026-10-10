@@ -26,7 +26,7 @@ git pull
 
 tilepane opens terminal windows at precisely defined positions on the screen (per monitor) and starts the desired commands in them (htop, watch, nvidia-smi, and so on). Layouts are defined in JSON files and can be edited with the mouse in a browser.
 
-The project is under construction. Implemented so far: environment check, monitor numbering and per-monitor work area, the geometry engine, configuration loading and validation, `--dry-run`, and opening windows on X11 with gnome-terminal or xterm. State handling (`--close`, `--toggle`), `--demo`, the browser editor and the Wayland backends follow the plan in [SPEC.md](SPEC.md); progress is in [PROGRESS.md](PROGRESS.md).
+The project is under construction. Implemented so far: environment check, monitor numbering and per-monitor work area, the geometry engine, configuration loading and validation, `--dry-run`, and opening windows on X11 with gnome-terminal or xterm. Window state (`--close`, `--toggle`, re-placing open layouts), `snap` and `decorations`. `--demo`, the browser editor and the Wayland backends follow the plan in [SPEC.md](SPEC.md); progress is in [PROGRESS.md](PROGRESS.md).
 
 ## Install and try
 
@@ -36,6 +36,8 @@ tilepane --doctor           # environment, monitors, recommended backend
 tilepane --monitors         # monitors with tilepane's numbers (left to right)
 tilepane --dry-run examples/meters.json --monitor 1   # print the rectangles only
 tilepane examples/meters.json --monitor 1             # open the windows (X11)
+tilepane --toggle examples/meters.json --monitor 1    # close them again (or open if closed)
+tilepane --close all                                  # close everything tilepane opened
 tilepane --explain on_exit  # describe any configuration key
 ```
 

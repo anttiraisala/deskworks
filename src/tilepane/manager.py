@@ -94,7 +94,8 @@ class Manager:
         leaf_id = lr.leaf.get("id", lr.id)
         result = PaneResult(leaf_id, ok=False, window_id=rec.xid, action="replaced")
         try:
-            placement: Placement = self.backend.place(rec.xid, lr.rect, lr.leaf.get("snap", "cell"))
+            placement: Placement = self.backend.place(
+                rec.xid, lr.rect, lr.leaf.get("snap", "cell"), lr.leaf.get("decorations", True))
         except Exception as exc:  # noqa: BLE001 - report and carry on with other panes
             result.error = f"window {rec.xid:#x} could not be re-placed: {exc}"
             return result

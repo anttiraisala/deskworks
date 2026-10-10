@@ -10,9 +10,9 @@ Implementation follows the order in SPEC.md section 7. Newest entries last.
 | 2 | Geometry core + unit tests | done |
 | 3 | Config loading, validation, schema, CONFIG.md, task parsing, `--dry-run` | done |
 | 4 | One backend end to end (X11 / python-xlib, gnome-terminal, xterm) | done |
-| 5 | Aliases and hotplug, multi-task execution polish | next |
-| 6 | `on_exit`, `snap`, state management, `--close` / `--toggle` | pending |
-| 7 | `--demo` | pending |
+| 5 | Aliases and hotplug, multi-task execution polish | next (largely covered by steps 3, 4 and 6) |
+| 6 | `on_exit`, `snap`, state management, `--close` / `--toggle` | done |
+| 7 | `--demo` | next |
 | 8 | Browser editor | pending |
 | 9 | README, installation, example configuration | pending |
 
@@ -65,3 +65,15 @@ Implemented:
 - Verified live on monitor 3 (eDP-1): placement was exact for both terminals (planned rectangle equals the window manager's result), screenshot checked. `tests/test_x11_live.py` repeats this when `TILEPANE_LIVE=1`.
 - Not yet: state file and `--close`/`--toggle`/reconcile (step 6), `snap: "pixel"` for terminals with size increments, `decorations: false`, `profile`/`font_size`, `mode: cycle/parallel`, parallel window start, kitty/alacritty.
 - Run all tests: `PYTHONPATH=src:. python3 -m unittest discover -s tests -t .` (231 pass, 2 live tests skipped).
+
+### 2026-10-10: step 6 (state, close, toggle, snap, decorations)
+- `state.py`: one JSON file in `$XDG_STATE_HOME/tilepane/`, updated under a file lock and written atomically. A record is (window id, config path, layout, monitor connector, leaf id). Dead windows (no longer in the window list with class `tilepane`) are dropped whenever the state is touched.
+- `manager.py`: opening an open layout reconciles. Windows are matched to panes by leaf id and moved; missing panes are opened; windows whose pane is gone are listed and closed only with `--prune`. A window closed by hand is reopened.
+- `--close NAME...` (layout names, a file, or `all`), narrowed by `--monitor`; without `--monitor` it closes every instance on every monitor. `--toggle` is per layout and monitor. Both use the normal task syntax.
+- `snap: "pixel"`: the window's resize increments are removed before placing, and gnome-terminal and xterm then take the exact pixel size (verified live: planned equals actual).
+- `decorations: false`: Motif hints; frame extents drop to zero and the window fills its rectangle exactly (verified live on Compiz).
+- `on_exit` (keep, close, restart with delay and max restarts) was done in step 4 in the runner.
+- Tests are isolated from the real state file (`XDG_STATE_HOME`). A stray test record that an earlier run wrote to the real state directory was removed.
+- Live tests (`TILEPANE_LIVE=1`): cell and pixel snap, undecorated, reopen/close; they run on monitor 3 and close their windows.
+- 262 tests pass, 5 live tests pass when enabled.
+- Still open: `profile`/`font_size`, `mode: cycle/parallel`, parallel window start, kitty/alacritty adapters, hotplug handling, Wayland backends.

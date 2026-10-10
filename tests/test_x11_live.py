@@ -57,6 +57,47 @@ class LiveTest(unittest.TestCase):
             self.assertLess(lr.rect.width - p.actual.width, 40)
             self.assertLess(lr.rect.height - p.actual.height, 40)
 
+    def check_exact(self, term_name, **extra):
+        if not terminals.IMPLEMENTED[term_name].available():
+            self.skipTest(f"{term_name} is not installed")
+        layout = {"name": "live", "margin": 8, "snap": "pixel", "split": {
+            "dir": "columns", "at": "50%",
+            "a": {"run": "sleep 30", **extra}, "b": {"run": "sleep 30", **extra}}}
+        leaves, results = self.open_layout(term_name, layout)
+        self.assertEqual([r.ok for r in results], [True, True], [r.error for r in results])
+        for lr, r in zip(leaves, results):
+            self.assertEqual(r.placement.actual, lr.rect, f"{r.id}: {r.placement.notes}")
+
+    def test_pixel_snap_is_exact(self):
+        self.check_exact("gnome-terminal")
+        self.check_exact("xterm")
+
+    def test_undecorated_windows_fill_the_rectangle(self):
+        self.check_exact("gnome-terminal", decorations=False)
+        self.check_exact("xterm", decorations=False)
+
+    def test_reopen_replaces_and_close_removes(self):
+        from tilepane import manager, state
+        import tempfile
+        if not terminals.IMPLEMENTED["xterm"].available():
+            self.skipTest("xterm is not installed")
+        layout = {"name": "live", "margin": 8, "split": {
+            "dir": "columns", "a": {"run": "sleep 30", "id": "a"}, "b": {"run": "sleep 30", "id": "b"}}}
+        cfg = config.load_text(__import__("json").dumps(layout), "live")
+        leaves = geometry.compute(config.resolve_layout(cfg, cfg.layouts[0]), self.area)
+        with tempfile.TemporaryDirectory() as d:
+            op = opener.Opener(self.backend, resolve_terminal=lambda s: terminals.IMPLEMENTED["xterm"])
+            mgr = manager.Manager(self.backend, state.StateStore(d), op)
+            key = ("/live.json", "live", self.mon.name)
+            first = mgr.open_unit(key, leaves)
+            self.opened += [r.window_id for r in first.results]
+            second = mgr.open_unit(key, leaves)
+            self.assertEqual((first.opened, second.opened, second.replaced), (2, 0, 2))
+            self.assertEqual(len(self.backend.find("tilepane")), 2)
+            self.assertEqual(mgr.close(source="/live.json"), 2)
+            time.sleep(1.0)
+            self.assertEqual(self.backend.find("tilepane"), [])
+
     def test_gnome_terminal(self):
         self.check("gnome-terminal")
 
