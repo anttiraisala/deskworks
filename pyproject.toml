@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tilepane"
+version = "0.1.0"
+description = "Open terminal windows at precisely defined screen positions and run commands in them"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+x11 = ["python-xlib"]
+
+[project.scripts]
+tilepane = "tilepane.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
