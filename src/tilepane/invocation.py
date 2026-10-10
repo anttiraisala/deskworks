@@ -24,6 +24,7 @@ Open terminal windows at precisely defined screen positions.
                                          (--close all: everything; --workspace all: everywhere)
   tilepane --toggle 3                    open if closed, close if open
   tilepane --demo [N]                    random layout with N fun commands (3-6 by default)
+  tilepane --edit [FILE]                 edit a layout file in the browser
   tilepane --list [FILE]                 list layouts
   tilepane --explain KEY                 describe a configuration key
   tilepane --monitors                    list monitors (numbers, names, sizes)
@@ -41,6 +42,7 @@ options:
   --for DURATION               close the new windows after this long (30s, 5m, 1h)
   --seed S                     with --demo: repeat an earlier demo
   --save FILE                  with --demo: also write the layout to FILE
+  --no-browser                 with --edit: only print the editor's address
   --strict                     unknown configuration keys are errors
   --wait-monitors SECONDS      retry monitor detection for up to this long
   -v, --verbose                print more detail
@@ -53,10 +55,10 @@ Key reference: docs/CONFIG.md, or tilepane --explain KEY.
 VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--wait-monitors",
                  "--for", "--seed", "--save", "--workspace"}
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
-                "--close", "--toggle", "--prune", "--demo",
+                "--close", "--toggle", "--prune", "--demo", "--edit", "--no-browser",
                 "--monitors", "--list", "--version", "--help", "-h"}
 # Options from SPEC.md that exist but are built in a later step.
-NOT_YET = {"--edit": 8, "--watch": 9}
+NOT_YET = {"--watch": 9}
 ALL_OPTIONS = VALUE_OPTIONS | FLAG_OPTIONS | set(NOT_YET)
 
 
@@ -88,6 +90,7 @@ class Invocation:
     save: Optional[str] = None
     lifetime: Optional[float] = None      # --for, in seconds
     workspace: str = "current"            # "current", "all" or a 1-based number
+    no_browser: bool = False
 
 
 def is_file_argument(arg: str) -> bool:
@@ -191,6 +194,10 @@ def parse(argv: list[str]) -> Invocation:
             inv.save = value
         elif opt == "--demo":
             actions.append("demo")
+        elif opt == "--edit":
+            actions.append("edit")
+        elif opt == "--no-browser":
+            inv.no_browser = True
         elif opt == "--dry-run":
             inv.dry_run = True
         elif opt == "--eval-when":
@@ -223,8 +230,11 @@ def parse(argv: list[str]) -> Invocation:
             raise UsageError("--demo cannot be combined with --close or --toggle (use --close all)")
     elif inv.seed is not None or inv.save is not None:
         raise UsageError(f"{'--seed' if inv.seed is not None else '--save'} only works with --demo")
+    if "edit" in actions:
+        if len(inv.tasks) > 1 or (inv.tasks and inv.tasks[0].layouts):
+            raise UsageError("--edit takes one file (the editor shows all its layouts)")
     for action in ("help", "version", "doctor", "monitors", "explain", "list", "close", "toggle",
-                   "demo"):
+                   "demo", "edit"):
         if action in actions:
             inv.action = action
             break

@@ -21,4 +21,4 @@ tilepane = "tilepane.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-tilepane = ["*.json"]
+tilepane = ["*.json", "editor/*.html"]

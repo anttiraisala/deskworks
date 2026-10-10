@@ -102,10 +102,30 @@ tilepane --dry-run examples/meters.json --monitor 1   # print the rectangles onl
 tilepane examples/meters.json --monitor 1             # open the windows
 tilepane --toggle examples/meters.json --monitor 1    # close them again (or open if closed)
 tilepane --close all                                  # close everything tilepane opened
+tilepane --edit examples/meters.json                  # edit it in the browser (see below)
 tilepane --explain on_exit                            # describe any configuration key
 ```
 
 Without installing: `PYTHONPATH=src python3 -m tilepane.cli --dry-run examples/meters.json`.
+
+## Edit layouts in the browser
+
+```
+tilepane --edit examples/meters.json     # or: tilepane --edit   (your default config)
+```
+
+The editor opens in your browser and shows the layout on a picture of the monitor, to scale:
+
+- **Click a pane** to edit it: its command (one per line for several commands), title, working directory, shell, terminal and the rest. Every setting has its explanation next to it.
+- **Split** a pane into left | right or top / bottom, **add a pane** next to it, **make it empty** or **remove** it.
+- **Drag the line** between two panes to resize them. Click a line to set its exact value, in % or px, measured from the start or from the end.
+- **Undo / Redo** (Ctrl+Z, Ctrl+Y), several layouts per file (New, Copy, Delete), and the monitor to preview on.
+- Problems are listed at the bottom and marked on the pane; the file cannot be saved until they are fixed.
+- **Save** (Ctrl+S) writes the file. **Open on screen** saves and opens the layout on the chosen monitor for real; **Close on screen** closes it again.
+
+The editor only runs on your own machine (127.0.0.1), with a secret address, and stops when you close its tab. Keys it does not know are kept as they are.
+
+Without tilepane installed, open `src/tilepane/editor/editor.html` straight in the browser: everything works except opening on screen, and files are opened and saved through the browser.
 
 ## Workspaces
 
@@ -123,7 +143,7 @@ tilepane --close all --workspace all           # ... on every workspace
 
 ## Status
 
-The project is under construction. Implemented so far: environment check, monitor numbering and per-monitor work area, the geometry engine, configuration loading and validation, `--dry-run`, opening windows on X11 with gnome-terminal or xterm, window state (`--close`, `--toggle`, re-placing open layouts), workspaces, `snap`, `decorations` and `--demo`. The browser editor and the Wayland backends follow the plan in [SPEC.md](SPEC.md); progress is in [PROGRESS.md](PROGRESS.md).
+The project is under construction. Implemented so far: environment check, monitor numbering and per-monitor work area, the geometry engine, configuration loading and validation, `--dry-run`, opening windows on X11 with gnome-terminal or xterm, window state (`--close`, `--toggle`, re-placing open layouts), workspaces, `snap`, `decorations`, `--demo` and the browser editor (`--edit`). The Wayland backends follow the plan in [SPEC.md](SPEC.md); progress is in [PROGRESS.md](PROGRESS.md).
 
 ## Configuration
 
@@ -173,7 +193,8 @@ A layout file is a program: opening it runs the commands in it. Only open files 
 ```
 PYTHONPATH=src:. python3 -m unittest discover -s tests -t .
 TILEPANE_LIVE=1 TILEPANE_MONITOR=3 PYTHONPATH=src:. python3 -m unittest tests.test_x11_live   # opens real windows
-PYTHONPATH=src python3 -m tilepane.docgen      # regenerate docs/CONFIG.md after editing the schema
+PYTHONPATH=src python3 -m tilepane.docgen      # after editing the schema: docs/CONFIG.md and the editor's copy
+PYTHONPATH=src:. python3 -m tests.make_vectors # after a deliberate change to geometry.py
 ```
 
-The key tables in `src/tilepane/config.py`, the schema and `docs/CONFIG.md` are checked against each other by the tests.
+The key tables in `src/tilepane/config.py`, the schema, `docs/CONFIG.md` and the schema embedded in the editor are checked against each other by the tests. The editor's JavaScript geometry is checked against `tests/vectors/geometry.json` when `node` is installed, and the editor is driven in Chromium (`tests/js/editor.e2e.mjs`) when Playwright is installed too; both are skipped otherwise.

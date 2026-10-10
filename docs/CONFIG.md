@@ -138,7 +138,7 @@ A leaf: a node with none of the split keys.
 
 | Key | Type | Default | Inherits | Description |
 |---|---|---|---|---|
-| `run` | string or list of string | none | no | The command, run through your shell as $SHELL -lc. A list is run one command after another in the same terminal (see mode and stop_on_error). Without run, a pane that has any other setting (cwd, title, terminal, ...) opens an interactive shell; a pane with no settings stays empty. Examples: `"htop"`, `["cd ~/app", "source venv/bin/activate", "python main.py"]`. |
+| `run` | string or list of string | none | no | The command, run through the pane's shell (see shell; by default your login shell) as <shell> -lc <command>. A list is run one command after another in the same terminal (see mode and stop_on_error). Without run, a pane that has any other setting (cwd, title, terminal, ...) opens an interactive shell; a pane with no settings stays empty. Examples: `"htop"`, `["cd ~/app", "source venv/bin/activate", "python main.py"]`. |
 | `title` | string | none | no | Window title. Programs and shells may overwrite it, so tilepane does not use it to find its windows. Examples: `"htop"`. |
 | `id` | string | none | no | Stable identifier of the pane, unique within the layout (letters, digits, _, - and .; not only digits and dots). Used to match windows to panes when a layout is already open. Without it the tree path (for example 1.0) is used, which changes when the tree is edited. Examples: `"cpu"`. |
 | `mode` | `"sequence"`, `"cycle"`, `"parallel"` | `"sequence"` | no | How a list of commands runs: "sequence" one after another, "cycle" rotate every interval seconds in the same window, "parallel" side by side (planned). |

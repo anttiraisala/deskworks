@@ -93,7 +93,7 @@ class ParseTest(unittest.TestCase):
         self.assertIn("--dry-run", str(cm.exception))
 
     def test_not_yet_implemented_options(self):
-        for opt in ("--edit", "--watch"):
+        for opt in ("--watch",):
             with self.subTest(opt=opt), self.assertRaises(UsageError) as cm:
                 parse([opt])
             self.assertIn("not implemented yet", str(cm.exception))

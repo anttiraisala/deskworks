@@ -437,6 +437,41 @@ class _Runner:
             backend.disconnect()
         return 1 if self.failed else 0
 
+    def edit(self, open_browser=None) -> int:
+        from .editor import server as editor_server
+
+        task = self.inv.tasks[0] if self.inv.tasks else Task()
+        path = os.path.abspath(task.source or config.default_config_path())
+        if os.path.isdir(path):
+            self.error(f"{path} is a directory")
+            return 1
+
+        def monitors_now() -> list[dict]:
+            found = self.monitors()
+            work = {m.number: self.area(m, "work") for m in found}
+            return editor_server.monitor_list(found, work)
+
+        try:
+            srv = editor_server.EditorServer(path, monitors_now)
+        except OSError as exc:
+            self.error(f"cannot start the editor: {exc}")
+            return 1
+        exists = os.path.exists(path)
+        print(f"tilepane editor for {path}" + ("" if exists else " (new file; written when you save)"),
+              file=self.out)
+        print(f"  {srv.url}", file=self.out)
+        print("  It stops when you close the tab, or with Ctrl+C.", file=self.out)
+        self.out.flush()
+        if not self.inv.no_browser:
+            import webbrowser
+            (open_browser or webbrowser.open)(srv.url)
+        try:
+            reason = srv.serve()
+        except KeyboardInterrupt:
+            reason = "interrupted"
+        print(f"tilepane editor stopped ({reason})", file=self.out)
+        return 0
+
     def list_layouts(self) -> int:
         failed = 0
         for task in self.inv.tasks or [Task()]:
@@ -502,6 +537,8 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
         return runner.toggle_windows()
     if inv.action == "demo":
         return runner.demo()
+    if inv.action == "edit":
+        return runner.edit()
     if inv.dry_run:
         return runner.dry_run()
     return runner.open_windows()

@@ -219,6 +219,17 @@ Closing asks each window to close (`_NET_CLOSE_WINDOW`), checks that it went, an
 
 The local server can write files and, through "Test here", start commands from JSON, and any web page the user visits can send requests to `localhost` (including through DNS rebinding). Requirements: a random per-session token in the URL and in every request, `Host` and `Origin` header checks, writes only to the files that were opened (no endpoint accepts a path or a command from the request), and the server stops when the editor tab closes or after an idle timeout.
 
+### As built (step 8)
+
+- `tilepane --edit [FILE]` edits one file (the default config when none is given; a file that does not exist yet is written on the first save). It prints the address, opens the browser (`--no-browser` only prints it) and serves until the tab is closed. The page is `src/tilepane/editor/editor.html`; it can also be opened directly as a file.
+- Server mode is decided by the page itself: the server injects `{"server": true, "token": ...}` into the page, instead of the page probing `/api/monitors`.
+- The token is in the page URL (`?t=`) and in an `X-Tilepane-Token` header on every request; `Host` must be `127.0.0.1:PORT` or `localhost:PORT`; `Origin` and `Sec-Fetch-Site`, when sent, must be this server; POST bodies must be JSON (at most 2 MB). The page is sent with a strict Content-Security-Policy, `no-referrer` and `frame-ancestors 'none'`. The server stops 4 s after the tab says goodbye (`pagehide`), after 150 s without a heartbeat (browsers slow timers in hidden tabs to about one a minute), or after 30 minutes without requests.
+- Saving is validated again by the Python loader; errors come back next to the problems the page found itself. The file is written atomically and keeps its permissions.
+- "Open on screen" saves first, then runs `tilepane --json FILE --layout NAME --monitor N` on the saved file; "Close on screen" runs the matching `--close`. The layout name and the monitor number are checked against the saved file and the detected monitors.
+- Turning a two-pane split into N panes ("Add pane next to it") converts a percentage into shares (`50%` becomes `1frac, 1frac`, so a third pane gets an equal share); a pixel size stays fixed. Removing panes back to two converts back to `a`/`b`/`at`.
+- Dragging a line keeps the unit and direction of the value (`60%`, `-300px`, ...); percentages are written with one decimal, pixels as whole numbers. Lines stop 10 px short of their split's edges and outer splits are drawn on top, so a nested split's line never hides the outer one.
+- Not done yet: the cell snap preview, and `--watch` (step 9).
+
 ## 6. Extra ideas (prioritize later)
 
 - Layout inheritance/templates (`"extends": "3"`, reusable `templates`).
@@ -313,7 +324,7 @@ Later optional extras, selected with the `mode` field:
 - **A single self-contained HTML file** (HTML + CSS + vanilla JS, no build step, no external dependencies) that works in two ways with the same code:
   1. **Standalone:** opened in the browser directly as a file (`file://`). A JSON file is opened with a file picker and saved as a download (in Chromium the File System Access API can save directly to the file when supported).
   2. **`tilepane --edit`:** a Python stdlib server (`127.0.0.1`) serves the same HTML and adds: saving directly to the file, the real monitors (size, position) in the preview, an "Open on screen" button and `--watch` updates.
-- The editor detects at runtime whether the server is available (`fetch('/api/monitors')`) and enables the extra features only then.
+- The editor knows whether it was served by `tilepane --edit` from a small boot block the server fills in (see "As built" in section 5), and enables the extra features only then.
 - The HTML embeds the schema (for labels and validation) and a JavaScript copy of the geometry. Python and JavaScript tests share one file of test vectors (layouts and expected rectangles) so the two implementations cannot diverge.
 - Creating a new layout from scratch, opening a JSON file, validation, and opening the result of `--demo --save` in the editor.
 

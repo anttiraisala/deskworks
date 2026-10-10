@@ -1,7 +1,8 @@
 """Documentation generated from the JSON schema.
 
-`python -m tilepane.docgen` writes docs/CONFIG.md; `--check` fails when the file
-is out of date. `explain(key)` backs `tilepane --explain KEY`.
+`python -m tilepane.docgen` writes docs/CONFIG.md and the copy of the schema
+embedded in the editor (editor/editor.html); `--check` fails when either is out
+of date. `explain(key)` backs `tilepane --explain KEY`.
 """
 
 from __future__ import annotations
@@ -9,11 +10,14 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Optional
 
 SCHEMA_PATH = Path(__file__).with_name("tilepane.schema.json")
+EDITOR_PATH = Path(__file__).parent / "editor" / "editor.html"
+_EDITOR_SCHEMA = re.compile(r'(<script id="schema" type="application/json">\n).*?(\n</script>)', re.S)
 LEVELS = [
     ("defaults", "defaults block"),
     ("layout", "layout"),
@@ -243,6 +247,16 @@ def suggest(key: str) -> list[str]:
     return difflib.get_close_matches(key, all_keys(), n=3, cutoff=0.5)
 
 
+def editor_html() -> str:
+    """editor.html with the current schema embedded."""
+    html = EDITOR_PATH.read_text(encoding="utf-8")
+    schema = SCHEMA_PATH.read_text(encoding="utf-8").rstrip().replace("</", "<\\/")
+    new, n = _EDITOR_SCHEMA.subn(lambda m: m.group(1) + schema + m.group(2), html, count=1)
+    if n != 1:
+        raise RuntimeError(f"{EDITOR_PATH}: schema block not found")
+    return new
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="python -m tilepane.docgen",
                                 description="Generate docs/CONFIG.md from the JSON schema.")
@@ -250,16 +264,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--check", action="store_true",
                    help="exit 1 if the output file is missing or out of date")
     args = p.parse_args(argv)
-    text = render()
-    path = Path(args.output)
+    outputs = [(Path(args.output), render()), (EDITOR_PATH, editor_html())]
     if args.check:
-        if not path.exists() or path.read_text(encoding="utf-8") != text:
-            print(f"{path} is out of date; run: python -m tilepane.docgen", file=sys.stderr)
-            return 1
-        return 0
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    print(f"wrote {path}")
+        stale = [p for p, text in outputs if not p.exists() or p.read_text(encoding="utf-8") != text]
+        for p in stale:
+            print(f"{p} is out of date; run: python -m tilepane.docgen", file=sys.stderr)
+        return 1 if stale else 0
+    for path, text in outputs:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        print(f"wrote {path}")
     return 0
 
 
