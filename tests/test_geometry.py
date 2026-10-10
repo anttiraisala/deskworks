@@ -118,6 +118,12 @@ class SplitPointTest(unittest.TestCase):
         self.assertEqual(outers(two("vertical", "50%")), outers(two("v", "50%")))
         self.assertEqual(outers(two("horizontal", "50%")), outers(two("h", "50%")))
 
+    def test_canonical_dir_names(self):
+        self.assertEqual(outers(two("columns", "40%")), outers(two("v", "40%")))
+        self.assertEqual(outers(two("rows", "40%")), outers(two("h", "40%")))
+        self.assertEqual(outers(two("columns", "40%"))["1"].x, 400)
+        self.assertEqual(outers(two("rows", "40%"))["1"].y, 200)
+
     def test_default_at_is_half(self):
         layout = {"split": {"dir": "v", "a": leaf(), "b": leaf()}}
         self.assertEqual(outers(layout)["1"].x, 500)

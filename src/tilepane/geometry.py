@@ -75,8 +75,8 @@ class _Ctx:
 
 
 _SIZE_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*(px|%|frac)?\s*$")
-_VERTICAL = {"v", "vertical"}
-_HORIZONTAL = {"h", "horizontal"}
+_COLUMNS = {"columns", "v", "vertical"}
+_ROWS = {"rows", "h", "horizontal"}
 _SPLIT_KEYS = {"dir", "a", "b", "at", "children", "sizes"}
 
 
@@ -94,7 +94,7 @@ def _margin(value: Any, what: str) -> int:
     return _round(value)
 
 
-def _parse_size(value: Any, what: str, *, allow_negative: bool = False,
+def parse_size(value: Any, what: str, *, allow_negative: bool = False,
                 allow_frac: bool = True) -> _Size:
     if isinstance(value, bool):
         raise GeometryError(f"{what}: invalid size {value!r}")
@@ -202,13 +202,13 @@ def _leaf(node: dict, rect: Rect, path: tuple[int, ...], ctx: _Ctx,
 
 
 def _direction(node: dict, where: str) -> bool:
-    """True for a vertical split (children side by side), False for horizontal."""
+    """True for columns (children side by side), False for rows (stacked)."""
     d = node.get("dir")
-    if d in _VERTICAL:
+    if d in _COLUMNS:
         return True
-    if d in _HORIZONTAL:
+    if d in _ROWS:
         return False
-    raise GeometryError(f"{where}: 'dir' must be 'v' or 'h', got {d!r}")
+    raise GeometryError(f"{where}: 'dir' must be 'columns' or 'rows', got {d!r}")
 
 
 def _children_and_sizes(node: dict, where: str) -> tuple[list, list[_Size]]:
@@ -224,14 +224,14 @@ def _children_and_sizes(node: dict, where: str) -> tuple[list, list[_Size]]:
         if not isinstance(raw, list) or len(raw) != len(children):
             raise GeometryError(
                 f"{where}: 'sizes' must be a list with one entry per child")
-        return children, [_parse_size(s, f"{where} sizes[{i}]")
+        return children, [parse_size(s, f"{where} sizes[{i}]")
                           for i, s in enumerate(raw)]
 
     if "sizes" in node:
         raise GeometryError(f"{where}: 'sizes' needs 'children'")
     if "a" not in node or "b" not in node:
         raise GeometryError(f"{where}: a split needs both 'a' and 'b' (or 'children')")
-    at = _parse_size(node.get("at", "50%"), f"{where} at",
+    at = parse_size(node.get("at", "50%"), f"{where} at",
                      allow_negative=True, allow_frac=False)
     rest = _Size("frac", 1.0)
     if at.value > 0:
