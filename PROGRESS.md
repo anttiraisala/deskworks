@@ -120,3 +120,14 @@ Implemented:
 - Tested: server unit tests (token, host, origin, cross-site, save, invalid save, open/close checks, goodbye, idle), and Chromium via Playwright (`tests/js/editor.e2e.mjs`): split, drag, undo/redo, invalid value blocks saving, save, and with Xvfb + Openbox "Open on screen" opened the two windows. Found and fixed while testing: a nested split's line covered the outer line where they meet.
 - Not done: cell snap preview, `--watch`.
 - 342 tests pass (5 live tests skipped).
+
+### 2026-10-10: editor additions requested by the owner
+- The owner tried the editor on Linux Mint: it works.
+- Command lines: "Command line" at the top of the layout panel and a "Commands" dialog in the header (the owner chose both). Open, toggle, close, dry-run and edit commands with Copy buttons, for the chosen monitor by number or by connector name (a switch remembered in the browser); the server now also sends the home directory so paths are shown with `~`.
+- Unselect: a click outside the monitor picture clears the selection (before this only Escape or a click on the monitor between panes did).
+- Swap panes by dragging one onto another; contents swap, sizes stay. The owner asked that a moved pane keep everything it had, so every inheriting value it had (including built-in defaults) goes with it, and what is not needed at the new place is removed afterwards. Known limit: a key without a built-in value (`cwd`, `env`, `profile`, `font_size`) that the pane did not set cannot be written as "none".
+- Splitting a pane moves its inheriting settings to the new split so both halves get them (before this they stayed on the first half only).
+- Shared settings move up the tree after every change (the owner's request): the most common value of each inheriting key goes to the highest node where it applies, copies equal to the inherited value are removed; `margin` and `env` are only tidied, empty panes do not count, file defaults are not touched. Behaviour of every window is unchanged.
+- The preview monitor can be resized by dragging its edges and corners, with the size in pixels; a margin control sits under the picture.
+- Tested in Chromium: `tests/js/editor.features.mjs` (page opened as a file: unselect, command lines and dialog, split moving settings up, a common setting moving to the layout, swap by drag with an inherited cwd and with a default shell, monitor resize and reset, margin control) and the server e2e now also checks the command line by number and by name. Not tested on the owner's machine yet.
+- 343 tests pass (5 live tests skipped).

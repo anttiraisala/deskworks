@@ -44,8 +44,9 @@ PYTHONPATH=src python3 -m tilepane.cli --dry-run examples/meters.json
 - The editor's JavaScript geometry (in `editor.html`, between `BEGIN GEOMETRY`
   and `END GEOMETRY`) is a port of `geometry.py`; both are checked against
   `tests/vectors/geometry.json`. Change them together.
-- `tests/js/editor.e2e.mjs` drives the editor in Chromium; it runs inside the
-  unit tests when node and Playwright are installed.
+- `tests/js/editor.features.mjs` (page opened as a file) and
+  `tests/js/editor.e2e.mjs` (through the editor server) drive the editor in
+  Chromium; they run inside the unit tests when node and Playwright are installed.
 
 ## Testing real windows in a cloud container
 

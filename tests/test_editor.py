@@ -206,7 +206,14 @@ def _playwright_dir():
 
 @unittest.skipUnless(shutil.which("node") and _playwright_dir(), "node and playwright are not installed")
 class BrowserTest(unittest.TestCase):
-    """Drives the editor in Chromium: split, drag, edit, validate, save (tests/js/editor.e2e.mjs)."""
+    """Drives the editor in Chromium: tests/js/editor.features.mjs (page opened as a file) and
+    tests/js/editor.e2e.mjs (served by the editor server: split, drag, edit, validate, save)."""
+
+    def test_editor_features(self):
+        env = dict(os.environ, PLAYWRIGHT_DIR=_playwright_dir() + "/")
+        proc = subprocess.run(["node", str(ROOT / "tests" / "js" / "editor.features.mjs")],
+                              capture_output=True, text=True, timeout=120, env=env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
     def test_editor_end_to_end(self):
         with tempfile.TemporaryDirectory() as tmp:

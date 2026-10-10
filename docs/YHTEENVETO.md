@@ -95,7 +95,9 @@ Valmiina ja testattuna:
 - `snap` (merkkiruudukko tai tarkka pikselikoko), ikkunareunuksen poisto
 - `--demo` ja `--for` (ikkunat sulkeutuvat annetun ajan jälkeen)
 - komentotulkin valinta ruutukohtaisesti
-- selaineditori (`--edit`)
+- selaineditori (`--edit`): ruutujen jako ja koon muutos vetämällä, ruutujen
+  paikan vaihto raahaamalla, näytön koon säätö vetämällä, komentorivit
+  kopioitavina, yhteiset asetukset siirtyvät automaattisesti puussa ylös
 
 Testattu omistajan koneella (Linux Mint, Cinnamon): työtilat. Kehitysympäristössä
 testattu virtuaalinäytöllä (Xvfb, Openbox, xterm): demo, työtilat, editorin

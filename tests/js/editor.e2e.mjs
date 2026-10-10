@@ -23,6 +23,17 @@ await page.goto(url);
 await page.waitForSelector(".pane");
 step(`loaded: ${await page.locator(".pane").count()} pane(s), file ${await page.textContent("#file")}`);
 
+// The command line names the file on disk and the monitor, by number or by name.
+const path = await page.evaluate(() => BOOT.path);
+const mon = await page.evaluate(() => S.monitors[0]);
+let cmd = await page.locator("#command-lines code").first().textContent();
+expect(cmd.includes(path.split("/").pop()) && cmd.endsWith(`--monitor ${mon.number}`), `command line (got ${cmd})`);
+await page.click('#command-lines button:has-text("name")');
+cmd = await page.locator("#command-lines code").first().textContent();
+expect(cmd.endsWith(`--monitor ${mon.name}`), `command line by name (got ${cmd})`);
+await page.click('#command-lines button:has-text("number")');
+step(`command line: ${cmd}`);
+
 // Split the right pane into rows, give the bottom one a command list.
 await page.locator(".pane").nth(1).click();
 await page.click("text=Split ⇅ top / bottom");

@@ -54,7 +54,36 @@ header .spacer { flex: 1; }
 
 main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
 #stage { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+#screen-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 #screen { position: relative; background: var(--screen); border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.25); user-select: none; }
+#screenbar { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
+#screenbar .size { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+#screenbar input { width: 4.5em; text-align: center; }
+#screenbar button { padding: 1px 8px; }
+.mon-handle { position: absolute; z-index: 200; }
+.mon-handle.e, .mon-handle.w { top: 10px; bottom: 10px; width: 10px; cursor: ew-resize; }
+.mon-handle.e { right: -6px; } .mon-handle.w { left: -6px; }
+.mon-handle.n, .mon-handle.s { left: 10px; right: 10px; height: 10px; cursor: ns-resize; }
+.mon-handle.n { top: -6px; } .mon-handle.s { bottom: -6px; }
+.mon-handle.ne, .mon-handle.nw, .mon-handle.se, .mon-handle.sw { width: 14px; height: 14px; }
+.mon-handle.ne { right: -7px; top: -7px; cursor: nesw-resize; } .mon-handle.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.mon-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; } .mon-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.mon-handle:hover { background: var(--handle-hover); opacity: 0.6; border-radius: 4px; }
+.size-tip { position: absolute; z-index: 300; background: var(--ink); color: var(--bg); padding: 2px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pane.drag-source { opacity: 0.5; }
+.pane.drop-target { border: 2px dashed var(--handle-hover); box-shadow: 0 0 0 3px var(--handle-hover) inset; }
+.cmd-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.cmd-row .what { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.cmd-row .line { display: flex; gap: 6px; align-items: stretch; }
+.cmd-row code { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font-size: 12px; overflow-x: auto; white-space: nowrap; user-select: all; }
+.cmd-row button { padding: 2px 8px; font-size: 12px; }
+.cmd-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 2px 10px; font-size: 12px; }
+.seg button.on, .unit-row .seg button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+dialog#commands-dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(720px, 92vw); padding: 16px 18px; }
+dialog#commands-dialog::backdrop { background: rgba(0,0,0,0.35); }
+dialog#commands-dialog h2 { margin: 0 0 6px; font-size: 16px; }
 .panel-shade { position: absolute; background: var(--panel-area); }
 .outer { position: absolute; background: var(--outer); }
 .pane {
@@ -127,13 +156,14 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
   <span class="group">
     <button id="new-file">New file</button>
     <button id="open-file">Open…</button>
+    <button id="commands" title="Command lines that open this layout from a terminal">Commands</button>
     <button id="save" class="primary" data-title="Save (Ctrl+S)">Save</button>
     <button id="open-screen" data-title="Open this layout on the selected monitor">Open on screen</button>
     <button id="close-screen" title="Close the windows of this layout on the selected monitor">Close on screen</button>
   </span>
 </header>
 <main>
-  <section id="stage"><div id="screen"></div></section>
+  <section id="stage"><div id="screen-wrap"><div id="screen"></div><div id="screenbar"></div></div></section>
   <aside id="inspector"></aside>
 </main>
 <footer id="footer"></footer>
@@ -783,7 +813,14 @@ const S = {
   log: "",
   badDisk: false,
   view: null,
+  custom: null,          // a monitor size set by dragging the preview's edges
+  useCustom: false,
+  monitorStyle: "number", // how commands name the monitor: "number" or "name"
 };
+
+// Per-viewer conveniences only; the page works without them.
+function remember(key, value) { try { localStorage.setItem(`tilepane.${key}`, JSON.stringify(value)); } catch (e) { /* ignore */ } }
+function recall(key) { try { const v = localStorage.getItem(`tilepane.${key}`); return v === null ? null : JSON.parse(v); } catch (e) { return null; } }
 
 function newDoc() {
   return { $schema: SCHEMA.$id, version: 1, name: "my-layout", margin: 8, split: {} };
@@ -862,7 +899,15 @@ function pickLayoutKey(l, key, builtin) {
   return builtin;
 }
 
-function monitor() { return S.monitors[S.monitorIndex] || S.monitors[0]; }
+function realMonitor() { return S.monitors[S.monitorIndex] || S.monitors[0]; }
+function monitor() { return S.useCustom && S.custom ? S.custom : realMonitor(); }
+
+function setCustomSize(width, height) {
+  const base = realMonitor();
+  S.custom = { custom: true, preset: true, number: base.number, name: `Custom ${width}×${height}`, x: 0, y: 0, width, height, base };
+  S.useCustom = true;
+  remember("custom", { width, height });
+}
 
 function areaFor(l) {
   const m = monitor();
@@ -910,6 +955,7 @@ function restore(text) {
 function change(fn) {
   const before = snapshot();
   fn();
+  normalize(lay());
   if (snapshot() === before) return;
   S.undo.push(before);
   if (S.undo.length > 300) S.undo.shift();
@@ -934,11 +980,36 @@ function redo() {
 
 // ---------------------------------------------------------------- tree operations
 
+// Split a pane in two. Its inheriting settings (cwd, shell, terminal, ...) move
+// to the new split, so both halves get them; its command, title and id stay
+// with the first half.
 function splitPane(path, dir) {
   change(() => {
     const node = nodeAt(path, true);
-    replaceAt(path, { dir, at: "50%", a: node, b: {} });
+    const split = { dir, at: "50%" };
+    const first = {};
+    for (const [k, v] of Object.entries(node)) {
+      if (INHERIT_KEYS.includes(k)) split[k] = v;
+      else first[k] = v;
+    }
+    if (wantsWindow(node) && !wantsWindow(first)) first.empty = false;
+    split.a = first;
+    split.b = {};
+    replaceAt(path, split);
     S.sel = { kind: "pane", path: path.concat([1]) };
+  });
+}
+
+// Swap the contents of two panes; the rectangles stay where they are. Each
+// pane takes along everything it had, including what it inherited from
+// splits above.
+function swapPanes(a, b) {
+  if (idOf(a) === idOf(b)) return;
+  change(() => {
+    const na = materialized(a), nb = materialized(b);
+    replaceAt(a, nb);
+    replaceAt(b, na);
+    S.sel = { kind: "pane", path: b };
   });
 }
 
@@ -1320,6 +1391,151 @@ function display(v) {
   return JSON.stringify(v);
 }
 
+// Keys that inherit down the tree (x-inherits in the schema).
+const INHERIT_KEYS = Object.keys(DEFS).filter((k) => k.startsWith("key-") && DEFS[k]["x-inherits"]).map((k) => k.slice(4));
+// Moved up automatically. margin changes sizes and env merges key by key, so
+// those are only tidied (a copy equal to the inherited value is dropped).
+const HOIST_KEYS = INHERIT_KEYS.filter((k) => k !== "margin" && k !== "env");
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+function childrenOf(node) {
+  if (!isSplit(node)) return [];
+  if (has(node, "children")) return Array.isArray(node.children) ? node.children.filter(isObj) : [];
+  return [node.a, node.b].filter(isObj);
+}
+
+// A key placed among a node's settings: before the structure keys of a split,
+// before "split" in a layout, at the end of a leaf.
+function setInherited(node, key, value) {
+  const before = isSplit(node) ? ["a", "b", "children"] : has(node, "split") ? ["split"] : [];
+  if (has(node, key) || !before.some((k) => has(node, k))) { node[key] = value; return; }
+  const entries = Object.entries(node);
+  for (const [k] of entries) delete node[k];
+  let placed = false;
+  for (const [k, v] of entries) {
+    if (!placed && before.includes(k)) { node[key] = value; placed = true; }
+    node[k] = v;
+  }
+}
+
+function valueAbove(key) {
+  const d = S.doc.defaults;
+  return isObj(d) && has(d, key) ? d[key] : keyDef(key).default;
+}
+
+// Every inheriting value a pane gets from above it: built-in value, file
+// defaults, layout and the split nodes on its path (env merged key by key).
+function inheritedValues(path) {
+  const out = {};
+  const apply = (n) => {
+    if (!isObj(n)) return;
+    for (const k of INHERIT_KEYS) {
+      if (!has(n, k)) continue;
+      out[k] = k === "env" && isObj(out.env) && isObj(n[k]) ? { ...out.env, ...n[k] } : n[k];
+    }
+  };
+  for (const k of INHERIT_KEYS) { const v = keyDef(k).default; if (v !== undefined && v !== null) out[k] = v; }
+  apply(S.doc.defaults);
+  apply(lay());
+  let n = rootNode();
+  for (const i of path) {
+    if (!isSplit(n)) break;
+    apply(n);
+    n = childOf(n, i);
+    if (!isObj(n)) break;
+  }
+  return out;
+}
+
+// The pane at `path` with everything it currently gets from above written onto
+// it, so it looks and behaves the same anywhere. normalize() then drops what
+// is not needed at the new place.
+function materialized(path) {
+  const node = JSON.parse(JSON.stringify(nodeAt(path)));
+  if (!wantsWindow(node)) return node;
+  for (const [k, v] of Object.entries(inheritedValues(path))) {
+    if (k === "env") node.env = { ...(isObj(v) ? v : {}), ...(isObj(node.env) ? node.env : {}) };
+    else if (!has(node, k)) node[k] = v;
+  }
+  return node;
+}
+
+// Rewrite the layout so shared settings sit as high in the tree as they can,
+// without changing what any window gets. Empty panes do not count; the file
+// defaults are left alone.
+function normalize(l) {
+  if (!isObj(l) || !isObj(l.split)) return;
+  const isWindow = (n) => !isSplit(n) && wantsWindow(n);
+  for (const key of HOIST_KEYS) {
+    const eff = new Map();
+    const walk = (n, inh) => {
+      const here = has(n, key) ? n[key] : inh;
+      if (isSplit(n)) childrenOf(n).forEach((c) => walk(c, here));
+      else if (isWindow(n)) eff.set(n, here);
+    };
+    const top = valueAbove(key);
+    walk(l.split, has(l, key) ? l[key] : top);
+    const windows = [...eff.keys()];
+    const clear = (n) => {
+      if (isSplit(n)) { delete n[key]; childrenOf(n).forEach(clear); }
+      else if (eff.has(n)) delete n[key];
+    };
+    delete l[key];
+    clear(l.split);
+    const valuesUnder = (n) => (isSplit(n) ? childrenOf(n).flatMap(valuesUnder) : eff.has(n) ? [eff.get(n)] : []);
+    const assign = (n, inh, isLayout) => {
+      const values = isLayout ? valuesUnder(l.split) : valuesUnder(n);
+      if (!values.length) return;
+      // The most common value goes here (a tie keeps the inherited one).
+      const counts = new Map();
+      for (const v of values) {
+        const k = v === undefined ? "" : JSON.stringify(v);
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      const inhKey = inh === undefined ? "" : JSON.stringify(inh);
+      let best = inhKey, bestN = counts.get(inhKey) || 0;
+      for (const [k, c] of counts) if (c > bestN) { best = k; bestN = c; }
+      let here = inh;
+      if (best !== inhKey && best !== "") {
+        here = JSON.parse(best);
+        setInherited(n, key, here);
+      }
+      if (isLayout) assign(l.split, here, false);
+      else childrenOf(n).forEach((c) => assign(c, here, false));
+    };
+    assign(l, top, true);
+    // A pane whose only setting moved up would turn empty: give it back.
+    for (const w of windows) if (!wantsWindow(w)) w[key] = eff.get(w);
+  }
+  tidy(l);
+}
+
+// Drop margin and env copies that equal what the node inherits anyway.
+function tidy(l) {
+  const d = isObj(S.doc.defaults) ? S.doc.defaults : {};
+  const walk = (n, margin, env) => {
+    const window = !isSplit(n) && wantsWindow(n);
+    if (!isSplit(n) && !window) return;
+    if (has(n, "margin") && same(n.margin, margin)) {
+      delete n.margin;
+      if (!isSplit(n) && !wantsWindow(n)) n.margin = margin;
+    }
+    if (isObj(n.env)) {
+      for (const [k, v] of Object.entries(n.env)) if (has(env, k) && env[k] === v) delete n.env[k];
+      if (!Object.keys(n.env).length) {
+        delete n.env;
+        if (!isSplit(n) && !wantsWindow(n)) n.env = {};
+      }
+    }
+    const m = has(n, "margin") ? n.margin : margin;
+    const e = isObj(n.env) ? { ...env, ...n.env } : env;
+    childrenOf(n).forEach((c) => walk(c, m, e));
+  };
+  const margin = has(l, "margin") ? l.margin : has(d, "margin") ? d.margin : 8;
+  const env = { ...(isObj(d.env) ? d.env : {}), ...(isObj(l.env) ? l.env : {}) };
+  walk(l.split, margin, env);
+}
+
 // ---------------------------------------------------------------- inspector fields
 
 const PANE_MAIN = ["run", "title", "cwd", "shell", "terminal", "on_exit"];
@@ -1443,6 +1659,101 @@ function otherKeys(obj, known) {
   return extra.length ? h("p", { class: "other-keys" }, `Other keys, kept as they are: ${extra.join(", ")}`) : null;
 }
 
+// ---------------------------------------------------------------- command lines
+
+function shellQuote(s) {
+  s = String(s);
+  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`;
+}
+
+function filePart() {
+  if (!S.server || !BOOT.path) return { arg: shellQuote(S.fileName), note: "Run these in the folder where the file is." };
+  const path = BOOT.path, home = BOOT.home;
+  if (home && path.startsWith(`${home}/`)) return { arg: `~/${shellQuote(path.slice(home.length + 1))}`, note: null };
+  return { arg: shellQuote(path), note: null };
+}
+
+function monitorArg() {
+  const m = realMonitor();
+  if (!m || m.preset) return null;
+  return S.monitorStyle === "name" ? m.name : String(m.number);
+}
+
+function commandLines() {
+  const file = filePart();
+  const layoutArgs = multi() ? ["--layout", shellQuote(layoutName(lay(), S.layoutIndex))] : [];
+  const mon = monitorArg();
+  const monArgs = mon === null ? [] : ["--monitor", shellQuote(mon)];
+  const rest = [...layoutArgs, ...monArgs];
+  const lines = [
+    ["Open the layout", ["tilepane", file.arg, ...rest]],
+    ["Open it, or close it if it is open", ["tilepane", "--toggle", file.arg, ...rest]],
+    ["Close it", ["tilepane", "--close", file.arg, ...rest]],
+    ["Show the rectangles without opening anything", ["tilepane", "--dry-run", file.arg, ...rest]],
+    ["Edit it in the browser", ["tilepane", "--edit", file.arg]],
+  ].map(([what, words]) => ({ what, text: words.join(" ") }));
+  const notes = [];
+  if (file.note) notes.push(file.note);
+  if (mon === null) notes.push("The preview monitor is a size, not one of your monitors, so --monitor is left out (monitor 0 is used); see tilepane --monitors.");
+  if (S.dirty) notes.push("The commands use the file as saved: save first.");
+  return { lines, notes };
+}
+
+async function copyText(text, button) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+    const t = h("textarea", { style: { position: "fixed", opacity: "0" } });
+    t.value = text;
+    document.body.append(t);
+    t.select();
+    try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+    t.remove();
+  }
+  if (button) {
+    const old = button.textContent;
+    button.textContent = ok ? "Copied" : "Select and copy";
+    setTimeout(() => { button.textContent = old; }, 1400);
+  }
+}
+
+function commandsBlock(onChange) {
+  const { lines, notes } = commandLines();
+  const setStyle = (style) => { S.monitorStyle = style; remember("monitorStyle", style); onChange(); };
+  const real = realMonitor();
+  return h("div", {},
+    h("div", { class: "unit-row" },
+      h("span", { style: { color: "var(--muted)", fontSize: "12px", alignSelf: "center" } }, "Monitor as"),
+      h("span", { class: "seg" },
+        h("button", { class: S.monitorStyle === "number" ? "on" : "", onclick: () => setStyle("number"),
+          title: "The monitor's number (0 is the leftmost); it can change when monitors are plugged in or out" }, `number${real && !real.preset ? ` (${real.number})` : ""}`),
+        h("button", { class: S.monitorStyle === "name" ? "on" : "", onclick: () => setStyle("name"),
+          title: "The monitor's connector name; it stays the same when other monitors change" }, `name${real && !real.preset ? ` (${real.name})` : ""}`))),
+    h("div", { class: "cmd-list" }, ...lines.map((c) => {
+      const btn = h("button", { title: "Copy to the clipboard" }, "Copy");
+      btn.addEventListener("click", () => copyText(c.text, btn));
+      return h("div", { class: "cmd-row" }, h("div", { class: "what" }, c.what), h("div", { class: "line" }, h("code", {}, c.text), btn));
+    })),
+    ...notes.map((n) => h("div", { class: "cmd-note" }, n)));
+}
+
+function openCommands() {
+  let dlg = $("#commands-dialog");
+  if (!dlg) {
+    dlg = h("dialog", { id: "commands-dialog" });
+    document.body.append(dlg);
+  }
+  const fill = () => {
+    dlg.replaceChildren(
+      h("h2", {}, `Command lines for '${layoutName(lay(), S.layoutIndex)}'`),
+      h("div", { class: "desc" }, `Run these in a terminal. Monitor: ${realMonitor().preset ? realMonitor().name : `${realMonitor().number}: ${realMonitor().name}`}.`),
+      commandsBlock(() => { fill(); renderInspector(); }),
+      h("div", { class: "actions", style: { justifyContent: "flex-end", display: "flex", marginTop: "10px" } },
+        h("button", { onclick: () => dlg.close() }, "Close")));
+  };
+  fill();
+  if (!dlg.open) dlg.showModal();
+}
+
 // ---------------------------------------------------------------- inspector
 
 function renderInspector() {
@@ -1472,6 +1783,7 @@ function paneInspector(path) {
       !empty ? h("button", { onclick: () => clearPane(path), title: "Remove all settings: no window opens here" }, "Make empty") : null,
       path.length ? h("button", { onclick: () => removePane(path), title: "Remove this pane; its neighbour takes the space (Delete)" }, "Remove pane") : null),
     empty ? h("div", { class: "hint" }, "This pane is empty: no window opens here. Type a command (or any other setting) below to give it a terminal window.") : null,
+    h("div", { class: "desc" }, "Drag this pane onto another one to swap their contents; the sizes stay."),
   ];
   const opts = {
     allowed: leafProps,
@@ -1542,9 +1854,10 @@ function layoutInspector() {
   const parts = [
     h("h2", {}, `Layout: ${layoutName(l, S.layoutIndex)}`),
     h("div", { class: "sub" }, `${monitor().name}${monitor().preset ? "" : ` · ${monitor().width}×${monitor().height}`}`),
-    h("div", { class: "hint" }, "Click a pane to edit it or split it. Drag the lines between panes to resize them. Ctrl+Z undoes."),
+    h("div", { class: "hint" }, "Click a pane to edit it or split it. Drag the lines between panes to resize them, a pane onto another to swap them, and the monitor's edges to try another size. Ctrl+Z undoes."),
   ];
-  parts.push(...fieldList(l, multi() ? LAYOUT_MAIN : LAYOUT_MAIN, opts));
+  parts.push(h("details", { open: true, id: "command-lines" }, h("summary", {}, "Command line"), commandsBlock(() => renderInspector())));
+  parts.push(...fieldList(l, LAYOUT_MAIN, opts));
   const more = h("details", {}, h("summary", {}, "Settings for every pane"), ...fieldList(l, LAYOUT_MORE, opts));
   if (LAYOUT_MORE.some((k) => has(l, k))) more.open = true;
   parts.push(more);
@@ -1576,8 +1889,8 @@ function renderScreen() {
   const stage = $("#stage");
   const screen = $("#screen");
   const m = monitor();
-  const pad = 28;
-  const scale = Math.max(0.01, Math.min((stage.clientWidth - 2 * pad) / m.width, (stage.clientHeight - 2 * pad) / m.height));
+  const pad = 28, bar = 44;
+  const scale = S.fixedScale || Math.max(0.01, Math.min((stage.clientWidth - 2 * pad) / m.width, (stage.clientHeight - 2 * pad - bar) / m.height));
   S.view = { scale, m };
   screen.style.width = `${Math.round(m.width * scale)}px`;
   screen.style.height = `${Math.round(m.height * scale)}px`;
@@ -1602,7 +1915,7 @@ function renderScreen() {
     el.dataset.id = l.id;
     el.append(h("div", { class: "label" }, label), h("div", { class: "meta" }, `${l.rect.width}×${l.rect.height}`, l.leaf.id ? ` · ${l.leaf.id}` : ""));
     el.title = `${label}\n${l.rect.width}×${l.rect.height} px, pane ${l.leaf.id || l.id}`;
-    el.addEventListener("pointerdown", (e) => { e.stopPropagation(); S.sel = { kind: "pane", path: l.path }; render(); });
+    el.addEventListener("pointerdown", (e) => startPaneDrag(e, l));
     screen.append(el);
   }
   for (const s of S.geo.splits) {
@@ -1625,6 +1938,114 @@ function renderScreen() {
     }
   }
   if (S.geo.stale) screen.append(h("div", { class: "screen-note" }, "Showing the last layout that fit; see the problems below."));
+  for (const side of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
+    const el = h("div", { class: `mon-handle ${side}`, title: "Drag to change the preview's monitor size (Shift keeps the shape, Alt gives exact pixels)" });
+    el.addEventListener("pointerdown", (e) => startMonitorResize(e, side));
+    screen.append(el);
+  }
+  renderScreenbar();
+}
+
+function renderScreenbar() {
+  const m = monitor();
+  const l = lay();
+  const margin = pickLayoutKey(l, "margin", 8);
+  const setMargin = (v) => {
+    if (!Number.isFinite(v) || v < 0) return;
+    change(() => setInherited(lay(), "margin", Math.round(v)));
+  };
+  const input = h("input", { type: "text", inputmode: "numeric", value: String(margin), id: "margin-input", title: "Gap between windows, in pixels (the layout's margin)" });
+  input.addEventListener("change", () => setMargin(Number(input.value)));
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
+  const parts = [
+    h("span", {}, "Monitor ", h("span", { class: "size", id: "monitor-size" }, `${m.width} × ${m.height} px`)),
+  ];
+  if (S.useCustom) parts.push(h("button", { onclick: () => { S.useCustom = false; S.lastGood = null; render(); }, title: "Back to the monitor chosen in the list" }, "Reset size"));
+  parts.push(h("span", {}, "Margin ",
+    h("button", { onclick: () => setMargin(margin - 1), title: "Smaller gap" }, "−"), " ", input, " ",
+    h("button", { onclick: () => setMargin(margin + 1), title: "Larger gap" }, "+"), " px"));
+  $("#screenbar").replaceChildren(...parts);
+}
+
+// Drag a pane onto another to swap their contents; a short click selects it.
+function startPaneDrag(e, leaf) {
+  e.preventDefault();
+  e.stopPropagation();
+  const startX = e.clientX, startY = e.clientY;
+  let dragging = false, target = null;
+  const source = () => document.querySelector(`.pane[data-id="${leaf.id}"]`);
+  const onMove = (ev) => {
+    if (!dragging && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 6) return;
+    dragging = true;
+    source()?.classList.add("drag-source");
+    document.body.style.cursor = "grabbing";
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    const pane = under ? under.closest(".pane") : null;
+    const id = pane && pane.dataset.id !== leaf.id ? pane.dataset.id : null;
+    if (id !== target) {
+      document.querySelectorAll(".pane.drop-target").forEach((p) => p.classList.remove("drop-target"));
+      target = id;
+      if (pane && id) pane.classList.add("drop-target");
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    document.body.style.cursor = "";
+    if (dragging && target) {
+      swapPanes(leaf.path, pathOf(target));
+      return;
+    }
+    S.sel = { kind: "pane", path: leaf.path };
+    render();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+// Drag an edge or corner of the preview to try the layout on another size.
+function startMonitorResize(e, side) {
+  e.preventDefault();
+  e.stopPropagation();
+  const m0 = monitor();
+  const w0 = m0.width, h0 = m0.height;
+  const startX = e.clientX, startY = e.clientY;
+  S.fixedScale = S.view.scale;
+  const tip = h("div", { class: "size-tip" });
+  document.body.append(tip);
+  const onMove = (ev) => {
+    const dx = (ev.clientX - startX) / S.fixedScale, dy = (ev.clientY - startY) / S.fixedScale;
+    let w = w0, hh = h0;
+    if (side.includes("e")) w = w0 + dx;
+    if (side.includes("w")) w = w0 - dx;
+    if (side.includes("s")) hh = h0 + dy;
+    if (side.includes("n")) hh = h0 - dy;
+    if (ev.shiftKey) {
+      const ratio = w0 / h0;
+      if (side.length === 2) { if (Math.abs(w / w0) > Math.abs(hh / h0)) hh = w / ratio; else w = hh * ratio; }
+      else if (side === "e" || side === "w") hh = w / ratio;
+      else w = hh * ratio;
+    }
+    const step = ev.altKey ? 1 : 10;
+    w = clamp(Math.round(w / step) * step, 320, 16384);
+    hh = clamp(Math.round(hh / step) * step, 200, 16384);
+    setCustomSize(w, hh);
+    computeGeometry();
+    renderScreen();
+    tip.textContent = `${w} × ${hh} px`;
+    tip.style.left = `${ev.clientX + 14}px`;
+    tip.style.top = `${ev.clientY + 14}px`;
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    tip.remove();
+    S.fixedScale = null;
+    S.lastGood = null;
+    render();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
 }
 
 function startDrag(e, split, i) {
@@ -1669,8 +2090,9 @@ function renderHeader() {
   sel.replaceChildren(...layouts().map((l, i) => h("option", { value: String(i), selected: i === S.layoutIndex }, layoutName(l, i))));
   $("#delete-layout").disabled = layouts().length < 2;
   const ms = $("#monitor");
-  ms.replaceChildren(...S.monitors.map((m, i) => h("option", { value: String(i), selected: i === S.monitorIndex },
-    m.preset ? m.name : `${m.number}: ${m.name} ${m.width}×${m.height}`)));
+  ms.replaceChildren(...S.monitors.map((m, i) => h("option", { value: String(i), selected: !S.useCustom && i === S.monitorIndex },
+    m.preset ? m.name : `${m.number}: ${m.name} ${m.width}×${m.height}`)),
+  ...(S.custom ? [h("option", { value: "custom", selected: S.useCustom }, `Custom size: ${S.custom.width}×${S.custom.height}`)] : []));
   $("#undo").disabled = !S.undo.length;
   $("#redo").disabled = !S.redo.length;
   const errors = errorsCount();
@@ -1910,14 +2332,26 @@ async function onScreen(action) {
 
 function wire() {
   $("#layout").addEventListener("change", (e) => { S.layoutIndex = Number(e.target.value); S.sel = { kind: "layout" }; S.lastGood = null; render(); });
-  $("#monitor").addEventListener("change", (e) => { S.monitorIndex = Number(e.target.value); S.lastGood = null; render(); });
+  $("#monitor").addEventListener("change", (e) => {
+    if (e.target.value === "custom") S.useCustom = true;
+    else { S.monitorIndex = Number(e.target.value); S.useCustom = false; }
+    S.lastGood = null;
+    render();
+  });
+  $("#commands").addEventListener("click", openCommands);
   $("#new-layout").addEventListener("click", newLayout);
   $("#copy-layout").addEventListener("click", copyLayout);
   $("#delete-layout").addEventListener("click", deleteLayout);
   $("#undo").addEventListener("click", undo);
   $("#redo").addEventListener("click", redo);
   $("#save").addEventListener("click", save);
+  // A click on the monitor between panes, or anywhere outside it, clears the selection.
   $("#screen").addEventListener("pointerdown", () => { S.sel = { kind: "layout" }; render(); });
+  $("#stage").addEventListener("pointerdown", (e) => {
+    if (e.target.closest("#screen") || e.target.closest("#screenbar")) return;
+    S.sel = { kind: "layout" };
+    render();
+  });
   if (S.server) {
     $("#new-file").remove();
     $("#open-file").remove();
@@ -1943,17 +2377,30 @@ function wire() {
   window.addEventListener("beforeunload", (e) => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
 }
 
+function restoreCustomSize() {
+  const c = recall("custom");
+  if (c && Number.isInteger(c.width) && Number.isInteger(c.height) && c.width >= 320 && c.height >= 200) {
+    setCustomSize(c.width, c.height);
+    S.useCustom = false;
+  }
+}
+
 async function start() {
+  const style = recall("monitorStyle");
+  if (style === "name" || style === "number") S.monitorStyle = style;
   wire();
   if (!S.server) {
+    restoreCustomSize();
     load(JSON.stringify(newDoc()), "my-layout.json");
     return;
   }
   try {
     const st = await api("/api/state");
     S.monitors = st.monitors.length ? st.monitors : PRESETS;
+    restoreCustomSize();
     S.fileName = st.name;
     BOOT.path = st.path;
+    BOOT.home = st.home;
     let doc = null;
     if (st.text !== null) {
       try { doc = JSON.parse(st.text); } catch (e) {

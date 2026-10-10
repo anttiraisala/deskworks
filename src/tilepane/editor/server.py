@@ -256,6 +256,7 @@ class EditorServer:
                     server._last_ping = time.monotonic()
                     server._bye_at = None
                     self._json(200, {"name": os.path.basename(server.path), "path": server.path,
+                                     "home": os.path.expanduser("~"),
                                      "text": server.read_file(), "monitors": server.monitors()})
                 else:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
