@@ -244,6 +244,24 @@ The local server can write files and, through "Test here", start commands from J
 - `grid` node with CSS-style areas, for layouts a tree cannot express.
 - More ideas (built-in meters, `repeat`, `--daemon`, `--zoom`, ...) are listed in `docs/SPEC-REVIEW.md`.
 
+### Open work and proposals (2026-10-10, after step 8)
+
+Not yet built from this specification: `--watch` and the log file `~/.local/state/tilepane/tilepane.log` (step 9, with the final README/examples pass); Wayland backends; kitty and alacritty adapters; `mode: cycle` and `parallel`; `profile` and `font_size`; monitor hotplug; `above`/`sticky`/`skip_taskbar`; the editor's cell snap preview; Compiz viewports as workspaces; the xdotool/wmctrl fallback.
+
+New proposals, most practical first:
+
+- `tilepane --install-autostart FILE`: a `.desktop` autostart entry that opens the layout at login (with `--wait-monitors`). `--install-shortcut`: a desktop keybinding, for example Super+M running `--toggle`.
+- `--dry-run --ascii`: the layout drawn as boxes in the terminal, a quick check without a browser.
+- `tilepane --snapshot`: record the tilepane windows (or any windows) on screen as a new layout: arrange by hand, then save.
+- Failure notice: a desktop notification and a title marker when a pane's command ends with an error.
+- Per-pane colour or background, to tell meters apart at a glance.
+- Built-in meters (CPU, memory, network, disk, clock) in pure Python with coloured sparklines, so the demo and dashboards need nothing installed.
+- Variants by monitor shape or count in one file (portrait versus landscape, laptop alone versus docked), chosen automatically.
+- `--zoom PANE`: one pane fills the monitor and back, like tmux zoom.
+- A gallery of example layouts in `examples/` (meters, logs, development, server watch) with previews.
+
+Recommended order: step 9 (`--watch` and the log file), then `--install-autostart`/`--install-shortcut`, then `--dry-run --ascii`.
+
 ## 7. Implementation order
 
 1. `--doctor`: find out the user's environment (session type, desktop, versions, monitors, available terminals). **Do this yourself by running the commands; do not ask the user.** Report the results and propose a backend.
