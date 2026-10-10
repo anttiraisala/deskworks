@@ -14,7 +14,11 @@ first (Wayland backends are planned, not built). Public, GPL-3.0.
 
 - The owner (Antti) writes in Finnish, often by speech-to-text, so words can be
   garbled; read for intent. Answer in Finnish, plainly; explain technical terms
-  simply when asked. Code, comments, docs and commit messages are in English.
+  simply when asked. Code, comments, docs and commit messages are in English,
+  with one approved exception: `docs/YHTEENVETO.md` is in Finnish (a summary
+  for the owner's Claude project). Do not translate it; keep it current like
+  the other documentation. A file that says at its top that the maintainer
+  approved another language is such an exception.
 - Development branch: `claude-personal` (branched from `master`). Do not merge
   into or push to `master` until the owner asks; they decided to keep it as is.
 - The owner runs Linux Mint (Cinnamon, X11) and tests changes there. Say clearly
@@ -72,8 +76,8 @@ the file you edited. Check in particular:
 - `HELP` in `invocation.py`, error and status messages, `--doctor` output;
 - the schema descriptions (they become `docs/CONFIG.md`, `--explain` and the
   editor's field help), then run `docgen`;
-- README.md, SPEC.md, PROGRESS.md, CLAUDE.md, `examples/` and the editor's
-  texts in `editor.html`;
+- README.md, SPEC.md, PROGRESS.md, CLAUDE.md, `docs/YHTEENVETO.md` (Finnish),
+  `examples/` and the editor's texts in `editor.html`;
 - test names and docstrings that describe the old behaviour.
 
 Search for the old behaviour by name (`grep -rn` for the key, option or phrase)
@@ -94,7 +98,7 @@ Two kinds of files are treated differently:
   The current-state parts of a log file are updated, not appended to: the
   status table at the top of `PROGRESS.md`.
 - **Every other file** describes the project as it is now (README.md, SPEC.md,
-  CLAUDE.md, docs/CONFIG.md, code, comments, help texts). These are rewritten
+  CLAUDE.md, docs/CONFIG.md, docs/YHTEENVETO.md, code, comments, help texts). These are rewritten
   so they are true today, with no leftover description of old behaviour.
 
 A file that is not listed here and looks like a log (dated entries, newest
