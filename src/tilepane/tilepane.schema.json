@@ -1,0 +1,374 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/anttiraisala/tilepane/master/src/tilepane/tilepane.schema.json",
+  "title": "tilepane configuration",
+  "description": "A tilepane configuration file: one or more layouts that open terminal windows at exact positions. Keys marked as inheriting apply down the tree: leaf, then ancestor split nodes, then the layout, then the file's defaults, then the built-in value.",
+  "type": "object",
+  "additionalProperties": false,
+  "anyOf": [
+    { "required": ["layouts"] },
+    { "required": ["split"] }
+  ],
+  "properties": {
+    "$schema": { "$ref": "#/definitions/key-schema" },
+    "version": { "$ref": "#/definitions/key-version" },
+    "description": { "$ref": "#/definitions/key-description" },
+    "defaults": { "$ref": "#/definitions/defaults" },
+    "monitors": { "$ref": "#/definitions/monitors" },
+    "layouts": { "$ref": "#/definitions/key-layouts" },
+    "name": { "$ref": "#/definitions/key-name" },
+    "split": { "$ref": "#/definitions/key-split" },
+    "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
+    "area": { "$ref": "#/definitions/key-area" },
+    "at_basis": { "$ref": "#/definitions/key-at_basis" },
+    "terminal": { "$ref": "#/definitions/key-terminal" },
+    "profile": { "$ref": "#/definitions/key-profile" },
+    "font_size": { "$ref": "#/definitions/key-font_size" },
+    "snap": { "$ref": "#/definitions/key-snap" },
+    "on_exit": { "$ref": "#/definitions/key-on_exit" },
+    "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+    "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+    "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+    "decorations": { "$ref": "#/definitions/key-decorations" },
+    "cwd": { "$ref": "#/definitions/key-cwd" },
+    "env": { "$ref": "#/definitions/key-env" },
+    "margin": { "$ref": "#/definitions/key-margin" }
+  },
+  "definitions": {
+    "defaults": {
+      "description": "Values used when a layout, split node or leaf does not set its own.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
+        "area": { "$ref": "#/definitions/key-area" },
+        "at_basis": { "$ref": "#/definitions/key-at_basis" },
+        "terminal": { "$ref": "#/definitions/key-terminal" },
+        "profile": { "$ref": "#/definitions/key-profile" },
+        "font_size": { "$ref": "#/definitions/key-font_size" },
+        "snap": { "$ref": "#/definitions/key-snap" },
+        "on_exit": { "$ref": "#/definitions/key-on_exit" },
+        "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+        "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+        "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+        "decorations": { "$ref": "#/definitions/key-decorations" },
+        "cwd": { "$ref": "#/definitions/key-cwd" },
+        "env": { "$ref": "#/definitions/key-env" },
+        "margin": { "$ref": "#/definitions/key-margin" }
+      }
+    },
+    "monitors": {
+      "description": "Monitor aliases for --monitor. Each alias maps to a connector name such as \"HDMI-1\" (see tilepane --monitors) or to a monitor number.",
+      "type": "object",
+      "additionalProperties": { "type": ["string", "integer"], "minimum": 0 },
+      "examples": [{ "left": "DP-1", "main": "HDMI-1", "side": 2 }]
+    },
+    "layout": {
+      "description": "A named layout: a tree of splits and leaves that describes how a monitor is divided.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "split"],
+      "properties": {
+        "name": { "$ref": "#/definitions/key-name" },
+        "description": { "$ref": "#/definitions/key-description" },
+        "split": { "$ref": "#/definitions/key-split" },
+        "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
+        "area": { "$ref": "#/definitions/key-area" },
+        "at_basis": { "$ref": "#/definitions/key-at_basis" },
+        "terminal": { "$ref": "#/definitions/key-terminal" },
+        "profile": { "$ref": "#/definitions/key-profile" },
+        "font_size": { "$ref": "#/definitions/key-font_size" },
+        "snap": { "$ref": "#/definitions/key-snap" },
+        "on_exit": { "$ref": "#/definitions/key-on_exit" },
+        "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+        "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+        "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+        "decorations": { "$ref": "#/definitions/key-decorations" },
+        "cwd": { "$ref": "#/definitions/key-cwd" },
+        "env": { "$ref": "#/definitions/key-env" },
+        "margin": { "$ref": "#/definitions/key-margin" }
+      }
+    },
+    "node": {
+      "description": "A tree node: a split (has dir) or a leaf (a pane).",
+      "type": "object",
+      "if": {
+        "anyOf": [
+          { "required": ["dir"] },
+          { "required": ["a"] },
+          { "required": ["b"] },
+          { "required": ["at"] },
+          { "required": ["children"] },
+          { "required": ["sizes"] }
+        ]
+      },
+      "then": { "$ref": "#/definitions/split" },
+      "else": { "$ref": "#/definitions/leaf" }
+    },
+    "split": {
+      "description": "A split node: divides its area between two children (a, b) or several (children).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dir"],
+      "properties": {
+        "dir": { "$ref": "#/definitions/key-dir" },
+        "at": { "$ref": "#/definitions/key-at" },
+        "a": { "$ref": "#/definitions/key-a" },
+        "b": { "$ref": "#/definitions/key-b" },
+        "children": { "$ref": "#/definitions/key-children" },
+        "sizes": { "$ref": "#/definitions/key-sizes" },
+        "description": { "$ref": "#/definitions/key-description" },
+        "at_basis": { "$ref": "#/definitions/key-at_basis" },
+        "terminal": { "$ref": "#/definitions/key-terminal" },
+        "profile": { "$ref": "#/definitions/key-profile" },
+        "font_size": { "$ref": "#/definitions/key-font_size" },
+        "snap": { "$ref": "#/definitions/key-snap" },
+        "on_exit": { "$ref": "#/definitions/key-on_exit" },
+        "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+        "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+        "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+        "decorations": { "$ref": "#/definitions/key-decorations" },
+        "cwd": { "$ref": "#/definitions/key-cwd" },
+        "env": { "$ref": "#/definitions/key-env" },
+        "margin": { "$ref": "#/definitions/key-margin" }
+      }
+    },
+    "leaf": {
+      "description": "A leaf: one rectangle of the layout, normally one terminal window running a command.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run": { "$ref": "#/definitions/key-run" },
+        "title": { "$ref": "#/definitions/key-title" },
+        "id": { "$ref": "#/definitions/key-id" },
+        "mode": { "$ref": "#/definitions/key-mode" },
+        "interval": { "$ref": "#/definitions/key-interval" },
+        "when": { "$ref": "#/definitions/key-when" },
+        "empty": { "$ref": "#/definitions/key-empty" },
+        "description": { "$ref": "#/definitions/key-description" },
+        "terminal": { "$ref": "#/definitions/key-terminal" },
+        "profile": { "$ref": "#/definitions/key-profile" },
+        "font_size": { "$ref": "#/definitions/key-font_size" },
+        "snap": { "$ref": "#/definitions/key-snap" },
+        "on_exit": { "$ref": "#/definitions/key-on_exit" },
+        "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+        "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+        "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+        "decorations": { "$ref": "#/definitions/key-decorations" },
+        "cwd": { "$ref": "#/definitions/key-cwd" },
+        "env": { "$ref": "#/definitions/key-env" },
+        "margin": { "$ref": "#/definitions/key-margin" }
+      }
+    },
+
+    "key-schema": {
+      "description": "URL of this schema, so that editors such as VS Code can complete and validate the file. Ignored by tilepane.",
+      "type": "string"
+    },
+    "key-version": {
+      "description": "Version of the configuration format. Currently 1. A file with a higher version is rejected so that a newer file is never half understood.",
+      "type": "integer",
+      "enum": [1],
+      "examples": [1]
+    },
+    "key-description": {
+      "description": "Free text about the file, layout, split node or leaf. Ignored by tilepane; JSON has no comments, so use this instead.",
+      "type": "string"
+    },
+    "key-layouts": {
+      "description": "The layouts of a multi-layout file. Choose one with --layout NAME or by naming it after the file. A single-layout file may leave this out and put name, split and the other layout keys at the top level.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/layout" }
+    },
+    "key-name": {
+      "description": "Name of the layout, used to select it (tilepane 3, --layout cpu-dash). A string or a whole number. Unique within the file. A flat single-layout file defaults to the file name without extension.",
+      "type": ["string", "integer"],
+      "examples": ["3", "cpu-dash"]
+    },
+    "key-split": {
+      "description": "The root node of the layout tree: a split node, or a single leaf for a layout with one pane.",
+      "$ref": "#/definitions/node"
+    },
+    "key-outer_margin": {
+      "description": "Gap in pixels between the windows and the edge of the screen (or work area). The total value for the outer edge, not halved. null or absent means the edge gap is half of margin. Set on the layout or in defaults.",
+      "type": ["number", "null"],
+      "minimum": 0,
+      "default": null,
+      "examples": [16]
+    },
+    "key-area": {
+      "description": "Which part of the monitor is divided: \"work\" excludes panels and docks, \"full\" uses the whole monitor. Set on the layout or in defaults.",
+      "enum": ["work", "full"],
+      "default": "work"
+    },
+    "key-at_basis": {
+      "x-inherits": "through split nodes",
+      "description": "How a pixel size in at or sizes is read: \"outer\" is the pane rectangle before margins, \"visible\" makes the visible window exactly that size. Inherits through split nodes. Uses the margin of the split node it is set on.",
+      "enum": ["outer", "visible"],
+      "default": "outer"
+    },
+    "key-terminal": {
+      "x-inherits": true,
+      "description": "The terminal that runs the pane: \"auto\" (kitty, alacritty, gnome-terminal, xterm, first found), a terminal name, or an object {\"cmd\": [...]} with a command template that contains the {command} placeholder (and optionally {title}).",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cmd"],
+          "properties": { "cmd": { "type": "array", "minItems": 1, "items": { "type": "string" } } }
+        }
+      ],
+      "default": "auto",
+      "examples": ["gnome-terminal", { "cmd": ["foot", "--title", "{title}", "--", "{command}"] }]
+    },
+    "key-profile": {
+      "x-inherits": true,
+      "description": "Terminal-specific profile name (for example a gnome-terminal profile). A terminal that cannot use it produces a warning.",
+      "type": "string",
+      "minLength": 1
+    },
+    "key-font_size": {
+      "x-inherits": true,
+      "description": "Font size in points, for terminals that can set it from the command line. A terminal that cannot honor it produces a warning.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "examples": [11]
+    },
+    "key-snap": {
+      "x-inherits": true,
+      "description": "\"cell\" rounds the window size down to whole character cells (a gap of up to one cell may remain on the right and bottom). \"pixel\" forces the exact pixel size when the terminal and window manager allow it.",
+      "enum": ["cell", "pixel"],
+      "default": "cell"
+    },
+    "key-on_exit": {
+      "x-inherits": true,
+      "description": "What happens when the pane's command ends: \"keep\" prints the exit status and leaves an interactive shell, \"close\" closes the window, \"restart\" runs the command again after restart_delay seconds.",
+      "enum": ["keep", "close", "restart"],
+      "default": "keep"
+    },
+    "key-restart_delay": {
+      "x-inherits": true,
+      "description": "Seconds to wait before restarting when on_exit is \"restart\". Also the minimum time between restarts, so a failing command does not loop at full speed.",
+      "type": "number",
+      "minimum": 0,
+      "default": 1
+    },
+    "key-max_restarts": {
+      "x-inherits": true,
+      "description": "Maximum number of restarts when on_exit is \"restart\". 0 means unlimited. After the limit the window behaves as \"keep\".",
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "key-stop_on_error": {
+      "x-inherits": true,
+      "description": "In a list of commands (mode \"sequence\"), stop at the first command that fails instead of continuing with the next.",
+      "type": "boolean",
+      "default": false
+    },
+    "key-decorations": {
+      "x-inherits": true,
+      "description": "false removes the window border and title bar when the terminal and window manager allow it.",
+      "type": "boolean",
+      "default": true
+    },
+    "key-cwd": {
+      "x-inherits": true,
+      "description": "Working directory of the command. ~ and $VAR are expanded. A directory that does not exist is an error shown in the pane.",
+      "type": "string",
+      "minLength": 1,
+      "examples": ["~", "~/projects/app"]
+    },
+    "key-env": {
+      "x-inherits": true,
+      "description": "Extra environment variables for the command, as an object with string values. ~ and $VAR are expanded in the values. Merged key by key down the tree instead of replaced.",
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "examples": [{ "LANG": "C" }]
+    },
+    "key-margin": {
+      "x-inherits": true,
+      "description": "Total gap in pixels between two neighbouring windows; each window gets half of it on every side (an odd value is split floor and ceiling so the gap is exact). On a split node it applies to everything below it.",
+      "type": "number",
+      "minimum": 0,
+      "default": 8,
+      "examples": [8]
+    },
+
+    "key-dir": {
+      "description": "How a split arranges its children. \"columns\": side by side, a on the left. \"rows\": stacked, a on top. The aliases \"v\"/\"vertical\" mean columns and \"h\"/\"horizontal\" mean rows (v is a vertical divider line; tmux uses the opposite convention).",
+      "enum": ["columns", "rows", "v", "vertical", "h", "horizontal"]
+    },
+    "key-at": {
+      "description": "Where a two-child split divides its area, measured from the area before margins: \"60%\", \"300px\" (a bare number means pixels), measured from the left or top. A negative value (\"-300px\", \"-40%\") is measured from the right or bottom. 0, 100% or more than the area is an error.",
+      "type": ["string", "number"],
+      "default": "50%",
+      "examples": ["60%", "300px", "-300px", "-40%"]
+    },
+    "key-a": {
+      "description": "First child of a two-child split: the left (columns) or top (rows) node. Use together with b and at.",
+      "$ref": "#/definitions/node"
+    },
+    "key-b": {
+      "description": "Second child of a two-child split: the right (columns) or bottom (rows) node. Takes the space that at leaves over.",
+      "$ref": "#/definitions/node"
+    },
+    "key-children": {
+      "description": "The children of an N-way split, instead of a, b and at. Sizes come from sizes; without it the children share the space equally.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/node" }
+    },
+    "key-sizes": {
+      "description": "Sizes of the children of an N-way split, one entry per child: \"2frac\" (a share of the space left over, divided proportionally), \"300px\" or \"25%\". If no entry is a frac, the last child takes the leftover.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": ["string", "number"] },
+      "examples": [["1frac", "2frac", "300px"]]
+    },
+
+    "key-run": {
+      "description": "The command, run through your shell as $SHELL -lc. A list is run one command after another in the same terminal (see mode and stop_on_error). Without run the pane opens an interactive shell.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      ],
+      "examples": ["htop", ["cd ~/app", "source venv/bin/activate", "python main.py"]]
+    },
+    "key-title": {
+      "description": "Window title. Programs and shells may overwrite it, so tilepane does not use it to find its windows.",
+      "type": "string",
+      "examples": ["htop"]
+    },
+    "key-id": {
+      "description": "Stable identifier of the pane, unique within the layout (letters, digits, _, - and .; not only digits and dots). Used to match windows to panes when a layout is already open. Without it the tree path (for example 1.0) is used, which changes when the tree is edited.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "examples": ["cpu"]
+    },
+    "key-mode": {
+      "description": "How a list of commands runs: \"sequence\" one after another, \"cycle\" rotate every interval seconds in the same window, \"parallel\" side by side (planned).",
+      "enum": ["sequence", "cycle", "parallel"],
+      "default": "sequence"
+    },
+    "key-interval": {
+      "description": "Seconds each command runs before the next one takes over. Required when mode is \"cycle\".",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "examples": [10]
+    },
+    "key-when": {
+      "description": "A shell command. If it exits non-zero, the pane is left out and its sibling takes the space, so one layout works on machines without, for example, a GPU. Run only when opening windows (or with --dry-run --eval-when).",
+      "type": "string",
+      "minLength": 1,
+      "examples": ["command -v nvidia-smi"]
+    },
+    "key-empty": {
+      "description": "true reserves the rectangle but opens no window. Cannot be combined with run.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
