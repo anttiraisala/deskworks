@@ -1,6 +1,6 @@
 # SPEC.md review, documentation plan and ideas
 
-Written 2026-10-10 after steps 1 and 2. Findings are numbered so they can be referenced and ticked off. "Proposed" is a recommendation, not a decision. Items marked **[step 3]** change the config schema and should be decided before step 3 starts.
+Written 2026-10-10 after steps 1 and 2. **Adopted into SPEC.md on 2026-10-10** (with canonical `columns`/`rows`, `id`, `when`, `empty`, `version`, `area`; `grid` stays an idea). Where SPEC.md and this file differ, SPEC.md wins. Findings are numbered so they can be referenced and ticked off. "Proposed" is a recommendation, not a decision. Items marked **[step 3]** change the config schema and should be decided before step 3 starts.
 
 ## 1. Where to document the JSON keys
 
@@ -78,7 +78,7 @@ Not defined anywhere yet: which of these may appear at which level (see A1).
 
 ### C. Behaviour gaps
 
-**C1. Command execution.** "Executed through the shell" does not say which shell, whether it is interactive or login (aliases, virtualenv, `nvm`), how `cwd` and `env` values expand (`~`, `$VAR`), or what happens when `cwd` does not exist. Proposed: `$SHELL -lc` for strings, a list `["cmd", "arg"]` as an exec form with no shell, `~` and `$VAR` expanded in `cwd` and `env`, and a missing `cwd` is an error shown in the pane.
+**C1. Command execution.** "Executed through the shell" does not say which shell, whether it is interactive or login (aliases, virtualenv, `nvm`), how `cwd` and `env` values expand (`~`, `$VAR`), or what happens when `cwd` does not exist. Proposed: `$SHELL -lc` for strings (a list stays a sequence of shell commands, as in SPEC), `~` and `$VAR` expanded in `cwd` and `env`, and a missing `cwd` is an error shown in the pane.
 
 **C2. `on_exit` details.** `keep` should be defined: print the exit status, then keep an interactive shell (proposed) or wait for a key. `restart` needs protection against a crash loop: a minimum `restart_delay` (default 1 s), `max_restarts`, and backoff. `sequence` needs a failure policy: proposed `stop_on_error` (default `false`, matching "next command starts when the previous ends"). `cycle` needs a rule for commands that never exit (kill on interval) and for interactive ones.
 
