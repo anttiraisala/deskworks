@@ -1,0 +1,71 @@
+# CLAUDE.md
+
+Guidance for Claude sessions working on tilepane. Read SPEC.md (behaviour and
+decisions) and PROGRESS.md (what is done, what is open) before changing code.
+
+## The project
+
+tilepane opens terminal windows at exact positions per monitor and runs
+commands in them. Layouts are JSON trees of splits and panes. Python 3.9+,
+standard library only; python-xlib is the optional X11 dependency. Linux, X11
+first (Wayland backends are planned, not built). Public, GPL-3.0.
+
+## Working with the owner
+
+- The owner (Antti) writes in Finnish, often by speech-to-text, so words can be
+  garbled; read for intent. Answer in Finnish, plainly; explain technical terms
+  simply when asked. Code, comments, docs and commit messages are in English.
+- Development branch: `claude-personal` (branched from `master`). Do not merge
+  into or push to `master` until the owner asks; they decided to keep it as is.
+- The owner runs Linux Mint (Cinnamon, X11) and tests changes there. Say clearly
+  what was verified live and what was not.
+- When a design choice is the owner's to make, propose one option with reasons
+  and ask; otherwise decide, implement and record the decision.
+- README rule from the owner: requirements (every tool and package) come first,
+  and the demo is shown prominently in the install/try part.
+
+## Commands
+
+```
+PYTHONPATH=src:. python3 -m unittest discover -s tests -t .      # all tests
+PYTHONPATH=src python3 -m tilepane.docgen                         # after editing the schema
+PYTHONPATH=src:. python3 -m tests.make_vectors                    # after a deliberate geometry change
+PYTHONPATH=src python3 -m tilepane.cli --dry-run examples/meters.json
+```
+
+- The schema (`src/tilepane/tilepane.schema.json`) is the source of truth for
+  keys. `docgen` writes `docs/CONFIG.md` and the schema copy embedded in
+  `src/tilepane/editor/editor.html`; tests fail when either is stale. A new key
+  also goes into the tables in `config.py` (INHERITED, BUILTIN, ...).
+- The editor's JavaScript geometry (in `editor.html`, between `BEGIN GEOMETRY`
+  and `END GEOMETRY`) is a port of `geometry.py`; both are checked against
+  `tests/vectors/geometry.json`. Change them together.
+- `tests/js/editor.e2e.mjs` drives the editor in Chromium; it runs inside the
+  unit tests when node and Playwright are installed.
+
+## Testing real windows in a cloud container
+
+There is no screen by default. This works (Ubuntu container):
+
+```
+apt-get install -y openbox xterm x11-xserver-utils x11-utils
+python3 -m venv /tmp/venv && /tmp/venv/bin/pip install -e '.[x11]'
+export DISPLAY=:99 XDG_SESSION_TYPE=x11 XDG_STATE_HOME=/tmp/tp-state
+Xvfb :99 -screen 0 1920x1080x24 & openbox &
+TILEPANE_LIVE=1 TILEPANE_MONITOR=0 PYTHONPATH=src:. /tmp/venv/bin/python -m unittest tests.test_x11_live
+```
+
+Openbox has 4 workspaces (EWMH), which is enough to test workspace handling.
+gnome-terminal and Cinnamon itself cannot be tested this way.
+
+Careful: `pkill -f PATTERN` also matches the shell running the command when the
+pattern appears in it, and kills that shell. Use `pkill -x NAME` or explicit PIDs.
+
+## Recording work
+
+- Every finished step gets an entry at the end of PROGRESS.md (what was built,
+  decisions not fixed by the spec, what was tested live, what is still open,
+  test count) and the status table is updated.
+- Decisions that change behaviour go into SPEC.md (for the editor, see "As
+  built" in section 5); user-facing changes go into README.md.
+- Commit in small, described steps and push to `claude-personal`.
