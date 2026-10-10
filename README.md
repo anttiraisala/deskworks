@@ -26,7 +26,7 @@ git pull
 
 tilepane opens terminal windows at precisely defined positions on the screen (per monitor) and starts the desired commands in them (htop, watch, nvidia-smi, and so on). Layouts are defined in JSON files and can be edited with the mouse in a browser.
 
-The project is under construction. Implemented so far: environment check, monitor numbering, the geometry engine, configuration loading and validation, and `--dry-run`. Opening real windows (step 4), the browser editor and the rest follow the plan in [SPEC.md](SPEC.md); progress is in [PROGRESS.md](PROGRESS.md).
+The project is under construction. Implemented so far: environment check, monitor numbering and per-monitor work area, the geometry engine, configuration loading and validation, `--dry-run`, and opening windows on X11 with gnome-terminal or xterm. State handling (`--close`, `--toggle`), `--demo`, the browser editor and the Wayland backends follow the plan in [SPEC.md](SPEC.md); progress is in [PROGRESS.md](PROGRESS.md).
 
 ## Install and try
 
@@ -34,7 +34,8 @@ The project is under construction. Implemented so far: environment check, monito
 pip install -e .            # or: pipx install .
 tilepane --doctor           # environment, monitors, recommended backend
 tilepane --monitors         # monitors with tilepane's numbers (left to right)
-tilepane --dry-run examples/meters.json --monitor 1
+tilepane --dry-run examples/meters.json --monitor 1   # print the rectangles only
+tilepane examples/meters.json --monitor 1             # open the windows (X11)
 tilepane --explain on_exit  # describe any configuration key
 ```
 
@@ -63,7 +64,8 @@ A layout file is a program: opening it runs the commands in it. Only open files 
 ## Development
 
 ```
-PYTHONPATH=src python3 -m unittest discover -s tests
+PYTHONPATH=src:. python3 -m unittest discover -s tests -t .
+TILEPANE_LIVE=1 TILEPANE_MONITOR=3 PYTHONPATH=src:. python3 -m unittest tests.test_x11_live   # opens real windows
 PYTHONPATH=src python3 -m tilepane.docgen      # regenerate docs/CONFIG.md after editing the schema
 ```
 

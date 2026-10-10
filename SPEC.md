@@ -166,7 +166,7 @@ All values are integer pixels. On X11 they are X pixels; on Wayland they are the
 7. A pane that ends up with no room (width or height of zero or less after the insets) is an error that names the pane.
 
 ### Snap
-- `"cell"` (**default**): the inner size of the window is rounded down to whole character cells. The position of the window (top-left corner) stays at the computed point; a gap of at most one cell remains on the right/bottom. The cell size is obtained by opening the window with a size estimated from the terminal and font, reading back the real size, and adjusting once. A pane smaller than the terminal's minimum size produces a warning. An optional `snap_align` (`"start"` | `"center"`) is reserved for spreading the leftover.
+- `"cell"` (**default**): the inner size of the window is rounded down to whole character cells. The position of the window (top-left corner) stays at the computed point; a gap of at most one cell remains on the right/bottom. The cell size comes from the window's own size hints (`WM_NORMAL_HINTS`: base size and resize increments), so no measuring is needed; after the first window of a terminal is placed, later windows start with an exact `--geometry`. A pane smaller than the terminal's minimum size produces a warning. An optional `snap_align` (`"start"` | `"center"`) is reserved for spreading the leftover.
 - `"pixel"`: the size is forced to exactly the computed pixel size when the terminal and the window manager allow it (kitty, alacritty and so on). The background fill takes care of the empty edge.
 
 ## 4. Window placement (backends)
@@ -182,7 +182,7 @@ Backends are chosen at runtime (`$XDG_SESSION_TYPE`, `$XDG_CURRENT_DESKTOP`, the
 
 - No resident process (except `--watch`, the editor and a possible daemon). Each pane runs a small wrapper (`python -m tilepane.runner <spec>`) inside the terminal; it handles `run` lists, `on_exit`, restarts, `cycle` mode and `--for`, which avoids shell quoting problems.
 - A window counts as opened when its map event is seen; timeout 5 s per window. A window that never appears fails the task and the other tasks continue. Windows are started in parallel where the terminal allows it.
-- Stacking order follows task and pane order (last on top). Focus is not changed unless a leaf is marked for it (reserved). Windows open on the current workspace unless `workspace` is set (reserved).
+- Panes are opened one after another; the new window is the one that appears in the window list after the terminal starts (class `tilepane` narrows it down). Stacking order follows task and pane order (last on top). Focus is not changed unless a leaf is marked for it (reserved). Windows open on the current workspace unless `workspace` is set (reserved).
 - With `--wait-monitors N`, monitor detection and alias resolution are retried for up to N seconds; use it in autostart, where monitors or panels may not be ready at login.
 
 ### Terminals
@@ -229,7 +229,7 @@ The local server can write files and, through "Test here", start commands from J
 2. Geometry core + unit tests (margin, outer_margin, negative `at`, percentages, rounding, deep trees, `frac` sizes).
 3. Config loading and validation, JSON schema, generated `docs/CONFIG.md`, `--explain`, command line task parsing, `--dry-run`.
 4. One backend all the way through (the one that fits the user's environment): one terminal, one window at the right place, then the whole layout.
-5. Monitor support (per-monitor work area, aliases), `--monitors`, and executing multi-task command lines (section 14).
+5. Monitor support (aliases, hotplug and `--wait-monitors`), `--monitors`, and executing multi-task command lines (section 14). The per-monitor work area was done in step 4.
 6. `on_exit`, `snap`, state management, `--close` / `--toggle`.
 7. `--demo` (section 10).
 8. Browser editor (section 13).
@@ -238,8 +238,7 @@ The local server can write files and, through "Test here", start commands from J
 ## 8. Open questions (to be resolved during the work)
 
 - GNOME and KDE on Wayland: the XWayland approach versus an extension or script per compositor (needs a spike on a machine that runs them).
-- How to measure terminal cell sizes reliably for `snap: "cell"` (prototype in step 4).
-- Whether `_GTK_FRAME_EXTENTS` is enough to line up client-side-decorated windows exactly (verify in step 4).
+- Whether `_GTK_FRAME_EXTENTS` is enough to line up client-side-decorated windows exactly (the code handles it; no machine with such windows has been tested).
 - Whether the meters should be always-on-top / sticky by default (current default: no).
 
 ## 9. Decisions so far

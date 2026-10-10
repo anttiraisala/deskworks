@@ -145,6 +145,20 @@ class CliTest(unittest.TestCase):
         self.assertIn("HDMI-1", self.run_cli("--dry-run", path, "--monitor", "primary")[1])
         self.assertIn("HDMI-1", self.run_cli("--dry-run", path, "--monitor", "main")[1])
 
+    def test_work_area_is_used_for_area_work_and_full_ignores_it(self):
+        from tilepane.geometry import Rect
+        path = self.write("a.json", dict(TWO_COLUMNS, margin=0))
+        areas = {0: Rect(65, 270, 1855, 1170)}
+        out, err = io.StringIO(), io.StringIO()
+        cli.main(["--dry-run", path], out=out, err=err, detected=MONS, work_areas=areas)
+        self.assertIn("work area 1855x1170+65+270", out.getvalue())
+        self.assertRegex(out.getvalue(), r"0\s+65\s+270\s+928\s+1170")
+        full = self.write("f.json", dict(TWO_COLUMNS, margin=0, area="full"))
+        out = io.StringIO()
+        cli.main(["--dry-run", full], out=out, err=err, detected=MONS, work_areas=areas)
+        self.assertNotIn("work area", out.getvalue())
+        self.assertRegex(out.getvalue(), r"0\s+0\s+240\s+960\s+1200")
+
     def test_default_monitor_before_task(self):
         path = self.write("a.json", TWO_COLUMNS)
         code, out, _ = self.run_cli("--monitor", "1", "--dry-run", path)
@@ -225,11 +239,36 @@ class CliTest(unittest.TestCase):
         self.assertIn("pane 960x1200+0+240", out)
         self.assertIn("snap cell", out)
 
-    def test_not_dry_run_is_not_implemented(self):
+    def test_open_windows_with_fake_backend(self):
+        from tests.fakes import FakeBackend
         path = self.write("a.json", TWO_COLUMNS)
-        code, out, err = self.run_cli(path)
-        self.assertEqual(code, 2)
-        self.assertIn("not implemented yet", err)
+        backend, started = FakeBackend(), []
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main([path, "--monitor", "1"], out=out, err=err, detected=MONS,
+                        backend=backend, popen=lambda cmd, **kw: started.append(cmd))
+        self.assertEqual(code, 0, err.getvalue())
+        self.assertEqual(len(started), 2)
+        self.assertIn("2 of 2 windows opened", out.getvalue())
+        self.assertEqual([p[0] for p in backend.placed], [1, 2])
+        self.assertEqual(backend.placed[0][1].x, 1920)
+        self.assertTrue(backend.disconnected)
+
+    def test_open_failure_exit_code(self):
+        from tests.fakes import FakeBackend
+        path = self.write("a.json", TWO_COLUMNS)
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main([path], out=out, err=err, detected=MONS,
+                        backend=FakeBackend(appear=False), popen=lambda cmd, **kw: None)
+        self.assertEqual(code, 1)
+        self.assertIn("FAILED", err.getvalue())
+
+    def test_no_backend_is_an_error(self):
+        path = self.write("a.json", TWO_COLUMNS)
+        from unittest import mock
+        with mock.patch("tilepane.backends.choose", return_value=(None, "no X here")):
+            code, out, err = self.run_cli(path)
+        self.assertEqual(code, 1)
+        self.assertIn("no X here", err)
 
     def test_missing_default_config(self):
         old = os.environ.get("XDG_CONFIG_HOME")

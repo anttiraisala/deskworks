@@ -9,8 +9,8 @@ Implementation follows the order in SPEC.md section 7. Newest entries last.
 | 1 | `--doctor`, `--monitors`, project skeleton | done |
 | 2 | Geometry core + unit tests | done |
 | 3 | Config loading, validation, schema, CONFIG.md, task parsing, `--dry-run` | done |
-| 4 | One backend end to end (X11 / python-xlib, gnome-terminal) | next |
-| 5 | Monitor support, multi-task command lines | pending |
+| 4 | One backend end to end (X11 / python-xlib, gnome-terminal, xterm) | done |
+| 5 | Aliases and hotplug, multi-task execution polish | next |
 | 6 | `on_exit`, `snap`, state management, `--close` / `--toggle` | pending |
 | 7 | `--demo` | pending |
 | 8 | Browser editor | pending |
@@ -52,3 +52,16 @@ Implementation follows the order in SPEC.md section 7. Newest entries last.
 - Known gap: `area: "work"` (the default) is not yet reduced by panels, so dry-run uses the full monitor and says so. Per-monitor work area is step 5 (on this machine `_NET_WORKAREA` is one rectangle for the whole screen).
 - Verified a real install (`pip install` into a scratch virtualenv): the `tilepane` command works and the schema file is packaged.
 - 174 tests pass.
+
+### 2026-10-10: step 4 (X11 backend)
+Spikes on this machine (Compiz/Unity, gnome-terminal 3.52, xterm) settled the open questions:
+- Ubuntu's gnome-terminal starts a dedicated server for `--class=tilepane` (own PID, WM_CLASS class `tilepane`, instance stays `gnome-terminal-server`), so windows are recognised by class and found as "new in the window list". xterm honors `-class`/`-name` and its PID is the window's.
+- Cell size is read from `WM_NORMAL_HINTS` (gnome-terminal base 14x2, increments 10x22; xterm base 4x4, increments 6x13). No measuring needed.
+- `_NET_MOVERESIZE_WINDOW` places the frame's top-left corner and takes the client size; the frame's 32 px title bar (`_NET_FRAME_EXTENTS` 0,0,32,0) is subtracted from the height. No `_GTK_FRAME_EXTENTS` on this machine; the code handles it but it is untested.
+- Compiz keeps windows inside the work area. A first run with the full monitor was pushed in by the 65 px launcher and 30 px top bar. `_GTK_WORKAREAS_D0` holds the per-monitor work areas, so the per-monitor work area (planned for step 5) was done now: `_GTK_WORKAREAS`, then panel struts, then `_NET_WORKAREA`, then the full monitor.
+Implemented:
+- `placement.py` (pure: frame extents, shadow extents, size hints, cell snap), `backends/x11.py` (python-xlib, EWMH), `terminals.py` (gnome-terminal, xterm, custom `cmd` templates; kitty and alacritty adapters are not written yet), `runner.py` (stdlib-only script that runs inside each window: command lists, cwd, env, `stop_on_error`, `on_exit` keep/close/restart with delay and max restarts), `opener.py` (start terminal, find the new window, place it, report), `workarea.py`.
+- `tilepane FILE --monitor N` now opens windows; `when` conditions are evaluated; a pane that fails does not stop the others; exit code 1 if any pane failed.
+- Verified live on monitor 3 (eDP-1): placement was exact for both terminals (planned rectangle equals the window manager's result), screenshot checked. `tests/test_x11_live.py` repeats this when `TILEPANE_LIVE=1`.
+- Not yet: state file and `--close`/`--toggle`/reconcile (step 6), `snap: "pixel"` for terminals with size increments, `decorations: false`, `profile`/`font_size`, `mode: cycle/parallel`, parallel window start, kitty/alacritty.
+- Run all tests: `PYTHONPATH=src:. python3 -m unittest discover -s tests -t .` (231 pass, 2 live tests skipped).
