@@ -434,3 +434,25 @@ class EmptyPaneTest(unittest.TestCase):
         leaves = self.resolved_leaves({"dir": "rows", "terminal": "xterm", "cwd": "/tmp",
                                        "b": {"run": "x"}})
         self.assertTrue(leaves[0]["empty"])
+
+
+class ShellKeyTest(unittest.TestCase):
+    def leaves(self, data):
+        cfg = config.load_text(json.dumps(data), "s.json", strict=True)
+        return list(config.iter_leaves(config.resolve_layout(cfg, cfg.layouts[0])["split"]))
+
+    def test_shell_inherits_and_defaults_to_auto(self):
+        data = {"defaults": {"shell": "zsh"}, "layouts": [{"name": "s", "split": {
+            "dir": "rows", "shell": "fish", "a": {"run": "x"}, "b": {"run": "y", "shell": "bash"}}}]}
+        self.assertEqual([lf["shell"] for lf in self.leaves(data)], ["fish", "bash"])
+        plain = {"name": "s", "split": {"dir": "rows", "a": {"run": "x"}, "b": {"run": "y"}}}
+        self.assertEqual({lf["shell"] for lf in self.leaves(plain)}, {"auto"})
+
+    def test_pane_with_only_a_shell_gets_a_window(self):
+        leaves = self.leaves({"name": "s", "split": {"dir": "rows", "a": {"shell": "zsh"}}})
+        self.assertNotIn("empty", leaves[0])
+        self.assertTrue(leaves[1]["empty"])
+
+    def test_shell_must_be_a_string(self):
+        self.assertTrue(any("shell" in e for e in errors_of(
+            {"name": "s", "split": {"run": "x", "shell": 3}})))

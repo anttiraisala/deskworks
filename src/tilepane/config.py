@@ -35,6 +35,7 @@ _COLUMN_NAMES = {"columns", "v", "vertical"}
 # Built-in values (SPEC.md section 2). Keys with no built-in value are absent.
 BUILTIN: dict[str, Any] = {
     "terminal": "auto",
+    "shell": "auto",
     "margin": 8,
     "snap": "cell",
     "on_exit": "keep",
@@ -152,6 +153,7 @@ def _size(allow_negative: bool, allow_frac: bool) -> Callable[[Any], Optional[st
 # Settings that inherit down the tree (name -> check).
 INHERITED: dict[str, Callable[[Any], Optional[str]]] = {
     "terminal": _terminal,
+    "shell": _str,
     "profile": _str,
     "font_size": _number(0, exclusive=True),
     "snap": _enum("snap"),

@@ -252,6 +252,15 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(sleeps, [])
         self.assertEqual(self.execs, [])
 
+    def test_shell_from_spec_runs_commands_and_the_prompt(self):
+        self.fake_shell()
+        shell = os.environ["SHELL"]
+        os.environ["SHELL"] = "/bin/false"      # must not be used
+        self.run_spec(commands=[f'echo "$SHELL" >> {self.log}'], shell=shell, env={"X": "1"})
+        self.assertEqual(self.lines(), [shell])
+        file, args, env = self.execs[0]
+        self.assertEqual((file, args, env["SHELL"], env["X"]), (shell, [shell], shell, "1"))
+
     def test_ctrl_c_still_reaches_children(self):
         # The runner must install a handler, not SIG_IGN, or children would inherit "ignore".
         import signal
@@ -357,6 +366,33 @@ class OpenerTest(unittest.TestCase):
         self.assertEqual(opener.default_title({"title": "T", "run": "x"}), "T")
         self.assertEqual(opener.default_title({"run": ["htop", "x"]}), "htop")
         self.assertEqual(opener.default_title({}), "tilepane")
+
+    def test_resolve_shell(self):
+        found = {"zsh": "/usr/bin/zsh"}.get
+        self.assertEqual(opener.resolve_shell("auto", env={"SHELL": "/bin/bash"}), "/bin/bash")
+        self.assertEqual(opener.resolve_shell(None, env={}), "/bin/sh")
+        self.assertEqual(opener.resolve_shell("zsh", which=found), "/usr/bin/zsh")
+        self.assertEqual(opener.resolve_shell("/bin/sh"), "/bin/sh")
+        with self.assertRaisesRegex(opener.ShellError, "not installed"):
+            opener.resolve_shell("fish", which=found)
+        with self.assertRaisesRegex(opener.ShellError, "not an executable"):
+            opener.resolve_shell("/nonexistent/zsh")
+
+    def test_pane_with_missing_shell_fails_alone(self):
+        from tests.fakes import FakeBackend
+        op = opener.Opener(FakeBackend(), popen=lambda *a, **k: None,
+                           resolve_terminal=lambda s: terminals.Xterm(), timeout=0.1)
+        bad = op.open_pane(LeafRect("0", Rect(0, 0, 9, 9), Rect(0, 0, 9, 9), {"shell": "nosuchshell"}))
+        self.assertFalse(bad.ok)
+        self.assertIn("shell 'nosuchshell' is not installed", bad.error)
+
+    def test_shell_reaches_the_runner(self):
+        from tests.fakes import FakeBackend
+        started = []
+        op = opener.Opener(FakeBackend(), popen=lambda cmd, **k: started.append(cmd),
+                           resolve_terminal=lambda s: terminals.Xterm(), timeout=0.1)
+        op.open_pane(LeafRect("0", Rect(0, 0, 9, 9), Rect(0, 0, 9, 9), {"shell": "/bin/sh"}))
+        self.assertEqual(json.loads(started[0][-1])["shell"], "/bin/sh")
 
     def test_runner_spec(self):
         spec = opener.runner_spec({"run": "htop", "cwd": "~", "env": {"A": "1"},

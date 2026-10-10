@@ -105,9 +105,9 @@ A single-layout file may be flat: `name`, `margin`, `split` at the top level, wi
 
 ### Inheritance and precedence
 
-Settings that apply to windows inherit down the tree. The effective value for a leaf is the first one found in this order: the leaf, its ancestor split nodes (nearest first), the layout, the file's `defaults`, the built-in value. `env` is merged key by key instead of replaced. Keys that inherit: `terminal`, `profile`, `font_size`, `snap`, `on_exit`, `restart_delay`, `max_restarts`, `stop_on_error`, `decorations`, `cwd`, `env`, `margin`. `at_basis` inherits through split nodes only. Keys that never inherit: `run`, `title`, `id`, `mode`, `interval`, `when`, `empty`, `description`. `outer_margin` and `area` are set on the layout or in `defaults`. `docs/CONFIG.md` marks every key.
+Settings that apply to windows inherit down the tree. The effective value for a leaf is the first one found in this order: the leaf, its ancestor split nodes (nearest first), the layout, the file's `defaults`, the built-in value. `env` is merged key by key instead of replaced. Keys that inherit: `terminal`, `shell`, `profile`, `font_size`, `snap`, `on_exit`, `restart_delay`, `max_restarts`, `stop_on_error`, `decorations`, `cwd`, `env`, `margin`. `at_basis` inherits through split nodes only. Keys that never inherit: `run`, `title`, `id`, `mode`, `interval`, `when`, `empty`, `description`. `outer_margin` and `area` are set on the layout or in `defaults`. `docs/CONFIG.md` marks every key.
 
-Built-in values: `terminal` `"auto"`, `margin` 8, `outer_margin` none, `at_basis` `"outer"`, `area` `"work"`, `snap` `"cell"`, `on_exit` `"keep"`, `restart_delay` 1, `max_restarts` 0 (unlimited), `stop_on_error` false, `decorations` true, `mode` `"sequence"`.
+Built-in values: `terminal` `"auto"`, `shell` `"auto"`, `margin` 8, `outer_margin` none, `at_basis` `"outer"`, `area` `"work"`, `snap` `"cell"`, `on_exit` `"keep"`, `restart_delay` 1, `max_restarts` 0 (unlimited), `stop_on_error` false, `decorations` true, `mode` `"sequence"`.
 
 ### Validation, unknown keys, versions
 
@@ -136,10 +136,11 @@ In addition to the binary tree, allow a `children` list and `sizes` (in the styl
 `sizes` entries are `Nfrac` (a share of the space left after the fixed sizes, divided proportionally), `Npx` or `N%`. Without `sizes`, all children are `1frac`. If no entry is a `frac`, the last child takes any leftover space. Sizes that exceed the area are an error. `children` cannot be combined with `a`, `b` or `at`.
 
 ### Leaf
-- `run`: a command (string) or a list of commands. Strings are run through the user's shell as `$SHELL -lc <command>` (`/bin/sh` if `$SHELL` is unset). A list is executed **sequentially in the same terminal** (see section 10). Without `run`, a leaf that has any other window setting (`cwd`, `title`, `terminal`, `env`, ...) opens an interactive shell.
+- `run`: a command (string) or a list of commands. Strings are run through the pane's shell as `<shell> -lc <command>` (see `shell`; by default the user's `$SHELL`). A list is executed **sequentially in the same terminal** (see section 10). Without `run`, a leaf that has any other window setting (`cwd`, `title`, `terminal`, `env`, ...) opens an interactive shell.
 - `cwd`: working directory. `~` and `$VAR` are expanded. A directory that does not exist is an error shown in the pane.
 - `title`: window title. Programs may overwrite it; windows are not identified by title.
 - `id`: optional stable identifier, unique within the layout (letters, digits, `_`, `-`, `.`). Without it the tree path (`1.0`) is used. `id` is what state management uses to match windows to panes.
+- `shell`: the shell that runs the pane's commands (`<shell> -lc <command>`) and the interactive prompt afterwards. `"auto"` (default) is the user's login shell (`$SHELL`, `/bin/sh` if unset), so a zsh or fish user keeps their own setup; otherwise a name found on `PATH` (`"bash"`, `"zsh"`, `"fish"`) or a path. `SHELL` is set to it inside the pane. A shell that is not installed fails that pane only. A leaf with only `shell` opens that shell.
 - `terminal`: overrides the terminal for this pane. A name, or a custom command template, for example `{"cmd": ["foot", "--title", "{title}", "--", "{command}"]}`.
 - `profile` / `font_size`: optional terminal-specific settings; a terminal that cannot honor them produces a warning, not an error.
 - `snap`: `"cell"` | `"pixel"`.

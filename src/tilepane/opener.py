@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -39,7 +40,29 @@ class PaneResult:
     error: Optional[str] = None
 
 
-def runner_spec(leaf: dict, lifetime: Optional[float] = None) -> dict:
+class ShellError(ValueError):
+    """The pane's shell cannot be used."""
+
+
+def resolve_shell(setting: Optional[str], *, env: Optional[dict] = None,
+                  which: Callable[[str], Optional[str]] = shutil.which) -> str:
+    """The shell program for a pane's `shell` setting, as a path."""
+    env = os.environ if env is None else env
+    if setting in (None, "auto"):
+        return env.get("SHELL") or "/bin/sh"
+    if "/" in setting:
+        path = os.path.expanduser(setting)
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+        raise ShellError(f"shell '{setting}' is not an executable file")
+    found = which(setting)
+    if found is None:
+        raise ShellError(f"shell '{setting}' is not installed")
+    return found
+
+
+def runner_spec(leaf: dict, lifetime: Optional[float] = None,
+                shell: Optional[str] = None) -> dict:
     run = leaf.get("run")
     spec = {
         "commands": [] if run is None else [run] if isinstance(run, str) else list(run),
@@ -53,6 +76,8 @@ def runner_spec(leaf: dict, lifetime: Optional[float] = None) -> dict:
     }
     if lifetime:
         spec["lifetime"] = lifetime
+    if shell:
+        spec["shell"] = shell
     return spec
 
 
@@ -135,7 +160,13 @@ class Opener:
             result.warnings.append(f"mode '{leaf['mode']}' is not implemented yet; "
                                    "the commands run in sequence")
 
-        argv = [sys.executable, _RUNNER, json.dumps(runner_spec(leaf, self.lifetime))]
+        try:
+            shell = resolve_shell(leaf.get("shell", "auto"))
+        except ShellError as exc:
+            result.error = str(exc)
+            return result
+
+        argv = [sys.executable, _RUNNER, json.dumps(runner_spec(leaf, self.lifetime, shell))]
         req = terminals.LaunchRequest(
             title=default_title(leaf), argv=argv, geometry=self._geometry(term, lr),
             x=lr.rect.x, y=lr.rect.y, width=lr.rect.width, height=lr.rect.height)

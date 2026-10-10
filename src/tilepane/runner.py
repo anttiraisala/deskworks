@@ -7,7 +7,7 @@ restarts, so tilepane itself does not have to stay running.
 
 The spec is a JSON object: commands (list of shell command strings), cwd, env,
 title, on_exit ("keep" | "close" | "restart"), restart_delay, max_restarts,
-stop_on_error, and lifetime (seconds; when set, the pane is stopped and the
+stop_on_error, shell (the shell program; $SHELL when absent), and lifetime (seconds; when set, the pane is stopped and the
 window closes when it runs out, whatever on_exit says).
 """
 
@@ -79,7 +79,7 @@ def _run_commands(commands: list[str], shell: str, env: dict, stop_on_error: boo
     return status
 
 
-def run(spec: dict[str, Any], *, execvp: Callable = os.execvp, sleep: Callable = time.sleep,
+def run(spec: dict[str, Any], *, execvp: Callable = os.execvpe, sleep: Callable = time.sleep,
         out: Optional[TextIO] = None, stop: Callable = _stop_group) -> int:
     """Run the pane described by `spec`.
 
@@ -87,7 +87,7 @@ def run(spec: dict[str, Any], *, execvp: Callable = os.execvp, sleep: Callable =
     then the shell is a child and the runner returns when time is up.
     """
     out = out or sys.stderr
-    shell = os.environ.get("SHELL") or "/bin/sh"
+    shell = spec.get("shell") or os.environ.get("SHELL") or "/bin/sh"
     commands = [c for c in spec.get("commands") or [] if c]
     on_exit = spec.get("on_exit", "keep")
     delay = float(spec.get("restart_delay", 1))
@@ -97,6 +97,7 @@ def run(spec: dict[str, Any], *, execvp: Callable = os.execvp, sleep: Callable =
     deadline = time.monotonic() + float(lifetime) if lifetime else None
 
     env = os.environ.copy()
+    env["SHELL"] = shell        # programs in the pane that start a shell get the same one
     for key, value in (spec.get("env") or {}).items():
         env[key] = _expand(value)
 
@@ -142,8 +143,8 @@ def run(spec: dict[str, Any], *, execvp: Callable = os.execvp, sleep: Callable =
         signal.signal(signal.SIGINT, signal.SIG_DFL)
         out.flush()
         if deadline is not None:
-            return _wait([shell], None, deadline, stop)
-        execvp(shell, [shell])
+            return _wait([shell], env, deadline, stop)
+        execvp(shell, [shell], env)
     except _TimeUp:
         return 0
     return status  # only reached when execvp is replaced in tests

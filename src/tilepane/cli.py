@@ -54,7 +54,8 @@ def _format_layout(name: str, source: str, mon: monitors.Monitor, area: geometry
         if verbose:
             o, leaf = lr.outer, lr.leaf
             lines.append(f"  {'':<{width}}  pane {o.width}x{o.height}+{o.x}+{o.y}, "
-                         f"terminal {leaf.get('terminal')}, snap {leaf.get('snap')}, "
+                         f"terminal {leaf.get('terminal')}, shell {leaf.get('shell')}, "
+                         f"snap {leaf.get('snap')}, "
                          f"on_exit {leaf.get('on_exit')}, margin {leaf.get('margin')}")
     return "\n".join(lines)
 

@@ -104,3 +104,10 @@ Implemented:
 - Before this, `{}` opened an interactive shell and a missing `a`/`b` was an error.
 - Workspaces confirmed working by the user on Linux Mint (Cinnamon).
 - 318 tests pass.
+
+### 2026-10-10: `shell` per pane
+- New inheriting key `shell` (default `"auto"` = `$SHELL`): a name on `PATH` or a path. The runner uses it for the commands (`-lc`) and for the interactive prompt, and sets `SHELL` in the pane. A missing shell fails only that pane. `{"shell": "zsh"}` alone opens zsh. `--doctor` lists installed shells; dry-run `-v` shows the shell.
+- Default chosen as the user's own shell rather than a fixed bash, so zsh/fish users keep their aliases and PATH; on Ubuntu and Mint it is bash.
+- Fixed on the way: the interactive prompt after a pane's commands did not get the pane's `env` variables (it inherited the runner's environment); it now gets the same environment as the commands.
+- Checked live (Xvfb + Openbox + xterm): dash pane ran dash for the command and the prompt, default pane bash, a pane asking for zsh (not installed) failed alone.
+- 325 tests pass.

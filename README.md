@@ -141,6 +141,8 @@ A layout is a tree of splits and panes, written in JSON:
 }
 ```
 
+Every pane can choose its own terminal (the window: `"terminal": "xterm"`) and its own shell (the program that understands the commands: `"shell": "zsh"`). Both default to `"auto"`: the first terminal found, and your own login shell (bash on Ubuntu and Mint). Set either on one pane, on a split (for everything below it), on the layout or in `defaults`; `tilepane --doctor` lists the terminals and shells installed.
+
 `dir` is `columns` (panes side by side) or `rows` (stacked). A pane you leave out, or write as `{}`, stays empty: no window opens there. Here the left 40 % is left empty:
 
 ```json

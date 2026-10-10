@@ -18,6 +18,7 @@ TERMINALS = [
     "kitty", "alacritty", "gnome-terminal", "xterm", "konsole",
     "xfce4-terminal", "tilix", "wezterm", "foot", "x-terminal-emulator",
 ]
+SHELLS = ["bash", "zsh", "fish", "dash", "ksh", "tcsh"]
 X11_TOOLS = ["xrandr", "xprop", "xwininfo", "xdotool", "wmctrl"]
 WAYLAND_TOOLS = ["swaymsg", "hyprctl", "wlr-randr", "gdbus", "busctl"]
 DEMO_TOOLS = [
@@ -135,7 +136,7 @@ def collect() -> dict:
     desk = desktops()
     wm = x11_window_manager() if session == "x11" or os.environ.get("DISPLAY") else ""
     found = {n: bool(shutil.which(n)) for n in
-             X11_TOOLS + WAYLAND_TOOLS + TERMINALS + DEMO_TOOLS}
+             X11_TOOLS + WAYLAND_TOOLS + TERMINALS + SHELLS + DEMO_TOOLS}
     xlib = xlib_version()
     monitors, source, errors = mon.detect()
     return {
@@ -183,7 +184,8 @@ def render(info: dict) -> str:
         add(f"  warning: {err}")
     add("")
     for title, names in (("X11 tools", X11_TOOLS), ("Wayland tools", WAYLAND_TOOLS),
-                         ("Terminals", TERMINALS), ("Demo commands", DEMO_TOOLS)):
+                         ("Terminals", TERMINALS), ("Shells", SHELLS),
+                         ("Demo commands", DEMO_TOOLS)):
         have, missing = _names(info["tools"], names)
         add(f"{title:<16} found: {have}")
         add(f"{'':<16} missing: {missing}")
