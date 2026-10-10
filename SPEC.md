@@ -55,7 +55,7 @@ Layout names can be numbers or words ("3", "cpu-dash").
 
 ### Exit codes and output
 
-- `0`: success. `1`: at least one task failed (others were still run). `2`: usage or configuration error.
+- `0`: success. `1`: at least one task failed, including an invalid configuration file or an unknown monitor (the other tasks were still run). `2`: usage error (unknown option, missing value, a feature that is not implemented yet).
 - Errors go to stderr, one per line, prefixed with the task (file and layout) and the key path, for example `meters.json: layouts[0].split.b.run: must be a string or a list of strings`.
 - `--list` prints one layout per line: name, number of panes, source file.
 - `-v` additionally prints the chosen terminal, backend, monitor and every computed rectangle. Placement failures are also logged to `~/.local/state/tilepane/tilepane.log`.

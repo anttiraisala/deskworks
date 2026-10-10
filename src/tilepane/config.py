@@ -492,15 +492,24 @@ def _merge(inherited: dict, node: dict) -> dict:
     return out
 
 
-def _resolve_node(node: dict, inherited: dict, at_basis: str) -> dict:
+def path_id(path: tuple[int, ...]) -> str:
+    """Tree-path id of a leaf in the written layout: "root", "0", "1.0", ..."""
+    return ".".join(map(str, path)) if path else "root"
+
+
+def _resolve_node(node: dict, inherited: dict, at_basis: str, path: tuple[int, ...]) -> dict:
     eff = _merge(inherited, node)
     if is_leaf(node):
         leaf = dict(eff)
         leaf.setdefault("env", {})
         leaf["mode"] = node.get("mode", "sequence")
-        for key in ("run", "title", "id", "interval", "when", "empty", "description"):
+        for key in ("run", "title", "interval", "when", "empty", "description"):
             if key in node:
                 leaf[key] = node[key]
+        # Every resolved leaf has an id: the explicit one, or its path in the
+        # written tree. The path is taken before `when` removes panes, so ids
+        # stay the same whether or not a sibling is left out.
+        leaf["id"] = node.get("id", path_id(path))
         return leaf
 
     basis = node.get("at_basis", at_basis)
@@ -510,13 +519,14 @@ def _resolve_node(node: dict, inherited: dict, at_basis: str) -> dict:
         "at_basis": basis,
     }
     if "children" in node:
-        out["children"] = [_resolve_node(c, eff, basis) for c in node["children"]]
+        out["children"] = [_resolve_node(c, eff, basis, path + (i,))
+                           for i, c in enumerate(node["children"])]
         if "sizes" in node:
             out["sizes"] = list(node["sizes"])
     else:
         out["at"] = node.get("at", "50%")
-        out["a"] = _resolve_node(node["a"], eff, basis)
-        out["b"] = _resolve_node(node["b"], eff, basis)
+        out["a"] = _resolve_node(node["a"], eff, basis, path + (0,))
+        out["b"] = _resolve_node(node["b"], eff, basis, path + (1,))
     return out
 
 
@@ -571,7 +581,7 @@ def resolve_layout(cfg: ConfigFile, layout: dict, *,
         return cfg.defaults.get(key, builtin)
 
     at_basis = pick("at_basis", BUILTIN_AT_BASIS)
-    split = _resolve_node(layout["split"], base, at_basis)
+    split = _resolve_node(layout["split"], base, at_basis, ())
     if when_eval is not None:
         split = _collapse(split, when_eval)
         if split is None:

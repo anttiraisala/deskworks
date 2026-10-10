@@ -287,6 +287,13 @@ class ResolveTest(unittest.TestCase):
         r = self.resolved(data)["split"]
         self.assertEqual((r["dir"], r["b"]["dir"]), ("columns", "rows"))
 
+    def test_leaf_ids_explicit_or_path(self):
+        data = {"layouts": [{"name": "a", "split": {
+            "dir": "columns", "a": {"id": "cpu"}, "b": {"dir": "rows", "a": {}, "b": {}}}}]}
+        ids = [x["id"] for x in config.iter_leaves(self.resolved(data)["split"])]
+        self.assertEqual(ids, ["cpu", "1.0", "1.1"])
+        self.assertEqual(self.resolved({"split": {}})["split"]["id"], "root")
+
     def test_leaf_keys_are_carried(self):
         data = {"layouts": [{"name": "a", "split": {
             "run": ["a", "b"], "title": "T", "id": "x", "mode": "cycle", "interval": 5,
@@ -338,6 +345,13 @@ class WhenTest(unittest.TestCase):
         self.assertEqual([x["run"] for x in config.iter_leaves(r["split"])], ["a", "b"])
         self.assertNotIn("when", r["split"]["b"])
         self.assertEqual(r["split"]["b"]["run"], "b")
+
+    def test_ids_come_from_the_written_tree_not_the_collapsed_one(self):
+        cfg = load(self.tree())
+        full = resolve_layout(cfg, cfg.layouts[0], when_eval=lambda c: True)
+        cut = resolve_layout(cfg, cfg.layouts[0], when_eval=lambda c: False)
+        self.assertEqual([x["id"] for x in config.iter_leaves(full["split"])], ["0", "1.0", "1.1"])
+        self.assertEqual([x["id"] for x in config.iter_leaves(cut["split"])], ["0", "1.0"])
 
     def test_sibling_takes_the_space(self):
         r = self.resolved(self.tree(), set())

@@ -152,3 +152,66 @@ def format_table(monitors: list[Monitor]) -> str:
             f"{f'+{m.x}+{m.y}':<10} {'primary' if m.primary else ''}".rstrip()
         )
     return "\n".join(lines)
+
+
+class MonitorError(ValueError):
+    """A --monitor value does not match any connected monitor."""
+
+
+def _describe(monitors: list[Monitor]) -> str:
+    return ", ".join(f"{m.number} {m.name}" for m in monitors) or "none"
+
+
+def resolve(spec: str, monitors: list[Monitor],
+            aliases: Optional[dict] = None) -> list[Monitor]:
+    """Resolve one --monitor value to monitors.
+
+    A value is `all`, `primary`, a config alias, a number or a connector name,
+    checked in that order. An alias maps to a number or a connector name.
+    """
+    spec = spec.strip()
+    if not monitors:
+        raise MonitorError("no monitors found")
+    if spec == "all":
+        return list(monitors)
+    if spec == "primary":
+        primary = [m for m in monitors if m.primary]
+        if not primary:
+            raise MonitorError("no primary monitor is set; use a number or a connector name")
+        return primary[:1]
+    target = str((aliases or {}).get(spec, spec)).strip()
+    if target.isdigit():
+        number = int(target)
+        if number >= len(monitors):
+            raise MonitorError(f"no monitor {number} (monitors: {_describe(monitors)})")
+        return [monitors[number]]
+    for m in monitors:
+        if m.name.lower() == target.lower():
+            return [m]
+    via = f" (alias '{spec}')" if spec != target else ""
+    raise MonitorError(f"unknown monitor '{target}'{via} (monitors: {_describe(monitors)})")
+
+
+def resolve_many(value: str, monitors: list[Monitor],
+                 aliases: Optional[dict] = None) -> list[Monitor]:
+    """Resolve a comma-separated --monitor value; duplicates are dropped."""
+    out: list[Monitor] = []
+    for part in value.split(","):
+        if not part.strip():
+            raise MonitorError(f"empty entry in monitor list '{value}'")
+        for m in resolve(part, monitors, aliases):
+            if m not in out:
+                out.append(m)
+    return out
+
+
+def wait_for_monitors(timeout: float = 0.0, interval: float = 0.5):
+    """detect(), retried for up to `timeout` seconds while no monitor is found."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while True:
+        result = detect()
+        if result[0] or time.monotonic() >= deadline:
+            return result
+        time.sleep(interval)

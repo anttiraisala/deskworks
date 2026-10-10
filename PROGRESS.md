@@ -8,8 +8,8 @@ Implementation follows the order in SPEC.md section 7. Newest entries last.
 |---|---|---|
 | 1 | `--doctor`, `--monitors`, project skeleton | done |
 | 2 | Geometry core + unit tests | done |
-| 3 | Config loading, validation, `--dry-run` | next |
-| 4 | One backend end to end (X11 / python-xlib, gnome-terminal) | pending |
+| 3 | Config loading, validation, schema, CONFIG.md, task parsing, `--dry-run` | done |
+| 4 | One backend end to end (X11 / python-xlib, gnome-terminal) | next |
 | 5 | Monitor support, multi-task command lines | pending |
 | 6 | `on_exit`, `snap`, state management, `--close` / `--toggle` | pending |
 | 7 | `--demo` | pending |
@@ -41,3 +41,14 @@ Implementation follows the order in SPEC.md section 7. Newest entries last.
 ### 2026-10-10: spec review
 - `docs/SPEC-REVIEW.md`: plan for documenting JSON keys (schema as source of truth, generated `docs/CONFIG.md`, README quick start), 30+ numbered findings (A: schema decisions before step 3, B: backend risks, C: behaviour gaps, D: editor security, E: wording), and a list of extra feature ideas.
 - Decisions pending from the user: `dir` naming (A3), unknown-key policy (A2), leaf `id` and `when` panes (A4, A5), whether SPEC.md is updated with the proposals before step 3.
+
+### 2026-10-10: spec adopted, step 3
+- Review proposals adopted into SPEC.md (canonical `columns`/`rows`, `id`, `when`, `empty`, `version`, `area`, inheritance, unknown-key policy, argument rules, state key, process model, editor security). Exit code 2 is for usage errors only; invalid files and unknown monitors are task failures (1).
+- `config.py`: loading, validation (all problems at once, with key paths), flat and multi-layout files, inheritance resolution, `when` collapse. Resolved leaves always carry an `id` (explicit, or the path in the written tree), taken before `when` removes panes so ids stay stable.
+- `tilepane.schema.json` is the single source of truth for keys; `docgen.py` writes `docs/CONFIG.md` and backs `--explain`. Tests check that the schema, the validator tables and the generated document agree.
+- `invocation.py`: ordered task parsing (files, layout names, `--monitor` belonging to the task, default monitor before the first task). `--close`, `--toggle`, `--demo`, `--edit` etc. are recognised and report "not implemented yet".
+- `monitors.resolve`: number, connector, alias, `primary`, `all`, comma lists. `--wait-monitors` retries detection.
+- `--dry-run` prints rectangles per task; it runs nothing, and `when` conditions only with `--eval-when`. Several tasks work; a failing task does not stop the others.
+- Known gap: `area: "work"` (the default) is not yet reduced by panels, so dry-run uses the full monitor and says so. Per-monitor work area is step 5 (on this machine `_NET_WORKAREA` is one rectangle for the whole screen).
+- Verified a real install (`pip install` into a scratch virtualenv): the `tilepane` command works and the schema file is packaged.
+- 174 tests pass.
