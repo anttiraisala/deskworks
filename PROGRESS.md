@@ -131,3 +131,7 @@ Implemented:
 - The preview monitor can be resized by dragging its edges and corners, with the size in pixels; a margin control sits under the picture.
 - Tested in Chromium: `tests/js/editor.features.mjs` (page opened as a file: unselect, command lines and dialog, split moving settings up, a common setting moving to the layout, swap by drag with an inherited cwd and with a default shell, monitor resize and reset, margin control) and the server e2e now also checks the command line by number and by name. Not tested on the owner's machine yet.
 - 343 tests pass (5 live tests skipped).
+
+### 2026-10-10: visible drag and a tip line
+- The owner asked for the pane drag to be visible and for a reminder about clicking outside the monitor. A copy of the dragged pane follows the pointer and, over another pane, takes that pane's place ("release to swap here"); a tip line under the preview says that a click outside the monitor unselects and shows the command lines (or, with nothing selected, how to edit and swap).
+- Tested in Chromium (`tests/js/editor.features.mjs`: the copy appears, lands on the target, disappears after the drop; the tip changes with the selection). Not tried on the owner's machine yet.

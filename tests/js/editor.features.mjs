@@ -28,9 +28,11 @@ await page.waitForSelector(".pane");
 // Unselect: click outside the monitor picture.
 await page.locator(".pane").first().click();
 expect((await sel()) === "pane", "pane selected");
+expect((await page.textContent("#screen-tip")).includes("click outside the monitor"), "tip about unselecting");
 const stage = await page.locator("#stage").boundingBox();
 await page.mouse.click(stage.x + 8, stage.y + 8);
 expect((await sel()) === "layout", "click outside the monitor clears the selection");
+expect((await page.textContent("#screen-tip")).includes("click a pane"), "tip when nothing is selected");
 step("click outside the monitor unselects");
 
 // Command lines in the layout panel and the Commands dialog.
@@ -72,7 +74,14 @@ const dst = await page.locator(".pane").nth(2).boundingBox();
 await page.mouse.move(src.x + src.width / 2, src.y + src.height / 2);
 await page.mouse.down();
 await page.mouse.move(dst.x + dst.width / 2, dst.y + dst.height / 2, { steps: 10 });
+const ghost = await page.locator("#drag-ghost").boundingBox();
+expect(ghost, "a copy of the pane is shown while dragging");
+await page.waitForTimeout(150);
+const landed = await page.locator("#drag-ghost").boundingBox();
+expect(Math.abs(landed.x - dst.x) < 3 && Math.abs(landed.width - dst.width) < 3, `over a pane the copy takes its place (${JSON.stringify(landed)} vs ${JSON.stringify(dst)})`);
+expect((await page.locator(".pane.drop-target").count()) === 1, "drop target highlighted");
 await page.mouse.up();
+expect((await page.locator("#drag-ghost").count()) === 0, "the copy is removed after the drop");
 d = await doc();
 const leftPane = d.split.a, bottomPane = d.split.b.b;
 console.log("  after swap:", JSON.stringify(d));

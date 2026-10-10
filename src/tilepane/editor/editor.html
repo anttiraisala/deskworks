@@ -70,7 +70,16 @@ main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
 .mon-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; } .mon-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
 .mon-handle:hover { background: var(--handle-hover); opacity: 0.6; border-radius: 4px; }
 .size-tip { position: absolute; z-index: 300; background: var(--ink); color: var(--bg); padding: 2px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.pane.drag-source { opacity: 0.5; }
+.pane.drag-source { opacity: 0.35; }
+.drag-ghost {
+  transition: left 0.08s, top 0.08s, width 0.08s, height 0.08s;
+  position: fixed; z-index: 400; pointer-events: none; background: var(--pane); color: var(--pane-ink);
+  border: 2px solid var(--accent); border-radius: 3px; opacity: 0.96; padding: 4px 6px; font-size: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35); overflow: hidden;
+}
+.drag-ghost.empty { background: var(--screen); color: var(--empty); border-style: dashed; }
+.drag-ghost .label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#screen-tip { width: 100%; text-align: center; color: var(--muted); font-size: 12px; }
 .pane.drop-target { border: 2px dashed var(--handle-hover); box-shadow: 0 0 0 3px var(--handle-hover) inset; }
 .cmd-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
 .cmd-row .what { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
@@ -1964,6 +1973,10 @@ function renderScreenbar() {
   parts.push(h("span", {}, "Margin ",
     h("button", { onclick: () => setMargin(margin - 1), title: "Smaller gap" }, "−"), " ", input, " ",
     h("button", { onclick: () => setMargin(margin + 1), title: "Larger gap" }, "+"), " px"));
+  parts.push(h("div", { id: "screen-tip" },
+    S.sel.kind === "pane" || S.sel.kind === "split"
+      ? "Tip: click outside the monitor to unselect and see the command lines."
+      : "Tip: click a pane to edit it; drag a pane onto another to swap them."));
   $("#screenbar").replaceChildren(...parts);
 }
 
@@ -1972,13 +1985,26 @@ function startPaneDrag(e, leaf) {
   e.preventDefault();
   e.stopPropagation();
   const startX = e.clientX, startY = e.clientY;
-  let dragging = false, target = null;
+  let dragging = false, target = null, ghost = null;
   const source = () => document.querySelector(`.pane[data-id="${leaf.id}"]`);
+  const box = e.currentTarget.getBoundingClientRect();
+  // While moving, the copy is at most 240x150 and held by its middle; over a
+  // target it takes that pane's place, showing where the contents will land.
+  const gw = Math.min(box.width, 240), gh = Math.min(box.height, 150);
   const onMove = (ev) => {
     if (!dragging && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 6) return;
+    if (!dragging) {
+      // A copy of the pane follows the pointer, so the move is visible.
+      const el = source();
+      ghost = h("div", { class: `drag-ghost${el && el.classList.contains("empty") ? " empty" : ""}`, id: "drag-ghost" },
+        h("div", { class: "label" }, el ? el.querySelector(".label").textContent : ""),
+        h("div", { class: "ghost-hint" }, "drop on another pane to swap"));
+      document.body.append(ghost);
+    }
     dragging = true;
     source()?.classList.add("drag-source");
     document.body.style.cursor = "grabbing";
+    const place = (x, y, w, hh) => Object.assign(ghost.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${hh}px` });
     const under = document.elementFromPoint(ev.clientX, ev.clientY);
     const pane = under ? under.closest(".pane") : null;
     const id = pane && pane.dataset.id !== leaf.id ? pane.dataset.id : null;
@@ -1987,11 +2013,19 @@ function startPaneDrag(e, leaf) {
       target = id;
       if (pane && id) pane.classList.add("drop-target");
     }
+    ghost.querySelector(".ghost-hint").textContent = pane && id ? "release to swap here" : "drop on another pane to swap";
+    if (pane && id) {
+      const r = pane.getBoundingClientRect();
+      place(r.left, r.top, r.width, r.height);
+    } else {
+      place(ev.clientX - gw / 2, ev.clientY - gh / 2, gw, gh);
+    }
   };
   const onUp = () => {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
     document.body.style.cursor = "";
+    if (ghost) ghost.remove();
     if (dragging && target) {
       swapPanes(leaf.path, pathOf(target));
       return;
