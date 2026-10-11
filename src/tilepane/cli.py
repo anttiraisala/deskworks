@@ -9,8 +9,8 @@ import sys
 from dataclasses import dataclass
 from typing import Iterator, Optional, TextIO
 
-from . import (__version__, backends, config, demo, docgen, doctor, geometry, manager,
-               monitors, opener, state, workarea)
+from . import (__version__, backends, config, demo, docgen, doctor, geometry, launcher,
+               manager, monitors, opener, state, workarea)
 from .invocation import HELP, Invocation, Task, UsageError, parse
 
 
@@ -540,7 +540,8 @@ class _Runner:
 def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
          err: Optional[TextIO] = None,
          detected: Optional[list[monitors.Monitor]] = None, backend=None, popen=None,
-         work_areas: Optional[dict] = None, store: Optional[state.StateStore] = None) -> int:
+         work_areas: Optional[dict] = None, store: Optional[state.StateStore] = None,
+         exit_shell=None) -> int:
     out = out or sys.stdout
     err = err or sys.stderr
     try:
@@ -580,17 +581,25 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
     runner = _Runner(inv, out, err, detected, backend, popen, work_areas, store)
     if inv.action == "list":
         return runner.list_layouts()
-    if inv.action == "close":
-        return runner.close_windows()
-    if inv.action == "toggle":
-        return runner.toggle_windows()
-    if inv.action == "demo":
-        return runner.demo()
     if inv.action == "edit":
         return runner.edit()
-    if inv.dry_run:
+    if inv.action == "close":
+        code = runner.close_windows()
+    elif inv.action == "toggle":
+        code = runner.toggle_windows()
+    elif inv.action == "demo":
+        code = runner.demo()
+    elif inv.dry_run:
         return runner.dry_run()
-    return runner.open_windows()
+    else:
+        code = runner.open_windows()
+    if inv.exit_shell:
+        out.flush()
+        if code == 0:
+            (exit_shell or launcher.exit_shell)(err)
+        else:
+            print("note: --exit-shell: something failed, so the terminal stays open", file=err)
+    return code
 
 
 if __name__ == "__main__":

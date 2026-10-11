@@ -467,3 +467,67 @@ class CliWorkspaceTest(unittest.TestCase):
         code, _, err = self.run_cli(self.path, "--workspace", "2")
         self.assertEqual(code, 1)
         self.assertIn("does not report workspaces", err)
+
+
+class ExitShellTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = os.path.join(self.tmp.name, "a.json")
+        with open(self.path, "w") as fh:
+            json.dump(LAYOUT, fh)
+        self.store = StateStore(os.path.join(self.tmp.name, "state"))
+        self.calls = []
+        fake_terminals_on_path(self)
+
+    def run_cli(self, *argv, backend=None):
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(list(argv), out=out, err=err, detected=MONS, backend=backend or FakeBackend(),
+                        popen=lambda *a, **k: None, store=self.store,
+                        exit_shell=lambda e: self.calls.append("exit"))
+        return code, out.getvalue(), err.getvalue()
+
+    def test_shell_closed_after_success(self):
+        code, _, err = self.run_cli(self.path, "-x")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.calls, ["exit"])
+        self.run_cli("--close", "all", "--exit-shell")
+        self.assertEqual(self.calls, ["exit", "exit"])
+
+    def test_shell_kept_when_something_failed(self):
+        code, _, err = self.run_cli(self.path, "-x", backend=FakeBackend(appear=False))
+        self.assertEqual(code, 1)
+        self.assertEqual(self.calls, [])
+        self.assertIn("terminal stays open", err)
+
+    def test_not_without_the_option(self):
+        self.run_cli(self.path)
+        self.assertEqual(self.calls, [])
+
+    def test_only_with_window_actions(self):
+        from tilepane.invocation import UsageError, parse
+        for argv in (["--dry-run", "a.json", "-x"], ["--edit", "a.json", "-x"], ["--list", "-x"]):
+            with self.subTest(argv=argv), self.assertRaises(UsageError):
+                parse(argv)
+        self.assertTrue(parse(["a.json", "-x"]).exit_shell)
+        self.assertTrue(parse(["--demo", "--exit-shell"]).exit_shell)
+
+
+class LauncherTest(unittest.TestCase):
+    def test_parent_shell(self):
+        from tilepane import launcher
+        read = {"/proc/42/comm": "bash\n", "/proc/43/comm": "-zsh\n", "/proc/44/comm": "cinnamon\n"}.__getitem__
+        self.assertEqual(launcher.parent_shell(42, read=read, isatty=lambda fd: True), (42, ""))
+        self.assertEqual(launcher.parent_shell(43, read=read, isatty=lambda fd: True)[0], 43)
+        self.assertIsNone(launcher.parent_shell(44, read=read, isatty=lambda fd: True)[0])
+        self.assertIsNone(launcher.parent_shell(42, read=read, isatty=lambda fd: False)[0])
+        self.assertIsNone(launcher.parent_shell(1, read=read, isatty=lambda fd: True)[0])
+
+    def test_exit_shell_hangs_up_the_shell(self):
+        import signal
+        from tilepane import launcher
+        sent, out = [], io.StringIO()
+        self.assertTrue(launcher.exit_shell(out, find=lambda: (42, ""), kill=lambda p, s: sent.append((p, s))))
+        self.assertEqual(sent, [(42, signal.SIGHUP)])
+        self.assertFalse(launcher.exit_shell(out, find=lambda: (None, "not a shell"), kill=lambda p, s: sent.append(1)))
+        self.assertIn("nothing was closed", out.getvalue())

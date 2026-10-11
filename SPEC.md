@@ -37,7 +37,7 @@ tilepane --explain on_exit                     # print the description of a conf
 tilepane --demo                                # random split with fun commands (see section 10)
 ```
 
-Other options: `--workspace N|current|all` (see State management), `--for DURATION` (close the windows opened in this run after that long, see section 10), `-v`/`--verbose` (print decisions: chosen terminal, monitor, rectangles), `--strict` (unknown configuration keys are errors), `--wait-monitors N` (retry monitor detection for up to N seconds, for use at login), `--eval-when` (with `--dry-run`: evaluate `when` conditions; by default dry-run runs nothing), `--version`, `-h`/`--help`.
+Other options: `-x`/`--exit-shell` (when everything opened or closed without errors, close the terminal tilepane was typed into: tilepane sends SIGHUP to its parent process when that is an interactive shell on a terminal, so the terminal closes that tab or window by itself; nothing is closed after a failure, or when tilepane was not started from a shell, for example by a keyboard shortcut; not allowed with `--dry-run`, `--edit` and the other actions that open no windows), `--workspace N|current|all` (see State management), `--for DURATION` (close the windows opened in this run after that long, see section 10), `-v`/`--verbose` (print decisions: chosen terminal, monitor, rectangles), `--strict` (unknown configuration keys are errors), `--wait-monitors N` (retry monitor detection for up to N seconds, for use at login), `--eval-when` (with `--dry-run`: evaluate `when` conditions; by default dry-run runs nothing), `--version`, `-h`/`--help`.
 
 ### Argument interpretation
 

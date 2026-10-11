@@ -44,6 +44,8 @@ options:
   --seed S                     with --demo: repeat an earlier demo
   --save FILE                  with --demo: also write the layout to FILE
   --no-browser                 with --edit: only print the editor's address
+  -x, --exit-shell             when everything opened (or closed) without errors,
+                               close the terminal tilepane was typed into
   --strict                     unknown configuration keys are errors
   --wait-monitors SECONDS      retry monitor detection for up to this long
   -v, --verbose                print more detail
@@ -57,6 +59,7 @@ VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--
                  "--for", "--seed", "--save", "--workspace"}
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
                 "--close", "--toggle", "--prune", "--demo", "--edit", "--no-browser",
+                "--exit-shell", "-x",
                 "--monitors", "--list", "--version", "--help", "-h"}
 # Options from SPEC.md that exist but are built in a later step.
 NOT_YET = {"--watch": 9}
@@ -92,6 +95,7 @@ class Invocation:
     lifetime: Optional[float] = None      # --for, in seconds
     workspace: Optional[str] = None       # "current", "all", a 1-based number; None: not given
     no_browser: bool = False
+    exit_shell: bool = False
 
 
 def is_file_argument(arg: str) -> bool:
@@ -197,6 +201,8 @@ def parse(argv: list[str]) -> Invocation:
             actions.append("demo")
         elif opt == "--edit":
             actions.append("edit")
+        elif opt in ("--exit-shell", "-x"):
+            inv.exit_shell = True
         elif opt == "--no-browser":
             inv.no_browser = True
         elif opt == "--dry-run":
@@ -231,6 +237,9 @@ def parse(argv: list[str]) -> Invocation:
             raise UsageError("--demo cannot be combined with --close or --toggle (use --close all)")
     elif inv.seed is not None or inv.save is not None:
         raise UsageError(f"{'--seed' if inv.seed is not None else '--save'} only works with --demo")
+    if inv.exit_shell and (inv.dry_run or any(a in actions for a in
+                                               ("help", "version", "doctor", "monitors", "explain", "list", "edit"))):
+        raise UsageError("--exit-shell only works when opening or closing windows")
     if "edit" in actions:
         if len(inv.tasks) > 1 or (inv.tasks and inv.tasks[0].layouts):
             raise UsageError("--edit takes one file (the editor shows all its layouts)")

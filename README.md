@@ -102,6 +102,7 @@ tilepane --dry-run examples/meters.json --monitor 1   # print the rectangles onl
 tilepane examples/meters.json --monitor 1             # open the windows
 tilepane --toggle examples/meters.json --monitor 1    # close them again (or open if closed)
 tilepane --close all                                  # close everything tilepane opened
+tilepane examples/meters.json -x                      # open, then close this terminal (only if all went well)
 tilepane --edit examples/meters.json                  # edit it in the browser (see below)
 tilepane --explain on_exit                            # describe any configuration key
 ```
