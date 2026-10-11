@@ -34,8 +34,9 @@ options:
   --json FILE, --config FILE   start a task with this layout file
   --layout NAME                select a layout in the current task
   --monitor SPEC               number, connector, alias, primary, all; comma-separated
-  --workspace SPEC             current (default), a workspace number (1 = first),
-                               or with --close: all
+  --workspace SPEC             a workspace number (1 = first), current, or with
+                               --close: all. Overrides a layout's "workspace";
+                               without either, the current workspace is used
   --dry-run                    compute and print, open nothing
   --eval-when                  with --dry-run: evaluate 'when' conditions
   --prune                      when re-opening, close windows whose pane no longer exists
@@ -89,7 +90,7 @@ class Invocation:
     seed: Optional[str] = None
     save: Optional[str] = None
     lifetime: Optional[float] = None      # --for, in seconds
-    workspace: str = "current"            # "current", "all" or a 1-based number
+    workspace: Optional[str] = None       # "current", "all", a 1-based number; None: not given
     no_browser: bool = False
 
 

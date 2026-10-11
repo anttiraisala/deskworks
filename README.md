@@ -144,7 +144,13 @@ tilepane --close all --workspace 2             # ... on workspace 2
 tilepane --close all --workspace all           # ... on every workspace
 ```
 
-`--toggle` and `--demo` also work per workspace. You can close any window normally with its close button; tilepane notices it the next time it runs, and opening the layout again brings back just that pane. A window you move to another workspace by hand counts as part of that workspace from then on.
+A layout can also name its own workspace, so it always opens there:
+
+```json
+{ "name": "meters", "workspace": 4, "split": { ... } }
+```
+
+`--workspace` on the command line overrides it. In the editor, pick it from the **Workspace** list at the top. `--toggle` and `--demo` also work per workspace. You can close any window normally with its close button; tilepane notices it the next time it runs, and opening the layout again brings back just that pane. A window you move to another workspace by hand counts as part of that workspace from then on.
 
 ## Status
 

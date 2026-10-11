@@ -128,6 +128,16 @@ await page.locator("#margin-input").blur();
 expect((await doc()).margin === 12, "margin typed");
 step("margin control");
 
+// Workspace: chosen in the header, saved in the layout before its split.
+await loadDoc({ name: "w", split: { run: "x" } });
+await page.selectOption("#workspace", "4");
+d = await doc();
+expect(d.workspace === 4 && Object.keys(d).indexOf("workspace") < Object.keys(d).indexOf("split"), `workspace saved in the layout (got ${JSON.stringify(d)})`);
+expect((await page.inputValue('input[data-key="workspace"]')) === "4", "layout panel shows the workspace");
+await page.selectOption("#workspace", "");
+expect(!("workspace" in (await doc())), "current removes it");
+step("workspace select");
+
 expect(errors.length === 0, `no page errors: ${errors.join("; ")}`);
 await browser.close();
 console.log("editor features: ok");

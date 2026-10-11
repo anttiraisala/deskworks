@@ -135,3 +135,10 @@ Implemented:
 ### 2026-10-10: visible drag and a tip line
 - The owner asked for the pane drag to be visible and for a reminder about clicking outside the monitor. A copy of the dragged pane follows the pointer and, over another pane, takes that pane's place ("release to swap here"); a tip line under the preview says that a click outside the monitor unselects and shows the command lines (or, with nothing selected, how to edit and swap).
 - Tested in Chromium (`tests/js/editor.features.mjs`: the copy appears, lands on the target, disappears after the drop; the tip changes with the selection). Not tried on the owner's machine yet.
+
+### 2026-10-11: workspace saved in the layout
+- The owner asked to choose the workspace (virtual desktop; they use 4, sometimes 9) as well as the monitor. Decided with the owner: the choice is saved in the layout (`"workspace": N`, also allowed in `defaults`), and `--workspace` on the command line overrides it. Per layout, not per pane (explained to the owner; per pane can be added later).
+- `--close FILE` and `--toggle` use the layout's workspace too; a workspace number the machine does not have is a warning and the current workspace is used. Before this, opening always used the current workspace unless `--workspace` was given.
+- Editor: a "Workspace" list in the header (current, 1..N, N from the server) and a field in the layout panel.
+- Tested: unit tests with the fake backend (layout workspace, override, defaults, close/toggle, missing workspace), Chromium (header list writes the key before `split`), and live under Xvfb + Openbox: a layout with `workspace: 3` opened on workspace 3 from workspace 1, `--workspace 2` overrode it, `--close FILE` closed it on 3, and the editor server reported 4 workspaces. Not tried on the owner's machine yet.
+- 351 tests pass (5 live tests skipped).

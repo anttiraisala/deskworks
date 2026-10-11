@@ -75,8 +75,10 @@ Pieni esimerkki: htop vasemmalle (60 %), oikea puoli kahtia.
   komentotulkki (Mintissä bash). Asetukset periytyvät alaspäin puussa.
 - **Näytöt** numeroidaan sijainnin mukaan vasemmalta oikealle, alkaen nollasta.
 - **Työtilat** pidetään erillään: sama asettelu voidaan avata eri työtiloihin,
-  ja kumpikin saa omat ikkunansa. `--close` sulkee vain nykyisestä työtilasta;
-  `--workspace N` tai `--workspace all` valitsee toisin.
+  ja kumpikin saa omat ikkunansa. Layoutille voi tallentaa oman työtilan
+  (`"workspace": 4`), jolloin se avautuu aina sinne; komentorivin
+  `--workspace N` ohittaa sen. `--close` sulkee layoutin omasta työtilasta tai
+  nykyisestä; `--workspace all` sulkee kaikista.
 - **Uudelleenavaus** ei tee kaksoiskappaleita: auki olevat ikkunat siirretään
   paikoilleen ja puuttuvat avataan. Käsin suljettu ikkuna avataan uudelleen.
 - **Turvallisuus:** asettelutiedosto on ohjelma, koska se ajaa komentoja.

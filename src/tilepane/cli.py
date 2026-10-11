@@ -104,7 +104,9 @@ class _Runner:
         self._monitors = detected
         self._files: dict[str, object] = {}
         self.failed = 0
-        self.workspace: Optional[int] = None     # set from --workspace once a backend is up
+        # Workspaces, read once a backend is up: the current one and how many.
+        self._current_ws: Optional[int] = None
+        self._ws_count: Optional[int] = None
 
     def monitors(self) -> list[monitors.Monitor]:
         if self._monitors is None:
@@ -224,24 +226,44 @@ class _Runner:
         return manager.Manager(backend, self._store or state.StateStore(), op), backend
 
     def _resolve_workspace(self, backend) -> bool:
-        """Turn --workspace into a 0-based desktop number (None: every workspace)."""
+        """Read the workspaces and check a --workspace number against them."""
+        self._current_ws = backend.current_desktop()
+        self._ws_count = backend.desktop_count()
         spec = self.inv.workspace
-        self.workspace = None
-        if spec == "all":
+        if spec is None or spec in ("current", "all"):
             return True
-        current = backend.current_desktop()
-        if spec == "current":
-            self.workspace = current
-            return True
-        if current is None:
+        if self._current_ws is None:
             self.error(f"--workspace {spec}: the window manager does not report workspaces")
             return False
-        count = backend.desktop_count()
-        if count is not None and int(spec) > count:
-            self.error(f"--workspace {spec}: there are only {count} workspaces")
+        if self._ws_count is not None and int(spec) > self._ws_count:
+            self.error(f"--workspace {spec}: there are only {self._ws_count} workspaces")
             return False
-        self.workspace = int(spec) - 1
         return True
+
+    def workspace_for(self, layout_ws: Optional[int] = None, where: str = "") -> Optional[int]:
+        """The workspace (0-based; None: every one, or none known) for a layout.
+
+        --workspace wins; then the layout's own "workspace"; then the current one.
+        """
+        spec = self.inv.workspace
+        if spec == "all":
+            return None
+        if spec is not None:
+            return self._current_ws if spec == "current" else int(spec) - 1
+        if layout_ws is None:
+            return self._current_ws
+        if self._current_ws is None:
+            print(f"warning: {where}workspace {layout_ws}: the window manager does not report "
+                  "workspaces; ignored", file=self.err)
+            return None
+        if self._ws_count is not None and layout_ws > self._ws_count:
+            print(f"warning: {where}workspace {layout_ws} does not exist (there are "
+                  f"{self._ws_count}); using the current one", file=self.err)
+            return self._current_ws
+        return layout_ws - 1
+
+    def _unit_ws(self, unit: "_Unit") -> Optional[int]:
+        return self.workspace_for(unit.resolved.get("workspace"), f'layout "{unit.name}": ')
 
     def _closed(self, mgr: manager.Manager, n: int) -> int:
         """Report windows the last close could not close; returns n."""
@@ -252,13 +274,14 @@ class _Runner:
             self.failed += 1
         return n
 
-    def _where(self) -> str:
+    @staticmethod
+    def _where(ws: Optional[int]) -> str:
         """' (workspace N)' for messages, when workspaces are in play."""
-        return f" (workspace {self.workspace + 1})" if self.workspace is not None else ""
+        return f" (workspace {ws + 1})" if ws is not None else ""
 
-    def _report_unit(self, unit: _Unit, rep: manager.UnitReport) -> None:
+    def _report_unit(self, unit: _Unit, rep: manager.UnitReport, ws: Optional[int]) -> None:
         total = len(rep.results)
-        print(f'layout "{unit.name}" on {_monitor_label(unit.monitor)}{self._where()}: '
+        print(f'layout "{unit.name}" on {_monitor_label(unit.monitor)}{self._where(ws)}: '
               f"{rep.opened} opened, {rep.replaced} re-placed"
               + (f", {rep.pruned} pruned" if rep.pruned else "")
               + (f", {len(rep.failed)} of {total} failed" if rep.failed else ""),
@@ -278,9 +301,9 @@ class _Runner:
         ok = 0
         try:
             for unit in self.units(config.run_when):
-                rep = mgr.open_unit(unit.key, unit.leaves, prune=self.inv.prune,
-                                    workspace=self.workspace)
-                self._report_unit(unit, rep)
+                ws = self._unit_ws(unit)
+                rep = mgr.open_unit(unit.key, unit.leaves, prune=self.inv.prune, workspace=ws)
+                self._report_unit(unit, rep, ws)
                 if rep.failed:
                     self.failed += 1
                 else:
@@ -299,17 +322,16 @@ class _Runner:
         ok = 0
         try:
             for unit in self.units(config.run_when):
-                if mgr.is_open(unit.key, self.workspace):
+                ws = self._unit_ws(unit)
+                if mgr.is_open(unit.key, ws):
                     n = self._closed(mgr, mgr.close(source=unit.key[0], layout=unit.name,
-                                                    monitor=unit.monitor.name,
-                                                    workspace=self.workspace))
-                    print(f'layout "{unit.name}" on {_monitor_label(unit.monitor)}{self._where()}: '
+                                                    monitor=unit.monitor.name, workspace=ws))
+                    print(f'layout "{unit.name}" on {_monitor_label(unit.monitor)}{self._where(ws)}: '
                           f"closed {n} window(s)", file=self.out)
                     ok += 1
                     continue
-                rep = mgr.open_unit(unit.key, unit.leaves, prune=self.inv.prune,
-                                    workspace=self.workspace)
-                self._report_unit(unit, rep)
+                rep = mgr.open_unit(unit.key, unit.leaves, prune=self.inv.prune, workspace=ws)
+                self._report_unit(unit, rep, ws)
                 if rep.failed:
                     self.failed += 1
                 else:
@@ -325,13 +347,22 @@ class _Runner:
         tasks = self.inv.tasks
         try:
             if (len(tasks) == 1 and tasks[0].source is None and tasks[0].layouts == ["all"]):
-                n = self._closed(mgr, mgr.close(workspace=self.workspace))
-                print(f"closed {n} window(s){self._where()}", file=self.out)
+                ws = self.workspace_for()
+                n = self._closed(mgr, mgr.close(workspace=ws))
+                print(f"closed {n} window(s){self._where(ws)}", file=self.out)
                 return 1 if self.failed else 0
             for task in tasks:
                 source = manager.source_path(task.source, config.default_config_path())
                 names = list(dict.fromkeys(task.layouts)) or [None]
                 spec = task.monitor or self.inv.default_monitor
+                # A layout that names its workspace is closed there (unless
+                # --workspace says otherwise), so the file is read when it can be.
+                try:
+                    cfg = self.load(task)
+                except config.ConfigError:
+                    cfg = None
+                if cfg is not None and names == [None] and self.inv.workspace is None:
+                    names = cfg.names()
                 try:
                     if spec:
                         cfg = self.load(task)
@@ -348,11 +379,16 @@ class _Runner:
                     self.failed += 1
                     continue
                 for name in names:
+                    lay = cfg.get(name) if cfg is not None and name is not None else None
+                    layout_ws = None
+                    if lay is not None:
+                        layout_ws = lay.get("workspace", cfg.defaults.get("workspace"))
+                    ws = self.workspace_for(layout_ws, f'layout "{name}": ')
                     count = sum(self._closed(mgr, mgr.close(source=source, layout=name, monitor=m,
-                                                            workspace=self.workspace))
+                                                            workspace=ws))
                                 for m in mons)
                     label = f'layout "{name}"' if name else f"all layouts of {source}"
-                    where = (f" on {', '.join(mons)}" if mons != [None] else "") + self._where()
+                    where = (f" on {', '.join(mons)}" if mons != [None] else "") + self._where(ws)
                     print(f"{label}{where}: closed {count} window(s)" if count
                           else f"{label}{where}: nothing was open", file=self.out)
         finally:
@@ -425,12 +461,13 @@ class _Runner:
             for unit in units:
                 key = (source, unit.name, unit.monitor.name)
                 # A new demo replaces the previous one on the same monitor and workspace.
+                ws = self.workspace_for()
                 self._closed(mgr, mgr.close(source=DEMO_SOURCE, monitor=unit.monitor.name,
-                                            workspace=self.workspace))
+                                            workspace=ws))
                 self._closed(mgr, mgr.close(source=source, layout=unit.name,
-                                            monitor=unit.monitor.name, workspace=self.workspace))
-                rep = mgr.open_unit(key, unit.leaves, workspace=self.workspace)
-                self._report_unit(unit, rep)
+                                            monitor=unit.monitor.name, workspace=ws))
+                rep = mgr.open_unit(key, unit.leaves, workspace=ws)
+                self._report_unit(unit, rep, ws)
                 if rep.failed:
                     self.failed += 1
         finally:
@@ -451,8 +488,20 @@ class _Runner:
             work = {m.number: self.area(m, "work") for m in found}
             return editor_server.monitor_list(found, work)
 
+        def workspace_count() -> Optional[int]:
+            backend, _reason = (self._backend, "") if self._backend else backends.choose()
+            if backend is None:
+                return None
+            try:
+                return backend.desktop_count()
+            except Exception:  # noqa: BLE001 - the editor works without it
+                return None
+            finally:
+                if backend is not self._backend:
+                    backend.disconnect()
+
         try:
-            srv = editor_server.EditorServer(path, monitors_now)
+            srv = editor_server.EditorServer(path, monitors_now, workspaces=workspace_count)
         except OSError as exc:
             self.error(f"cannot start the editor: {exc}")
             return 1

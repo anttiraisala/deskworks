@@ -56,6 +56,7 @@ class EditorServer:
     path: str                                   # the one file this editor may write
     monitors: Callable[[], list[dict]]          # [{number, name, x, y, width, height, work?}]
     cli: Callable[[list[str]], tuple[int, str]] = run_cli
+    workspaces: Callable[[], Optional[int]] = lambda: None   # how many workspaces, if known
     port: int = 0
     idle_timeout: float = IDLE_TIMEOUT
     gone_timeout: float = GONE_TIMEOUT
@@ -257,6 +258,7 @@ class EditorServer:
                     server._bye_at = None
                     self._json(200, {"name": os.path.basename(server.path), "path": server.path,
                                      "home": os.path.expanduser("~"),
+                                     "workspaces": server.workspaces(),
                                      "text": server.read_file(), "monitors": server.monitors()})
                 else:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})

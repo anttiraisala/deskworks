@@ -105,7 +105,7 @@ A single-layout file may be flat: `name`, `margin`, `split` at the top level, wi
 
 ### Inheritance and precedence
 
-Settings that apply to windows inherit down the tree. The effective value for a leaf is the first one found in this order: the leaf, its ancestor split nodes (nearest first), the layout, the file's `defaults`, the built-in value. `env` is merged key by key instead of replaced. Keys that inherit: `terminal`, `shell`, `profile`, `font_size`, `snap`, `on_exit`, `restart_delay`, `max_restarts`, `stop_on_error`, `decorations`, `cwd`, `env`, `margin`. `at_basis` inherits through split nodes only. Keys that never inherit: `run`, `title`, `id`, `mode`, `interval`, `when`, `empty`, `description`. `outer_margin` and `area` are set on the layout or in `defaults`. `docs/CONFIG.md` marks every key.
+Settings that apply to windows inherit down the tree. The effective value for a leaf is the first one found in this order: the leaf, its ancestor split nodes (nearest first), the layout, the file's `defaults`, the built-in value. `env` is merged key by key instead of replaced. Keys that inherit: `terminal`, `shell`, `profile`, `font_size`, `snap`, `on_exit`, `restart_delay`, `max_restarts`, `stop_on_error`, `decorations`, `cwd`, `env`, `margin`. `at_basis` inherits through split nodes only. Keys that never inherit: `run`, `title`, `id`, `mode`, `interval`, `when`, `empty`, `description`. `outer_margin`, `area` and `workspace` are set on the layout or in `defaults`. `docs/CONFIG.md` marks every key.
 
 Built-in values: `terminal` `"auto"`, `shell` `"auto"`, `margin` 8, `outer_margin` none, `at_basis` `"outer"`, `area` `"work"`, `snap` `"cell"`, `on_exit` `"keep"`, `restart_delay` 1, `max_restarts` 0 (unlimited), `stop_on_error` false, `decorations` true, `mode` `"sequence"`.
 
@@ -183,7 +183,7 @@ Backends are chosen at runtime (`$XDG_SESSION_TYPE`, `$XDG_CURRENT_DESKTOP`, the
 
 - No resident process (except `--watch`, the editor and a possible daemon). Each pane runs a small wrapper (`python -m tilepane.runner <spec>`) inside the terminal; it handles `run` lists, `on_exit`, restarts, `cycle` mode and `--for`, which avoids shell quoting problems.
 - A window counts as opened when its map event is seen; timeout 5 s per window. A window that never appears fails the task and the other tasks continue. Windows are started in parallel where the terminal allows it.
-- Panes are opened one after another; the new window is the one that appears in the window list after the terminal starts (class `tilepane` narrows it down). Stacking order follows task and pane order (last on top). Focus is not changed unless a leaf is marked for it (reserved). Windows open on the current workspace, or on the one given with `--workspace N` (see State management). A `workspace` key in the layout file is reserved.
+- Panes are opened one after another; the new window is the one that appears in the window list after the terminal starts (class `tilepane` narrows it down). Stacking order follows task and pane order (last on top). Focus is not changed unless a leaf is marked for it (reserved). Windows open on the workspace given with `--workspace N`, else on the layout's `workspace`, else on the current one (see State management).
 - With `--wait-monitors N`, monitor detection and alias resolution are retried for up to N seconds; use it in autostart, where monitors or panels may not be ready at login.
 
 ### Terminals
@@ -198,9 +198,10 @@ If a layout is already open, tilepane reconciles instead of opening duplicates: 
 
 **Workspaces.** Every record also holds the workspace (EWMH desktop) its window is on, read from the window itself on every run, so a window moved to another workspace by hand belongs to that one and a window on all workspaces matches any. A layout instance is (state key, workspace):
 
-- Opening, re-placing, `--toggle` and a new `--demo` work on the current workspace. A layout opened on workspace 1 and again on workspace 2 has two sets of windows; the first set is left alone.
-- `--close NAME` and `--close all` close on the current workspace only. `--workspace N` picks another one, `--workspace all` closes on every workspace.
-- `--workspace N` (1 = the first workspace, as desktops show them) also opens on that workspace: new windows are moved there after they appear.
+- Which workspace a layout is opened, re-placed, toggled or closed on: `--workspace` on the command line if given; otherwise the layout's `workspace` key (or the file's `defaults`), 1 = the first workspace as desktops number them; otherwise the current workspace. A `workspace` larger than the number of workspaces, or one on a window manager without workspaces, is a warning and the current workspace is used (a layout file may be used on several machines); `--workspace N` that does not exist is an error. The key is per layout, not per pane: one layout, one workspace (decided with the owner; a per-pane workspace can be added later without changing this).
+- A layout opened on workspace 1 and again on workspace 2 has two sets of windows; the first set is left alone. A new `--demo` replaces only the demo on the same monitor and workspace.
+- `--close NAME` closes on that layout's workspace (its `workspace` key) or else the current one; `--close all` closes on the current workspace. `--workspace N` picks another one, `--workspace all` closes on every workspace.
+- New windows are moved to the chosen workspace after they appear. In the editor, a "Workspace" list in the header (and the layout panel) sets the layout's `workspace`; the server reports how many workspaces the machine has.
 - A window manager that reports no workspaces behaves as one workspace. Compiz/Unity implements workspaces as viewports of one large desktop, which this does not tell apart (a later addition).
 
 Closing asks each window to close (`_NET_CLOSE_WINDOW`), checks that it went, and asks once more. A window that still stays open is reported and kept in the state, so the next `--close` tries it again. tilepane never kills a terminal process: with gnome-terminal one server owns every tilepane window. A window closed by hand (its close button) is noticed the next time tilepane runs: it is dropped from the state, and opening the layout again opens only that pane.
@@ -241,7 +242,7 @@ The local server can write files and, through "Test here", start commands from J
 - Layout inheritance/templates (`"extends": "3"`, reusable `templates`).
 - GNOME shortcut and autostart examples in the README; `tilepane --install-autostart`.
 - Borderless, always-on-top, sticky (on all workspaces) options: `above`, `sticky`, `workspace`, `skip_taskbar`, `below`.
-- A `workspace` key in the layout file (the command line option `--workspace` exists).
+- A per-pane `workspace` (panes of one layout on different workspaces).
 - `tilepane --snapshot`: save the current window arrangement as a layout.
 - Shell completion for layout and monitor names.
 - `--watch`: when the JSON file is saved (or the editor saves it), the layout is updated on screen immediately.

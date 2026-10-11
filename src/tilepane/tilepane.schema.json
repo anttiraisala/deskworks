@@ -20,6 +20,7 @@
     "split": { "$ref": "#/definitions/key-split" },
     "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
     "area": { "$ref": "#/definitions/key-area" },
+    "workspace": { "$ref": "#/definitions/key-workspace" },
     "at_basis": { "$ref": "#/definitions/key-at_basis" },
     "terminal": { "$ref": "#/definitions/key-terminal" },
     "shell": { "$ref": "#/definitions/key-shell" },
@@ -43,6 +44,7 @@
       "properties": {
         "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
         "area": { "$ref": "#/definitions/key-area" },
+        "workspace": { "$ref": "#/definitions/key-workspace" },
         "at_basis": { "$ref": "#/definitions/key-at_basis" },
         "terminal": { "$ref": "#/definitions/key-terminal" },
         "shell": { "$ref": "#/definitions/key-shell" },
@@ -76,6 +78,7 @@
         "split": { "$ref": "#/definitions/key-split" },
         "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
         "area": { "$ref": "#/definitions/key-area" },
+        "workspace": { "$ref": "#/definitions/key-workspace" },
         "at_basis": { "$ref": "#/definitions/key-at_basis" },
         "terminal": { "$ref": "#/definitions/key-terminal" },
         "shell": { "$ref": "#/definitions/key-shell" },
@@ -206,6 +209,12 @@
       "description": "Which part of the monitor is divided: \"work\" excludes panels and docks, \"full\" uses the whole monitor. Set on the layout or in defaults.",
       "enum": ["work", "full"],
       "default": "work"
+    },
+    "key-workspace": {
+      "description": "The workspace (virtual desktop) the layout opens on, 1 for the first one. Without it the layout opens on the current workspace. --workspace on the command line overrides it. A number larger than the number of workspaces opens on the current one, with a warning. Set on the layout or in defaults.",
+      "type": "integer",
+      "minimum": 1,
+      "examples": [4]
     },
     "key-at_basis": {
       "x-inherits": "through split nodes",

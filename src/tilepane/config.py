@@ -172,6 +172,7 @@ _LAYOUT_ONLY: dict[str, Callable[[Any], Optional[str]]] = {
     "split": lambda v: None,  # checked as a node
     "outer_margin": _outer_margin,
     "area": _enum("area"),
+    "workspace": _integer(1),
     "at_basis": _enum("at_basis"),
     "description": _text,
 }
@@ -197,7 +198,7 @@ _LEAF_ONLY: dict[str, Callable[[Any], Optional[str]]] = {
 }
 
 FILE_KEYS = {"$schema", "version", "description", "defaults", "monitors", "layouts"}
-DEFAULTS_KEYS = set(INHERITED) | {"outer_margin", "area", "at_basis"}
+DEFAULTS_KEYS = set(INHERITED) | {"outer_margin", "area", "at_basis", "workspace"}
 LAYOUT_KEYS = set(INHERITED) | set(_LAYOUT_ONLY)
 SPLIT_KEYS = set(INHERITED) | set(_SPLIT_ONLY)
 LEAF_KEYS = set(INHERITED) | set(_LEAF_ONLY)
@@ -253,7 +254,7 @@ def _validate_defaults(defaults: Any, path: str, pb: _Problems) -> None:
         return
     _check_keys(defaults, DEFAULTS_KEYS, path, pb, "defaults block")
     checks = {**INHERITED, "outer_margin": _outer_margin,
-              "area": _enum("area"), "at_basis": _enum("at_basis")}
+              "area": _enum("area"), "at_basis": _enum("at_basis"), "workspace": _integer(1)}
     _check_values(defaults, checks, path, pb)
 
 
@@ -616,5 +617,6 @@ def resolve_layout(cfg: ConfigFile, layout: dict, *,
         "outer_margin": pick("outer_margin", None),
         "at_basis": at_basis,
         "area": pick("area", BUILTIN_AREA),
+        "workspace": pick("workspace", None),     # 1-based, None: the current one
         "split": split,
     }

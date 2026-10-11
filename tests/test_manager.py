@@ -410,6 +410,55 @@ class CliWorkspaceTest(unittest.TestCase):
         self.assertIn("0 opened, 0 re-placed", out)
         self.assertEqual(self.backend._open, set())
 
+    def write_layout(self, **extra):
+        path = os.path.join(self.tmp.name, "ws.json")
+        with open(path, "w") as fh:
+            json.dump({**LAYOUT, **extra}, fh)
+        return path
+
+    def test_layout_workspace_opens_there(self):
+        path = self.write_layout(workspace=3)
+        code, out, err = self.run_cli(path)
+        self.assertEqual(code, 0, err)
+        self.assertIn("(workspace 3): 2 opened", out)
+        self.assertEqual(set(self.backend.desktops.values()), {2})
+
+    def test_command_line_workspace_overrides_the_layout(self):
+        path = self.write_layout(workspace=3)
+        code, out, err = self.run_cli(path, "--workspace", "2")
+        self.assertIn("(workspace 2): 2 opened", out)
+        self.assertEqual(set(self.backend.desktops.values()), {1})
+        self.on(1)
+        _, out, _ = self.run_cli(path, "--workspace", "current")
+        self.assertIn("(workspace 2): 0 opened, 2 re-placed", out)
+
+    def test_defaults_workspace_applies_to_every_layout(self):
+        path = os.path.join(self.tmp.name, "d.json")
+        with open(path, "w") as fh:
+            json.dump({"defaults": {"workspace": 4}, "layouts": [LAYOUT]}, fh)
+        self.run_cli(path)
+        self.assertEqual(set(self.backend.desktops.values()), {3})
+
+    def test_close_and_toggle_use_the_layout_workspace(self):
+        path = self.write_layout(workspace=3)
+        self.run_cli(path)
+        self.on(1)
+        code, out, _ = self.run_cli("--close", path)
+        self.assertIn("(workspace 3): closed 2 window(s)", out)
+        self.assertEqual(self.backend._open, set())
+        _, out, _ = self.run_cli("--toggle", path)
+        self.assertIn("(workspace 3): 2 opened", out)
+        _, out, _ = self.run_cli("--toggle", path)
+        self.assertIn("(workspace 3): closed 2", out)
+
+    def test_missing_layout_workspace_warns_and_uses_current(self):
+        path = self.write_layout(workspace=9)
+        self.on(1)
+        code, out, err = self.run_cli(path)
+        self.assertEqual(code, 0, err)
+        self.assertIn("workspace 9 does not exist (there are 4)", err)
+        self.assertIn("(workspace 2): 2 opened", out)
+
     def test_workspace_errors(self):
         code, _, err = self.run_cli(self.path, "--workspace", "9")
         self.assertEqual(code, 1)

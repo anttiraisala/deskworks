@@ -160,6 +160,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
     <button id="copy-layout" title="Copy this layout">Copy</button>
     <button id="delete-layout" title="Delete this layout">Delete</button></span>
   <span class="group"><label for="monitor">Monitor</label><select id="monitor"></select></span>
+  <span class="group"><label for="workspace">Workspace</label><select id="workspace" title="The workspace this layout opens on (saved in the layout; --workspace on the command line overrides it)"></select></span>
   <span class="group"><button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button></span>
   <span class="spacer"></span>
   <span class="group">
@@ -200,6 +201,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
     "split": { "$ref": "#/definitions/key-split" },
     "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
     "area": { "$ref": "#/definitions/key-area" },
+    "workspace": { "$ref": "#/definitions/key-workspace" },
     "at_basis": { "$ref": "#/definitions/key-at_basis" },
     "terminal": { "$ref": "#/definitions/key-terminal" },
     "shell": { "$ref": "#/definitions/key-shell" },
@@ -223,6 +225,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
       "properties": {
         "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
         "area": { "$ref": "#/definitions/key-area" },
+        "workspace": { "$ref": "#/definitions/key-workspace" },
         "at_basis": { "$ref": "#/definitions/key-at_basis" },
         "terminal": { "$ref": "#/definitions/key-terminal" },
         "shell": { "$ref": "#/definitions/key-shell" },
@@ -256,6 +259,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
         "split": { "$ref": "#/definitions/key-split" },
         "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
         "area": { "$ref": "#/definitions/key-area" },
+        "workspace": { "$ref": "#/definitions/key-workspace" },
         "at_basis": { "$ref": "#/definitions/key-at_basis" },
         "terminal": { "$ref": "#/definitions/key-terminal" },
         "shell": { "$ref": "#/definitions/key-shell" },
@@ -386,6 +390,12 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
       "description": "Which part of the monitor is divided: \"work\" excludes panels and docks, \"full\" uses the whole monitor. Set on the layout or in defaults.",
       "enum": ["work", "full"],
       "default": "work"
+    },
+    "key-workspace": {
+      "description": "The workspace (virtual desktop) the layout opens on, 1 for the first one. Without it the layout opens on the current workspace. --workspace on the command line overrides it. A number larger than the number of workspaces opens on the current one, with a warning. Set on the layout or in defaults.",
+      "type": "integer",
+      "minimum": 1,
+      "examples": [4]
     },
     "key-at_basis": {
       "x-inherits": "through split nodes",
@@ -825,6 +835,7 @@ const S = {
   custom: null,          // a monitor size set by dragging the preview's edges
   useCustom: false,
   monitorStyle: "number", // how commands name the monitor: "number" or "name"
+  workspaces: null,       // how many workspaces the machine has, when the server knows
 };
 
 // Per-viewer conveniences only; the page works without them.
@@ -1552,7 +1563,7 @@ const PANE_MORE = ["empty", "snap", "decorations", "margin", "env", "restart_del
   "mode", "interval", "id", "when", "profile", "font_size", "description"];
 const SPLIT_MORE = ["at_basis", "terminal", "shell", "cwd", "on_exit", "snap", "decorations", "env", "restart_delay",
   "max_restarts", "stop_on_error", "profile", "font_size", "description"];
-const LAYOUT_MAIN = ["name", "margin", "outer_margin", "area", "at_basis", "description"];
+const LAYOUT_MAIN = ["name", "workspace", "margin", "outer_margin", "area", "at_basis", "description"];
 const LAYOUT_MORE = ["terminal", "shell", "cwd", "on_exit", "snap", "decorations", "env", "restart_delay",
   "max_restarts", "stop_on_error", "profile", "font_size"];
 
@@ -1563,7 +1574,7 @@ const LABELS = {
   max_restarts: "Max restarts", stop_on_error: "Stop at first failing command", mode: "Mode",
   interval: "Interval (s)", id: "Id", when: "Only when", profile: "Profile", font_size: "Font size",
   description: "Description", name: "Name", outer_margin: "Outer margin (px)", area: "Area",
-  at_basis: "Pixel sizes measure", dir: "Direction", at: "Split point", sizes: "Sizes",
+  at_basis: "Pixel sizes measure", dir: "Direction", at: "Split point", sizes: "Sizes", workspace: "Workspace",
 };
 
 function textOf(key, v) {
@@ -2127,6 +2138,12 @@ function renderHeader() {
   ms.replaceChildren(...S.monitors.map((m, i) => h("option", { value: String(i), selected: !S.useCustom && i === S.monitorIndex },
     m.preset ? m.name : `${m.number}: ${m.name} ${m.width}×${m.height}`)),
   ...(S.custom ? [h("option", { value: "custom", selected: S.useCustom }, `Custom size: ${S.custom.width}×${S.custom.height}`)] : []));
+  const ws = $("#workspace");
+  const own = pickLayoutKey(lay(), "workspace", null);
+  const count = Math.max(S.workspaces || 9, Number.isInteger(own) ? own : 0);
+  ws.replaceChildren(h("option", { value: "", selected: !Number.isInteger(own) }, "current"),
+    ...Array.from({ length: count }, (_, i) => h("option", { value: String(i + 1), selected: own === i + 1 },
+      `${i + 1}${S.workspaces && i + 1 > S.workspaces ? " (not on this machine)" : ""}`)));
   $("#undo").disabled = !S.undo.length;
   $("#redo").disabled = !S.redo.length;
   const errors = errorsCount();
@@ -2373,6 +2390,11 @@ function wire() {
     render();
   });
   $("#commands").addEventListener("click", openCommands);
+  $("#workspace").addEventListener("change", (e) => change(() => {
+    const l = lay();
+    if (e.target.value === "") delete l.workspace;
+    else setInherited(l, "workspace", Number(e.target.value));
+  }));
   $("#new-layout").addEventListener("click", newLayout);
   $("#copy-layout").addEventListener("click", copyLayout);
   $("#delete-layout").addEventListener("click", deleteLayout);
@@ -2435,6 +2457,7 @@ async function start() {
     S.fileName = st.name;
     BOOT.path = st.path;
     BOOT.home = st.home;
+    S.workspaces = Number.isInteger(st.workspaces) ? st.workspaces : null;
     let doc = null;
     if (st.text !== null) {
       try { doc = JSON.parse(st.text); } catch (e) {

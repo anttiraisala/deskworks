@@ -71,7 +71,8 @@ class ServerTest(unittest.TestCase):
         with open(self.path, "w") as fh:
             json.dump(LAYOUT, fh)
         self.calls = []
-        self.srv = editor_server.EditorServer(self.path, lambda: MONITORS, cli=self.fake_cli)
+        self.srv = editor_server.EditorServer(self.path, lambda: MONITORS, cli=self.fake_cli,
+                                              workspaces=lambda: 4)
         self.thread = threading.Thread(target=self.srv.serve, daemon=True)
         self.thread.start()
         self.addCleanup(self.stop)
@@ -126,7 +127,7 @@ class ServerTest(unittest.TestCase):
         status, data, _ = self.request("GET", "/api/state")
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(data["text"]), LAYOUT)
-        self.assertEqual((data["name"], data["monitors"]), ("layout.json", MONITORS))
+        self.assertEqual((data["name"], data["monitors"], data["workspaces"]), ("layout.json", MONITORS, 4))
 
     def test_save_writes_only_the_opened_file(self):
         text = json.dumps({"name": "new", "split": {}}, indent=2) + "\n"

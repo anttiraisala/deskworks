@@ -115,7 +115,7 @@ class ParseTest(unittest.TestCase):
                 parse(argv)
 
     def test_workspace_option(self):
-        self.assertEqual(parse(["a.json"]).workspace, "current")
+        self.assertIsNone(parse(["a.json"]).workspace)
         self.assertEqual(parse(["a.json", "--workspace", "2"]).workspace, "2")
         self.assertEqual(parse(["--close", "all", "--workspace", "all"]).workspace, "all")
         for argv in (["a.json", "--workspace", "0"], ["a.json", "--workspace", "x"],

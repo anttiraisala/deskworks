@@ -456,3 +456,21 @@ class ShellKeyTest(unittest.TestCase):
     def test_shell_must_be_a_string(self):
         self.assertTrue(any("shell" in e for e in errors_of(
             {"name": "s", "split": {"run": "x", "shell": 3}})))
+
+
+class WorkspaceKeyTest(unittest.TestCase):
+    def test_layout_and_defaults_workspace(self):
+        cfg = config.load_text(json.dumps({"defaults": {"workspace": 2}, "layouts": [
+            {"name": "a", "split": {}}, {"name": "b", "workspace": 5, "split": {}}]}), "w.json", strict=True)
+        self.assertEqual([config.resolve_layout(cfg, lay)["workspace"] for lay in cfg.layouts], [2, 5])
+        flat = config.load_text(json.dumps({"name": "f", "split": {}}), "f.json", strict=True)
+        self.assertIsNone(config.resolve_layout(flat, flat.layouts[0])["workspace"])
+
+    def test_workspace_must_be_a_positive_whole_number(self):
+        for bad in (0, -1, 1.5, "2", True):
+            with self.subTest(bad=bad):
+                self.assertTrue(any("workspace" in e for e in errors_of({"name": "w", "workspace": bad, "split": {}})))
+
+    def test_workspace_is_not_allowed_on_a_pane(self):
+        self.assertTrue(any("workspace" in e for e in errors_of(
+            {"name": "w", "split": {"run": "x", "workspace": 2}})))
