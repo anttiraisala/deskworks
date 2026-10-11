@@ -207,6 +207,30 @@ d = await doc();
 expect(d.split.dir === "columns" && d.split.at === "1110px" && d.split.a.run === "a", `merged size in px (got ${JSON.stringify(d.split)})`);
 step(`unit question: ${JSON.stringify(d.split)}`);
 
+// Shift while dragging a line snaps it onto a parallel line; the panes then
+// line up exactly and can be merged.
+await loadDoc({ name: "s", margin: 8, split: { dir: "columns", a: { dir: "rows", at: "40%", a: { run: "L1" }, b: { run: "L2" } },
+  b: { dir: "rows", at: "300px", a: {}, b: { run: "R2" } } } });
+const hLeft = await page.evaluate(() => {
+  const el = [...document.querySelectorAll(".handle.h")].find((x) => x.dataset.split === "0");
+  const r = el.getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2];
+});
+const target = await toScreen(200, 300);
+await page.mouse.move(hLeft[0], hLeft[1]);
+await page.mouse.down();
+await page.keyboard.down("Shift");
+await page.mouse.move(hLeft[0], target[1] + 12, { steps: 6 });
+expect(await page.isVisible("#snap-guide"), "snap guide shown");
+await page.mouse.up();
+await page.keyboard.up("Shift");
+d = await doc();
+const tops = await page.evaluate(() => S.geo.leaves.map((l) => [l.leaf.run || "", l.outer.y, l.outer.height]));
+expect(/^27\.778%$/.test(d.split.a.at) && tops.find((t) => t[0] === "L1")[2] === 300, `left line snapped to 300px exactly (got ${d.split.a.at}, ${JSON.stringify(tops)})`);
+await page.locator(".pane").first().click();
+expect((await page.locator('.merge-btn[data-merge="right"]').count()) === 1, "the lined-up panes can be merged");
+step(`shift snap: at ${d.split.a.at}`);
+
 expect(errors.length === 0, `no page errors: ${errors.join("; ")}`);
 await browser.close();
 console.log("editor features: ok");

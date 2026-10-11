@@ -1452,27 +1452,30 @@ function insetSum(split, i) { return split.insets ? split.insets[i][0] + split.i
 function splitExtent(split) { return split.vertical ? split.rect.width : split.rect.height; }
 
 // The `at` value that puts the boundary `aPx` pixels from the start, in `style`.
-function atValue(split, aPx, style) {
+// `precise` writes percentages with three decimals, so a line snapped onto
+// another one lands on exactly the same pixel.
+function atValue(split, aPx, style, precise = false) {
   const ext = splitExtent(split);
   const vis = split.atBasis === "visible";
+  const dec = precise ? 3 : 1;
   switch (style) {
-    case "-%": return `-${fmt(((ext - aPx) / ext) * 100, 1)}%`;
+    case "-%": return `-${fmt(((ext - aPx) / ext) * 100, dec)}%`;
     case "px": return `${Math.round(aPx - (vis ? insetSum(split, 0) : 0))}px`;
     case "num": return Math.round(aPx - (vis ? insetSum(split, 0) : 0));
     case "-px": return `-${Math.round(ext - aPx - (vis ? insetSum(split, 1) : 0))}px`;
-    default: return `${fmt((aPx / ext) * 100, 1)}%`;
+    default: return `${fmt((aPx / ext) * 100, dec)}%`;
   }
 }
 
-function sizeValue(split, i, px, old) {
+function sizeValue(split, i, px, old, precise = false) {
   const s = looseSize(old);
   const vis = split.atBasis === "visible";
-  if (s.kind === "%") return `${fmt((px / splitExtent(split)) * 100, 1)}%`;
+  if (s.kind === "%") return `${fmt((px / splitExtent(split)) * 100, precise ? 3 : 1)}%`;
   const v = Math.round(px - (vis ? insetSum(split, i) : 0));
   return typeof old === "number" ? v : `${v}px`;
 }
 
-function moveBoundary(split, i, coord) {
+function moveBoundary(split, i, coord, precise = false) {
   const node = nodeAt(split.path, true);
   const b = split.bounds;
   const min = split.margin + MIN_PANE;
@@ -1480,7 +1483,7 @@ function moveBoundary(split, i, coord) {
     const ext = splitExtent(split);
     if (ext < 2 * min) return;
     const aPx = clamp(coord - b[0], min, ext - min);
-    node.at = atValue(split, aPx, atStyle(node.at));
+    node.at = atValue(split, aPx, atStyle(node.at), precise);
     return;
   }
   const lo = b[i], total = b[i + 2] - b[i];
@@ -1490,11 +1493,11 @@ function moveBoundary(split, i, coord) {
   const si = looseSize(sizes[i]), sj = looseSize(sizes[i + 1]);
   if (si.kind === "frac" && sj.kind === "frac") {
     const f = si.value + sj.value, fi = (f * pi) / total;
-    sizes[i] = `${fmt(fi, 2)}frac`;
-    sizes[i + 1] = `${fmt(f - fi, 2)}frac`;
+    sizes[i] = `${fmt(fi, precise ? 4 : 2)}frac`;
+    sizes[i + 1] = `${fmt(f - fi, precise ? 4 : 2)}frac`;
   } else {
-    if (si.kind !== "frac") sizes[i] = sizeValue(split, i, pi, sizes[i]);
-    if (sj.kind !== "frac") sizes[i + 1] = sizeValue(split, i + 1, pj, sizes[i + 1]);
+    if (si.kind !== "frac") sizes[i] = sizeValue(split, i, pi, sizes[i], precise);
+    if (sj.kind !== "frac") sizes[i + 1] = sizeValue(split, i + 1, pj, sizes[i + 1], precise);
   }
   setKey(node, "sizes", sizes);
 }
@@ -2153,7 +2156,7 @@ function splitInspector(path) {
         h("button", { class: style === "-%" ? "on" : "", onclick: () => set("-%") }, "% from end"),
         h("button", { class: style === "px" || style === "num" ? "on" : "", onclick: () => set("px") }, "px from start"),
         h("button", { class: style === "-px" ? "on" : "", onclick: () => set("-px") }, "px from end")));
-      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point. The value keeps its unit; the buttons switch it without moving the line. Delete removes the line and merges the two panes."));
+      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point; hold Shift to line it up with another line. The value keeps its unit; the buttons switch it without moving the line. Delete removes the line and merges the two panes."));
     }
   } else {
     parts.push(field(node, "sizes", { target: opts.target, problem: opts.problemFor("sizes") }));
@@ -2478,15 +2481,35 @@ function startDrag(e, split, i) {
   const startX = e.clientX, startY = e.clientY;
   const screenRect = $("#screen").getBoundingClientRect();
   const { scale, m } = S.view;
+  // Shift snaps the line onto the nearest parallel line elsewhere on the
+  // monitor, so the panes on both sides line up and can then be merged.
+  const own = split.bounds[i + 1];
+  const lo = split.bounds[i], hi = split.bounds[i + 2];
+  const edges = [...new Set(S.geo.leaves.flatMap((l) => (split.vertical
+    ? [l.outer.x, l.outer.x + l.outer.width] : [l.outer.y, l.outer.y + l.outer.height])))]
+    .filter((v) => v !== own && v > lo && v < hi);
   const onMove = (ev) => {
     if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 3) return;
     moved = true;
-    const coord = split.vertical ? (ev.clientX - screenRect.left) / scale + m.x : (ev.clientY - screenRect.top) / scale + m.y;
-    moveBoundary(split, i, coord);
+    let coord = split.vertical ? (ev.clientX - screenRect.left) / scale + m.x : (ev.clientY - screenRect.top) / scale + m.y;
+    let snapped = null;
+    if (ev.shiftKey && edges.length) {
+      const near = edges.map((v) => [Math.abs(v - coord), v]).sort((p, q) => p[0] - q[0])[0];
+      if (near[0] * scale < 60) { snapped = near[1]; coord = snapped; }
+    }
+    moveBoundary(split, i, coord, snapped !== null);
     computeGeometry();
     renderScreen();
     const el = document.querySelector(`[data-split="${split.id}"][data-boundary="${i + 1}"]`);
     if (el) el.classList.add("dragging");
+    if (snapped !== null) {
+      const pos = (snapped - (split.vertical ? m.x : m.y)) * scale;
+      const guide = h("div", { class: `cut-line ${split.vertical ? "v" : "h"}`, id: "snap-guide",
+        style: split.vertical ? { left: `${pos - 1}px` } : { top: `${pos - 1}px` } });
+      const tip = h("div", { class: "size-tip", style: { position: "absolute", ...(split.vertical ? { left: `${pos + 6}px`, top: "8px" } : { top: `${pos + 6}px`, left: "8px" }) } },
+        `lined up at ${split.vertical ? "x" : "y"} = ${snapped - (split.vertical ? m.x : m.y)} px`);
+      $("#screen").append(guide, tip);
+    }
   };
   const onUp = () => {
     window.removeEventListener("pointermove", onMove);

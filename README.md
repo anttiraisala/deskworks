@@ -118,7 +118,7 @@ The editor opens in your browser and shows the layout on a picture of the monito
 
 - **Click a pane** to edit it: its command (one per line for several commands), title, working directory, shell, terminal and the rest. Every setting has its explanation next to it.
 - **Split** a pane into left | right or top / bottom, **add a pane** next to it, **make it empty** or **remove** it.
-- **Drag the line** between two panes to resize them. Click a line to set its exact value, in % or px, measured from the start or from the end.
+- **Drag the line** between two panes to resize them; hold **Shift** to line it up exactly with another line (then the panes beside it can be merged). Click a line to set its exact value, in % or px, measured from the start or from the end.
 - **Drag a pane onto another** to swap them: a copy of the pane follows the mouse and shows where it lands; the contents change places, the sizes stay.
 - **✂ Cut ─ / ✂ Cut │** (keys H and V): a line across the whole monitor follows the mouse; a click cuts every pane it goes through. The contents stay in the top or left piece.
 - **Merge** two neighbouring panes into one: select a pane and click an arrow on its edge, or click the line between two panes and press Delete. An empty pane merges at once; if both have commands, you are asked which one stays.
