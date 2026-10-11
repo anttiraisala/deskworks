@@ -521,6 +521,56 @@ class _Runner:
         print(f"tilepane editor stopped ({reason})", file=self.out)
         return 0
 
+    def uninstall(self, ask=input) -> int:
+        from . import uninstall
+
+        plan = uninstall.make_plan(self.inv.purge)
+        mgr, backend = (None, None)
+        windows: Optional[int] = None
+        backend_obj, _reason = (self._backend, "") if self._backend else backends.choose()
+        if backend_obj is not None:
+            op = opener.Opener(backend_obj)
+            mgr = manager.Manager(backend_obj, self._store or state.StateStore(), op)
+            with mgr.store.transaction() as records:
+                mgr._drop_dead(records)
+                windows = len(records)
+            backend = backend_obj
+        for line in uninstall.describe(plan, self.inv.purge, windows):
+            print(line, file=self.out)
+        try:
+            if not self.inv.yes:
+                if not sys.stdin.isatty() and ask is input:
+                    self.error("not a terminal: add --yes to confirm")
+                    return 1
+                answer = ask("Continue? [y/N] ").strip().lower()
+                if answer not in ("y", "yes"):
+                    print("nothing was removed", file=self.out)
+                    return 1
+            if mgr is not None and windows:
+                n = mgr.close()
+                print(f"closed {n} window(s)", file=self.out)
+        finally:
+            if backend is not None:
+                backend.disconnect()
+        # The program goes first: when that fails, the state and layouts stay.
+        if plan.command:
+            self.out.flush()
+            rc, output = uninstall.run_command(plan.command)
+            if output:
+                print(output, file=self.out if rc == 0 else self.err)
+            if rc != 0:
+                self.error(f"removing the program failed ({' '.join(plan.command)} exited with {rc}); "
+                           "nothing else was deleted")
+                return 1
+        uninstall.remove_dir(plan.state_dir)
+        if self.inv.purge:
+            uninstall.remove_dir(plan.config_dir)
+            print(f"deleted {plan.config_dir}/", file=self.out)
+        print("Not touched: layout files outside the config directory, and the cloned repository "
+              "folder (delete it yourself, for example rm -rf ~/tilepane).", file=self.out)
+        print("tilepane was removed." if plan.command else "Done.", file=self.out)
+        return 0
+
     def list_layouts(self) -> int:
         failed = 0
         for task in self.inv.tasks or [Task()]:
@@ -541,7 +591,7 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
          err: Optional[TextIO] = None,
          detected: Optional[list[monitors.Monitor]] = None, backend=None, popen=None,
          work_areas: Optional[dict] = None, store: Optional[state.StateStore] = None,
-         exit_shell=None) -> int:
+         exit_shell=None, ask=None) -> int:
     out = out or sys.stdout
     err = err or sys.stderr
     try:
@@ -583,6 +633,8 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
         return runner.list_layouts()
     if inv.action == "edit":
         return runner.edit()
+    if inv.action == "uninstall":
+        return runner.uninstall(**({"ask": ask} if ask else {}))
     if inv.action == "close":
         code = runner.close_windows()
     elif inv.action == "toggle":

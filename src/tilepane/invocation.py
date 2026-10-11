@@ -27,6 +27,7 @@ Open terminal windows at precisely defined screen positions.
   tilepane --edit [FILE]                 edit a layout file in the browser
   tilepane --list [FILE]                 list layouts
   tilepane --explain KEY                 describe a configuration key
+  tilepane --uninstall [--purge]         remove tilepane (--purge: and your layouts)
   tilepane --monitors                    list monitors (numbers, names, sizes)
   tilepane --doctor                      print environment info
 
@@ -44,6 +45,9 @@ options:
   --seed S                     with --demo: repeat an earlier demo
   --save FILE                  with --demo: also write the layout to FILE
   --no-browser                 with --edit: only print the editor's address
+  --purge                      with --uninstall: also delete your layouts
+                               (~/.config/tilepane)
+  --yes                        with --uninstall: do not ask for confirmation
   -x, --exit-shell             when everything opened (or closed) without errors,
                                close the terminal tilepane was typed into
   --strict                     unknown configuration keys are errors
@@ -59,7 +63,7 @@ VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--
                  "--for", "--seed", "--save", "--workspace"}
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
                 "--close", "--toggle", "--prune", "--demo", "--edit", "--no-browser",
-                "--exit-shell", "-x",
+                "--exit-shell", "-x", "--uninstall", "--purge", "--yes",
                 "--monitors", "--list", "--version", "--help", "-h"}
 # Options from SPEC.md that exist but are built in a later step.
 NOT_YET = {"--watch": 9}
@@ -96,6 +100,8 @@ class Invocation:
     workspace: Optional[str] = None       # "current", "all", a 1-based number; None: not given
     no_browser: bool = False
     exit_shell: bool = False
+    purge: bool = False
+    yes: bool = False
 
 
 def is_file_argument(arg: str) -> bool:
@@ -201,6 +207,12 @@ def parse(argv: list[str]) -> Invocation:
             actions.append("demo")
         elif opt == "--edit":
             actions.append("edit")
+        elif opt == "--uninstall":
+            actions.append("uninstall")
+        elif opt == "--purge":
+            inv.purge = True
+        elif opt == "--yes":
+            inv.yes = True
         elif opt in ("--exit-shell", "-x"):
             inv.exit_shell = True
         elif opt == "--no-browser":
@@ -237,6 +249,13 @@ def parse(argv: list[str]) -> Invocation:
             raise UsageError("--demo cannot be combined with --close or --toggle (use --close all)")
     elif inv.seed is not None or inv.save is not None:
         raise UsageError(f"{'--seed' if inv.seed is not None else '--save'} only works with --demo")
+    if "uninstall" in actions:
+        if inv.tasks or len(set(actions)) > 1:
+            raise UsageError("--uninstall takes no files, layouts or other actions")
+        inv.action = "uninstall"
+        return inv
+    if inv.purge or inv.yes:
+        raise UsageError(f"{'--purge' if inv.purge else '--yes'} only works with --uninstall")
     if inv.exit_shell and (inv.dry_run or any(a in actions for a in
                                                ("help", "version", "doctor", "monitors", "explain", "list", "edit"))):
         raise UsageError("--exit-shell only works when opening or closing windows")

@@ -38,6 +38,8 @@ tilepane --close all                     # sulje tilepanen ikkunat (tästä työ
 tilepane --toggle meters.json            # avaa, tai sulje jos jo auki
 tilepane --edit meters.json              # muokkaa selaimessa
 tilepane meters.json -x                  # avaa ja sulje sitten tämä terminaali (vain jos kaikki onnistui)
+tilepane --uninstall                     # poista ohjelma (layoutit jäävät)
+tilepane --uninstall --purge             # poista ohjelma ja ~/.config/tilepane-kansion layoutit
 tilepane --dry-run meters.json           # näytä suorakaiteet avaamatta mitään
 tilepane --doctor                        # ympäristön tarkistus
 tilepane --monitors                      # näyttöjen numerot

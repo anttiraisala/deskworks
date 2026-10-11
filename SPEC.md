@@ -35,7 +35,10 @@ tilepane --monitors                            # list monitors with their number
 tilepane --dry-run 3                           # print the computed rectangles without opening anything
 tilepane --explain on_exit                     # print the description of a configuration key
 tilepane --demo                                # random split with fun commands (see section 10)
+tilepane --uninstall [--purge] [--yes]         # remove tilepane; --purge also deletes ~/.config/tilepane
 ```
+
+`--uninstall` lists what it will do and asks for confirmation (`--yes` skips it; without a terminal `--yes` is required). It closes the windows tilepane opened on every workspace, removes the program with the tool it was installed with (pipx when its venv has `pipx_metadata.json`, otherwise pip in the running Python; editable installs included), then deletes the state directory, and with `--purge` the config directory with the default config and any layouts saved there. The program is removed first: if that fails, nothing else is deleted. Layout files elsewhere and the cloned repository are never touched; the summary says so. It takes no files, layouts or other actions.
 
 Other options: `-x`/`--exit-shell` (when everything opened or closed without errors, close the terminal tilepane was typed into: tilepane sends SIGHUP to its parent process when that is an interactive shell on a terminal, so the terminal closes that tab or window by itself; nothing is closed after a failure, or when tilepane was not started from a shell, for example by a keyboard shortcut; not allowed with `--dry-run`, `--edit` and the other actions that open no windows), `--workspace N|current|all` (see State management), `--for DURATION` (close the windows opened in this run after that long, see section 10), `-v`/`--verbose` (print decisions: chosen terminal, monitor, rectangles), `--strict` (unknown configuration keys are errors), `--wait-monitors N` (retry monitor detection for up to N seconds, for use at login), `--eval-when` (with `--dry-run`: evaluate `when` conditions; by default dry-run runs nothing), `--version`, `-h`/`--help`.
 
