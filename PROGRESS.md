@@ -142,3 +142,4 @@ Implemented:
 - Editor: a "Workspace" list in the header (current, 1..N, N from the server) and a field in the layout panel.
 - Tested: unit tests with the fake backend (layout workspace, override, defaults, close/toggle, missing workspace), Chromium (header list writes the key before `split`), and live under Xvfb + Openbox: a layout with `workspace: 3` opened on workspace 3 from workspace 1, `--workspace 2` overrode it, `--close FILE` closed it on 3, and the editor server reported 4 workspaces. Not tried on the owner's machine yet.
 - 351 tests pass (5 live tests skipped).
+- The editor's Workspace list now names its first entry "not set (current)" (it was "current"), so it is clear the layout can have no workspace at all; the owner asked for that choice explicitly.
