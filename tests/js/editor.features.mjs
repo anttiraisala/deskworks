@@ -138,6 +138,75 @@ await page.selectOption("#workspace", "");
 expect(!("workspace" in (await doc())), "current removes it");
 step("workspace select");
 
+// Cut line across the whole monitor: every pane it crosses is cut, in the unit
+// the pane was cut with before; the contents stay in the first piece.
+await loadDoc({ name: "c", margin: 8, split: { dir: "columns", at: "60%", a: { run: "htop" },
+  b: { dir: "rows", at: "300px", a: { run: "sensors" }, b: { run: "logs" } } } });
+await page.keyboard.press("h");
+expect(await page.isVisible("#cut-overlay"), "cut mode on");
+const toScreen = async (x, y) => page.evaluate(([x, y]) => {
+  const r = document.querySelector("#screen").getBoundingClientRect();
+  return [r.left + x * S.view.scale, r.top + y * S.view.scale];
+}, [x, y]);
+let [cx, cy] = await toScreen(400, 640);
+await page.mouse.move(cx, cy);
+expect((await page.locator(".pane.cut-target").count()) === 2, "two panes marked for the cut");
+await page.mouse.click(cx, cy);
+d = await doc();
+expect(d.split.a.dir === "rows" && /%$/.test(d.split.a.at) && d.split.a.a.run === "htop" && JSON.stringify(d.split.a.b) === "{}", `left pane cut in % (got ${JSON.stringify(d.split.a)})`);
+expect(d.split.b.b.dir === "rows" && d.split.b.b.at === "340px" && d.split.b.b.a.run === "logs", `right pane cut in px (got ${JSON.stringify(d.split.b.b)})`);
+const ys = await page.evaluate(() => S.geo.leaves.map((l) => l.outer.y));
+expect(ys.filter((y) => y === 640).length === 2, `both pieces start at y=640 (got ${ys})`);
+expect(!(await page.isVisible("#cut-overlay")), "cut mode ends after the cut");
+step(`cut: ${JSON.stringify(d.split)}`);
+
+// Merge with an arrow: the lower piece is empty, so it merges without asking.
+await page.locator(".pane").first().click();
+await page.click('.merge-btn[data-merge="below"]');
+expect((await page.locator("dialog.tp-dialog").count()) === 0, "no question for an empty pane");
+d = await doc();
+expect(JSON.stringify(d.split.a) === JSON.stringify({ run: "htop" }), `merged back (got ${JSON.stringify(d.split.a)})`);
+step("merge with an empty neighbour");
+
+// Delete on a line between two panes with commands asks which one stays.
+await loadDoc({ name: "m", split: { dir: "columns", a: { run: "left" }, b: { run: "right" } } });
+await page.locator(".handle.v").first().click();
+await page.keyboard.press("Delete");
+await page.click('dialog.tp-dialog button:has-text("Keep right")');
+d = await doc();
+expect(JSON.stringify(d.split) === JSON.stringify({ run: "right" }), `line removed, right kept (got ${JSON.stringify(d.split)})`);
+step("delete a line, keep the right pane");
+
+// A line with several panes on one side is not removed.
+await loadDoc({ name: "m", split: { dir: "columns", a: { run: "left" }, b: { dir: "rows", a: { run: "x" }, b: { run: "y" } } } });
+const before2 = JSON.stringify(await doc());
+await page.locator(".handle.v").first().click();
+await page.keyboard.press("Delete");
+expect((await page.textContent("dialog.tp-dialog")).includes("cannot be removed"), "explains why");
+await page.click('dialog.tp-dialog button:has-text("OK")');
+expect(JSON.stringify(await doc()) === before2, "nothing changed");
+step("a line with two panes on one side stays");
+
+// Panes in different branches: the tree is rebuilt.
+await loadDoc({ name: "g", margin: 0, split: { dir: "columns", a: { dir: "rows", a: { run: "A1" }, b: { run: "A2" } },
+  b: { dir: "rows", a: {}, b: { run: "B2" } } } });
+await page.locator(".pane").first().click();
+await page.click('.merge-btn[data-merge="right"]');
+d = await doc();
+const rects = await page.evaluate(() => S.geo.leaves.map((l) => [l.leaf.run || "", l.outer.x, l.outer.y, l.outer.width, l.outer.height]));
+expect(rects.length === 3 && rects.some((r) => r[0] === "A1" && r[1] === 0 && r[3] === 1920 && r[4] === 540), `A1 fills the top row (got ${JSON.stringify(rects)})`);
+step(`rebuilt: ${JSON.stringify(d.split)}`);
+
+// Pieces cut in different units: the editor asks % or px.
+await loadDoc({ name: "u", margin: 0, split: { dir: "columns", sizes: ["300px", "1frac", "1frac"], children: [{ run: "a" }, {}, { run: "c" }] } });
+await page.locator(".pane").first().click();
+await page.click('.merge-btn[data-merge="right"]');
+expect((await page.textContent("dialog.tp-dialog")).includes("Percent or pixels"), "unit question");
+await page.click('dialog.tp-dialog button:has-text("Pixels")');
+d = await doc();
+expect(d.split.dir === "columns" && d.split.at === "1110px" && d.split.a.run === "a", `merged size in px (got ${JSON.stringify(d.split)})`);
+step(`unit question: ${JSON.stringify(d.split)}`);
+
 expect(errors.length === 0, `no page errors: ${errors.join("; ")}`);
 await browser.close();
 console.log("editor features: ok");

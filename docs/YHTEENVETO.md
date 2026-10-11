@@ -98,7 +98,9 @@ Valmiina ja testattuna:
 - `--demo` ja `--for` (ikkunat sulkeutuvat annetun ajan jälkeen)
 - komentotulkin valinta ruutukohtaisesti
 - selaineditori (`--edit`): ruutujen jako ja koon muutos vetämällä, ruutujen
-  paikan vaihto raahaamalla, näytön koon säätö vetämällä, komentorivit
+  paikan vaihto raahaamalla, koko näytön ylittävä leikkausviiva, ruutujen
+  yhdistäminen (nuolet tai jakoviiva + Delete), näytön koon säätö vetämällä,
+  työpöydän valinta, komentorivit
   kopioitavina, yhteiset asetukset siirtyvät automaattisesti puussa ylös
 
 Testattu omistajan koneella (Linux Mint, Cinnamon): työtilat. Kehitysympäristössä

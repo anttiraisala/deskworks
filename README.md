@@ -120,6 +120,8 @@ The editor opens in your browser and shows the layout on a picture of the monito
 - **Split** a pane into left | right or top / bottom, **add a pane** next to it, **make it empty** or **remove** it.
 - **Drag the line** between two panes to resize them. Click a line to set its exact value, in % or px, measured from the start or from the end.
 - **Drag a pane onto another** to swap them: a copy of the pane follows the mouse and shows where it lands; the contents change places, the sizes stay.
+- **✂ Cut ─ / ✂ Cut │** (keys H and V): a line across the whole monitor follows the mouse; a click cuts every pane it goes through. The contents stay in the top or left piece.
+- **Merge** two neighbouring panes into one: select a pane and click an arrow on its edge, or click the line between two panes and press Delete. An empty pane merges at once; if both have commands, you are asked which one stays.
 - **Drag the monitor's edges or corners** to try the layout on another screen size; the size is shown in pixels. The margin (gap between windows) is set right under the picture.
 - Settings you give every pane (a shell, a working directory, ...) are moved up the tree automatically, so they are written once; splitting a pane passes its settings to both halves.
 - **Commands** (and the top of the layout panel) shows the command lines that open, toggle or close this layout from a terminal, with Copy buttons; the monitor can be written as a number or as its name.

@@ -90,6 +90,21 @@ main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .seg button { border: 0; border-radius: 0; padding: 2px 10px; font-size: 12px; }
 .seg button.on, .unit-row .seg button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.cut-overlay { position: absolute; inset: 0; z-index: 250; cursor: crosshair; }
+.cut-line { position: absolute; pointer-events: none; border: 0 dashed var(--handle-hover); }
+.cut-line.h { left: 0; right: 0; height: 0; border-top-width: 2px; }
+.cut-line.v { top: 0; bottom: 0; width: 0; border-left-width: 2px; }
+.pane.cut-target { box-shadow: 0 0 0 2px var(--handle-hover) inset; }
+.pane.cut-skip { box-shadow: 0 0 0 2px var(--error) inset; }
+header button.on { background: var(--handle-hover); border-color: var(--handle-hover); color: #000; }
+.merge-btn {
+  position: absolute; z-index: 120; width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink); border: 2px solid var(--panel); font-size: 13px; line-height: 16px;
+}
+dialog.tp-dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(520px, 92vw); padding: 16px 18px; }
+dialog.tp-dialog::backdrop { background: rgba(0,0,0,0.35); }
+dialog.tp-dialog h2 { margin: 0 0 8px; font-size: 16px; }
+dialog.tp-dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 14px; }
 dialog#commands-dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(720px, 92vw); padding: 16px 18px; }
 dialog#commands-dialog::backdrop { background: rgba(0,0,0,0.35); }
 dialog#commands-dialog h2 { margin: 0 0 6px; font-size: 16px; }
@@ -161,6 +176,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
     <button id="delete-layout" title="Delete this layout">Delete</button></span>
   <span class="group"><label for="monitor">Monitor</label><select id="monitor"></select></span>
   <span class="group"><label for="workspace">Workspace</label><select id="workspace" title="The workspace this layout opens on, saved in the layout. 'not set': it opens on whichever workspace is current. --workspace on the command line overrides it."></select></span>
+  <span class="group"><button id="cut-h" title="Cut with a horizontal line across the whole monitor (H)">✂ Cut ─</button><button id="cut-v" title="Cut with a vertical line across the whole monitor (V)">✂ Cut │</button></span>
   <span class="group"><button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button></span>
   <span class="spacer"></span>
   <span class="group">
@@ -836,6 +852,7 @@ const S = {
   useCustom: false,
   monitorStyle: "number", // how commands name the monitor: "number" or "name"
   workspaces: null,       // how many workspaces the machine has, when the server knows
+  cut: null,              // "h" or "v" while a cut line follows the mouse
 };
 
 // Per-viewer conveniences only; the page works without them.
@@ -1003,19 +1020,22 @@ function redo() {
 // Split a pane in two. Its inheriting settings (cwd, shell, terminal, ...) move
 // to the new split, so both halves get them; its command, title and id stay
 // with the first half.
+function makeSplit(node, dir, at) {
+  const split = { dir, at };
+  const first = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (INHERIT_KEYS.includes(k)) split[k] = v;
+    else first[k] = v;
+  }
+  if (wantsWindow(node) && !wantsWindow(first)) first.empty = false;
+  split.a = first;
+  split.b = {};
+  return split;
+}
+
 function splitPane(path, dir) {
   change(() => {
-    const node = nodeAt(path, true);
-    const split = { dir, at: "50%" };
-    const first = {};
-    for (const [k, v] of Object.entries(node)) {
-      if (INHERIT_KEYS.includes(k)) split[k] = v;
-      else first[k] = v;
-    }
-    if (wantsWindow(node) && !wantsWindow(first)) first.empty = false;
-    split.a = first;
-    split.b = {};
-    replaceAt(path, split);
+    replaceAt(path, makeSplit(nodeAt(path, true), dir, "50%"));
     S.sel = { kind: "pane", path: path.concat([1]) };
   });
 }
@@ -1031,6 +1051,284 @@ function swapPanes(a, b) {
     replaceAt(b, na);
     S.sel = { kind: "pane", path: b };
   });
+}
+
+// ---------------------------------------------------------------- dialogs
+
+// A small modal question; resolves to the chosen button's value, or null.
+function ask(title, text, buttons) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const dlg = h("dialog", { class: "tp-dialog" });
+    const done = (v) => { if (answered) return; answered = true; dlg.close(); dlg.remove(); resolve(v); };
+    dlg.append(h("h2", {}, title), h("div", {}, text),
+      h("div", { class: "actions" }, ...buttons.map((b) => h("button", { class: b.primary ? "primary" : "", onclick: () => done(b.value) }, b.label))));
+    dlg.addEventListener("cancel", () => done(null));
+    document.body.append(dlg);
+    dlg.showModal();
+  });
+}
+
+function paneLabel(node) {
+  if (node.title) return node.title;
+  if (node.run) return Array.isArray(node.run) ? node.run.join("; ") : node.run;
+  return wantsWindow(node) ? "shell" : "empty";
+}
+
+// ---------------------------------------------------------------- cut line
+
+// How a pane was cut: "%" / "-%" / "px" / "-px", from the split it came from.
+function cutStyleOf(path) {
+  if (!path.length) return "%";
+  const parent = nodeAt(path.slice(0, -1));
+  if (!has(parent, "children")) {
+    const st = atStyle(parent.at);
+    return st === "num" ? "px" : st;
+  }
+  const v = sizesOf(parent)[path[path.length - 1]];
+  return looseSize(v).kind === "px" ? "px" : "%";
+}
+
+// The panes a cut at `coord` (monitor px) goes through, and the ones skipped
+// because a piece would be too small.
+function cutTargets(dir, coord) {
+  const targets = [], skipped = [];
+  for (const l of S.geo.leaves) {
+    const start = dir === "h" ? l.outer.y : l.outer.x;
+    const size = dir === "h" ? l.outer.height : l.outer.width;
+    if (coord <= start || coord >= start + size) continue;
+    const min = (pickLayoutKey(lay(), "margin", 8) || 0) + MIN_PANE;
+    if (coord - start < min || start + size - coord < min) skipped.push(l);
+    else targets.push(l);
+  }
+  return { targets, skipped };
+}
+
+function cutAt(dir, coord) {
+  const { targets, skipped } = cutTargets(dir, coord);
+  if (!targets.length) {
+    S.status = skipped.length ? "no pane cut: the pieces would be too small" : "the line does not go through any pane";
+    renderFooter();
+    return;
+  }
+  change(() => {
+    for (const l of targets) {
+      const vertical = dir === "v";
+      const rec = { vertical, rect: l.outer, atBasis: "outer" };
+      const aPx = coord - (vertical ? l.outer.x : l.outer.y);
+      const style = cutStyleOf(l.path);
+      let at = atValue(rec, aPx, style);
+      if (style === "%" || style === "-%") {
+        // Enough decimals that every cut piece ends on the same pixel.
+        const ext = splitExtent(rec);
+        at = style === "%" ? `${fmt((aPx / ext) * 100, 3)}%` : `-${fmt(((ext - aPx) / ext) * 100, 3)}%`;
+      }
+      replaceAt(l.path, makeSplit(nodeAt(l.path, true), vertical ? "columns" : "rows", at));
+    }
+    S.sel = { kind: "layout" };
+    S.status = `cut ${targets.length} pane(s)` + (skipped.length ? `; ${skipped.length} skipped (too small)` : "");
+  });
+}
+
+// ---------------------------------------------------------------- merging
+
+// Do two panes together make one rectangle? Returns the side of `a` that
+// touches `b` ("left", "right", "above", "below") or null.
+function mergeSide(a, b) {
+  const A = a.outer, B = b.outer;
+  if (A.y === B.y && A.height === B.height) {
+    if (A.x + A.width === B.x) return "right";
+    if (B.x + B.width === A.x) return "left";
+  }
+  if (A.x === B.x && A.width === B.width) {
+    if (A.y + A.height === B.y) return "below";
+    if (B.y + B.height === A.y) return "above";
+  }
+  return null;
+}
+
+function mergeNeighbours(path) {
+  const me = S.geo.leaves.find((l) => l.id === idOf(path));
+  if (!me || S.geo.stale) return [];
+  return S.geo.leaves.filter((l) => l !== me && mergeSide(me, l)).map((l) => ({ leaf: l, side: mergeSide(me, l) }));
+}
+
+function unitStyle(v, isAt) {
+  if (isAt) { const st = atStyle(v); return st === "%" || st === "-%" ? "%" : "px"; }
+  const k = looseSize(v).kind;
+  return k === "px" ? "px" : k === "%" ? "%" : "frac";
+}
+
+// Merge pane `other` into pane `keep`: `keep`'s contents fill both rectangles.
+// `unit` answers the % or px question when it had to be asked.
+function applyMerge(keep, other, unit) {
+  const kPath = keep.path, oPath = other.path;
+  const siblings = kPath.length === oPath.length && kPath.length > 0 &&
+    idOf(kPath.slice(0, -1)) === idOf(oPath.slice(0, -1));
+  const kept = materialized(kPath);
+  const union = {
+    x: Math.min(keep.outer.x, other.outer.x), y: Math.min(keep.outer.y, other.outer.y),
+    width: keep.outer.width + (keep.outer.y === other.outer.y && keep.outer.height === other.outer.height ? other.outer.width : 0),
+    height: keep.outer.height + (keep.outer.x === other.outer.x && keep.outer.width === other.outer.width ? other.outer.height : 0),
+  };
+  let tree = null;
+  if (!siblings) {
+    const items = S.geo.leaves.filter((l) => l !== keep && l !== other)
+      .map((l) => ({ rect: l.outer, node: materialized(l.path) }));
+    items.push({ rect: union, node: kept });
+    const region = { x: Math.min(...items.map((it) => it.rect.x)), y: Math.min(...items.map((it) => it.rect.y)) };
+    region.width = Math.max(...items.map((it) => it.rect.x + it.rect.width)) - region.x;
+    region.height = Math.max(...items.map((it) => it.rect.y + it.rect.height)) - region.y;
+    tree = rebuildTree(items, region, unit || "%");
+    if (!tree) {
+      ask("These panes cannot be merged", "After merging, the panes could no longer be described as splits of the screen.", [{ label: "OK", value: true, primary: true }]);
+      return;
+    }
+  }
+  change(() => {
+    if (siblings) {
+      const ppath = kPath.slice(0, -1);
+      const parent = nodeAt(ppath, true);
+      if (!has(parent, "children")) {
+        replaceAt(ppath, kept);
+      } else {
+        const i = Math.min(kPath[kPath.length - 1], oPath[oPath.length - 1]);
+        const sizes = sizesOf(parent);
+        const rec = S.geo.splits.find((sp) => sp.id === idOf(ppath));
+        sizes.splice(i, 2, mergedSize(sizes[i], sizes[i + 1], keep, other, rec, unit));
+        parent.children.splice(i, 2, kept);
+        if (has(parent, "sizes")) parent.sizes = sizes;
+        if (parent.children.length === 1) replaceAt(ppath, parent.children[0]);
+        else if (parent.children.length === 2) replaceAt(ppath, toBinary(parent));
+      }
+    } else {
+      if (pickLayoutKey(lay(), "at_basis", "outer") === "visible" && isSplit(tree)) setInherited(tree, "at_basis", "outer");
+      lay().split = tree;
+    }
+    S.mergedRect = union;
+    S.status = "merged";
+  });
+}
+
+function mergedSize(a, b, keep, other, rec, unit) {
+  const ka = unitStyle(a), kb = unitStyle(b);
+  if (ka === kb && ka !== "px") return ka === "frac" ? `${fmt(looseSize(a).value + looseSize(b).value, 3)}frac` : `${fmt(looseSize(a).value + looseSize(b).value, 3)}%`;
+  if (ka === "px" && kb === "px") return typeof a === "number" && typeof b === "number" ? a + b : `${looseSize(a).value + looseSize(b).value}px`;
+  const vertical = rec ? rec.vertical : true;
+  const px = vertical ? keep.outer.width + other.outer.width : keep.outer.height + other.outer.height;
+  const ext = rec ? splitExtent(rec) : px;
+  return unit === "px" ? `${px}px` : `${fmt((px / ext) * 100, 3)}%`;
+}
+
+// A tree of splits for rectangles that tile `region` (guillotine cuts only).
+function rebuildTree(items, region, unit) {
+  if (items.length === 1) return items[0].node;
+  for (const vertical of [true, false]) {
+    const pos = (r) => (vertical ? r.x : r.y), len = (r) => (vertical ? r.width : r.height);
+    const start = pos(region), ext = len(region);
+    const cuts = [...new Set(items.map((it) => pos(it.rect)))].filter((c) => c > start).sort((p, q) => p - q);
+    for (const c of cuts) {
+      if (items.some((it) => pos(it.rect) < c && c < pos(it.rect) + len(it.rect))) continue;
+      const A = items.filter((it) => pos(it.rect) < c), B = items.filter((it) => pos(it.rect) >= c);
+      const aPx = c - start;
+      const ra = vertical ? { ...region, width: aPx } : { ...region, height: aPx };
+      const rb = vertical ? { ...region, x: c, width: ext - aPx } : { ...region, y: c, height: ext - aPx };
+      const a = rebuildTree(A, ra, unit), b = rebuildTree(B, rb, unit);
+      if (!a || !b) return null;
+      return { dir: vertical ? "columns" : "rows", at: unit === "px" ? `${aPx}px` : `${fmt((aPx / ext) * 100, 3)}%`, a, b };
+    }
+  }
+  return null;
+}
+
+// The % or px question, asked only when the cuts involved use both.
+async function unitFor(keep, other) {
+  const kPath = keep.path, oPath = other.path;
+  const siblings = kPath.length === oPath.length && kPath.length > 0 && idOf(kPath.slice(0, -1)) === idOf(oPath.slice(0, -1));
+  let styles;
+  if (siblings) {
+    const parent = nodeAt(kPath.slice(0, -1));
+    if (!has(parent, "children")) return "%";
+    const i = Math.min(kPath[kPath.length - 1], oPath[oPath.length - 1]);
+    const sz = sizesOf(parent);
+    const a = unitStyle(sz[i]), b = unitStyle(sz[i + 1]);
+    if (a === b) return a === "px" ? "px" : "%";
+    styles = new Set([a, b]);
+  } else {
+    styles = new Set();
+    const walk = (n) => {
+      if (!isSplit(n)) return;
+      if (has(n, "children")) sizesOf(n).forEach((v) => styles.add(unitStyle(v) === "px" ? "px" : "%"));
+      else styles.add(unitStyle(n.at, true));
+      childrenOf(n).forEach(walk);
+    };
+    walk(rootNode());
+    if (styles.size <= 1) return styles.has("px") ? "px" : "%";
+  }
+  return ask("Percent or pixels?", "The panes were cut in different ways. How should the new split points be saved?", [
+    { label: "Cancel", value: null }, { label: "Pixels", value: "px" }, { label: "Percent", value: "%", primary: true }]);
+}
+
+// Merge the selected pane with a neighbour. An empty pane never wins; when
+// both have contents, the selected one stays after a confirmation.
+async function mergePanes(selPath, neighbourLeaf) {
+  const me = S.geo.leaves.find((l) => l.id === idOf(selPath));
+  if (!me || !mergeSide(me, neighbourLeaf)) return;
+  let keep = me, other = neighbourLeaf;
+  const meWin = wantsWindow(me.leaf), otherWin = wantsWindow(other.leaf);
+  if (!meWin && otherWin) { keep = neighbourLeaf; other = me; }
+  else if (meWin && otherWin) {
+    const ok = await ask("Merge panes?", `The pane '${paneLabel(other.leaf)}' and its settings will be removed; '${paneLabel(me.leaf)}' fills both places.`, [
+      { label: "Cancel", value: null }, { label: "Merge", value: true, primary: true }]);
+    if (!ok) return;
+  }
+  const unit = await unitFor(keep, other);
+  if (unit === null) return;
+  applyMerge(keep, other, unit);
+  selectMerged();
+}
+
+// Delete on a selected line: merge the two panes on its sides.
+async function deleteLine(path, boundary) {
+  const node = nodeAt(path);
+  const kids = has(node, "children") ? node.children : [childOf(node, 0) || {}, childOf(node, 1) || {}];
+  const i = has(node, "children") ? boundary || 0 : 0;
+  const [p1, p2] = [path.concat([i]), path.concat([i + 1])];
+  const n1 = kids[i], n2 = kids[i + 1];
+  const vertical = !["rows", "h", "horizontal"].includes(node.dir);
+  const sides = vertical ? ["left", "right"] : ["upper", "lower"];
+  for (const [n, p, side] of [[n1, p1, sides[0]], [n2, p2, sides[1]]]) {
+    if (!isSplit(n)) continue;
+    const count = S.geo.leaves.filter((l) => idOf(l.path).startsWith(`${idOf(p)}.`)).length;
+    await ask("This line cannot be removed", `The ${side} side has ${count} panes, so the merged area would not be a rectangle. Merge those panes first, or remove the line between them.`,
+      [{ label: "OK", value: true, primary: true }]);
+    return;
+  }
+  const l1 = S.geo.leaves.find((l) => l.id === idOf(p1)), l2 = S.geo.leaves.find((l) => l.id === idOf(p2));
+  if (!l1 || !l2) return;
+  let keep = l1, other = l2;
+  const w1 = wantsWindow(l1.leaf), w2 = wantsWindow(l2.leaf);
+  if (!w1 && w2) { keep = l2; other = l1; }
+  else if (w1 && w2) {
+    const which = await ask("Which pane stays?", "Both panes have contents. Removing the line keeps one of them; the other one's settings are removed.", [
+      { label: "Cancel", value: null },
+      { label: `Keep ${vertical ? "right" : "lower"}: ${paneLabel(l2.leaf)}`, value: 2 },
+      { label: `Keep ${vertical ? "left" : "upper"}: ${paneLabel(l1.leaf)}`, value: 1, primary: true }]);
+    if (!which) return;
+    if (which === 2) { keep = l2; other = l1; }
+  }
+  const unit = await unitFor(keep, other);
+  if (unit === null) return;
+  applyMerge(keep, other, unit);
+  selectMerged();
+}
+
+function selectMerged() {
+  const r = S.mergedRect;
+  S.mergedRect = null;
+  if (!r) return;
+  const l = S.geo.leaves.find((x) => x.outer.x === r.x && x.outer.y === r.y && x.outer.width === r.width && x.outer.height === r.height);
+  if (l) { S.sel = { kind: "pane", path: l.path }; render(); }
 }
 
 function sizesOf(node) {
@@ -1811,6 +2109,11 @@ function paneInspector(path) {
     inherit: (k) => inherited(k, path, "pane"),
     problemFor: (k) => problemFor(k, S.layoutIndex, id),
   };
+  const neighbours = mergeNeighbours(path);
+  if (neighbours.length) {
+    parts.push(h("div", { class: "actions" }, ...neighbours.map((n) =>
+      h("button", { onclick: () => mergePanes(path, n.leaf), title: `Make one pane of this and '${paneLabel(n.leaf.leaf)}'` }, `Merge with ${n.side}`))));
+  }
   parts.push(...fieldList(node, PANE_MAIN, opts));
   const more = h("details", {}, h("summary", {}, "More settings"), ...fieldList(node, PANE_MORE, opts));
   if (PANE_MORE.some((k) => has(node, k))) more.open = true;
@@ -1850,7 +2153,7 @@ function splitInspector(path) {
         h("button", { class: style === "-%" ? "on" : "", onclick: () => set("-%") }, "% from end"),
         h("button", { class: style === "px" || style === "num" ? "on" : "", onclick: () => set("px") }, "px from start"),
         h("button", { class: style === "-px" ? "on" : "", onclick: () => set("-px") }, "px from end")));
-      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point. The value keeps its unit; the buttons switch it without moving the line."));
+      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point. The value keeps its unit; the buttons switch it without moving the line. Delete removes the line and merges the two panes."));
     }
   } else {
     parts.push(field(node, "sizes", { target: opts.target, problem: opts.problemFor("sizes") }));
@@ -1958,12 +2261,86 @@ function renderScreen() {
     }
   }
   if (S.geo.stale) screen.append(h("div", { class: "screen-note" }, "Showing the last layout that fit; see the problems below."));
+  if (S.sel.kind === "pane" && !S.cut) {
+    const me = S.geo.leaves.find((l) => l.id === idOf(S.sel.path));
+    if (me) {
+      for (const n of mergeNeighbours(S.sel.path)) {
+        const r = me.rect, o = n.leaf.rect;
+        const mid = (a, b) => (a + b) / 2;
+        let cx, cy;
+        if (n.side === "left" || n.side === "right") {
+          cx = n.side === "left" ? mid(o.x + o.width, r.x) : mid(r.x + r.width, o.x);
+          cy = r.y + r.height / 2;
+        } else {
+          cy = n.side === "above" ? mid(o.y + o.height, r.y) : mid(r.y + r.height, o.y);
+          cx = r.x + r.width / 2;
+        }
+        const arrow = { left: "⇠", right: "⇢", above: "⇡", below: "⇣" }[n.side];
+        const b = h("button", { class: "merge-btn", title: `Merge with the pane ${n.side === "above" || n.side === "below" ? n.side : `on the ${n.side}`} ('${paneLabel(n.leaf.leaf)}')`,
+          style: { left: `${(cx - m.x) * scale - 11}px`, top: `${(cy - m.y) * scale - 11}px` } }, arrow);
+        b.dataset.merge = n.side;
+        b.addEventListener("pointerdown", (e) => e.stopPropagation());
+        b.addEventListener("click", () => mergePanes(S.sel.path, n.leaf));
+        screen.append(b);
+      }
+    }
+  }
+  if (S.cut) screen.append(cutOverlay());
   for (const side of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
     const el = h("div", { class: `mon-handle ${side}`, title: "Drag to change the preview's monitor size (Shift keeps the shape, Alt gives exact pixels)" });
     el.addEventListener("pointerdown", (e) => startMonitorResize(e, side));
     screen.append(el);
   }
   renderScreenbar();
+}
+
+function setCutMode(dir) {
+  S.cut = S.cut === dir ? null : dir;
+  render();
+}
+
+// While cutting: a dashed line across the monitor follows the mouse, snaps to
+// existing boundaries, shows its position and marks the panes it would cut.
+function cutOverlay() {
+  const { scale, m } = S.view;
+  const dir = S.cut;
+  const overlay = h("div", { class: "cut-overlay", id: "cut-overlay" });
+  const line = h("div", { class: `cut-line ${dir}` });
+  const tip = h("div", { class: "size-tip", style: { position: "absolute" } });
+  overlay.append(line, tip);
+  const edges = [...new Set(S.geo.leaves.flatMap((l) => (dir === "h" ? [l.outer.y, l.outer.y + l.outer.height] : [l.outer.x, l.outer.x + l.outer.width])))];
+  let coord = null;
+  const at = (ev) => {
+    const r = overlay.getBoundingClientRect();
+    let c = dir === "h" ? (ev.clientY - r.top) / scale + m.y : (ev.clientX - r.left) / scale + m.x;
+    const near = edges.map((e) => [Math.abs(e - c) * scale, e]).sort((p, q) => p[0] - q[0])[0];
+    if (near && near[0] < 8 && !ev.altKey) c = near[1];
+    return Math.round(c);
+  };
+  const mark = () => {
+    document.querySelectorAll(".pane.cut-target, .pane.cut-skip").forEach((p) => p.classList.remove("cut-target", "cut-skip"));
+    if (coord === null) return;
+    const { targets, skipped } = cutTargets(dir, coord);
+    targets.forEach((l) => document.querySelector(`.pane[data-id="${l.id}"]`)?.classList.add("cut-target"));
+    skipped.forEach((l) => document.querySelector(`.pane[data-id="${l.id}"]`)?.classList.add("cut-skip"));
+  };
+  overlay.addEventListener("pointermove", (ev) => {
+    coord = at(ev);
+    const pos = (coord - (dir === "h" ? m.y : m.x)) * scale;
+    if (dir === "h") { line.style.top = `${pos - 1}px`; tip.style.top = `${pos + 6}px`; tip.style.left = "8px"; }
+    else { line.style.left = `${pos - 1}px`; tip.style.left = `${pos + 6}px`; tip.style.top = "8px"; }
+    tip.textContent = `${dir === "h" ? "y" : "x"} = ${coord - (dir === "h" ? m.y : m.x)} px · click to cut, Esc to stop`;
+    mark();
+  });
+  overlay.addEventListener("pointerleave", () => { coord = null; mark(); });
+  overlay.addEventListener("pointerdown", (ev) => {
+    ev.stopPropagation();
+    const c = at(ev);
+    S.cut = ev.shiftKey ? S.cut : null;
+    cutAt(dir, c);
+    if (S.cut) render();
+  });
+  return overlay;
 }
 
 function renderScreenbar() {
@@ -2119,7 +2496,7 @@ function startDrag(e, split, i) {
       S.redo = [];
       S.dirty = true;
     }
-    S.sel = { kind: "split", path: split.path };
+    S.sel = { kind: "split", path: split.path, boundary: i };
     render();
   };
   window.addEventListener("pointermove", onMove);
@@ -2146,6 +2523,8 @@ function renderHeader() {
       `${i + 1}${S.workspaces && i + 1 > S.workspaces ? " (not on this machine)" : ""}`)));
   $("#undo").disabled = !S.undo.length;
   $("#redo").disabled = !S.redo.length;
+  $("#cut-h").classList.toggle("on", S.cut === "h");
+  $("#cut-v").classList.toggle("on", S.cut === "v");
   const errors = errorsCount();
   for (const id of ["#save", "#open-screen"]) {
     const b = $(id);
@@ -2390,6 +2769,8 @@ function wire() {
     render();
   });
   $("#commands").addEventListener("click", openCommands);
+  $("#cut-h").addEventListener("click", () => setCutMode("h"));
+  $("#cut-v").addEventListener("click", () => setCutMode("v"));
   $("#workspace").addEventListener("change", (e) => change(() => {
     const l = lay();
     if (e.target.value === "") delete l.workspace;
@@ -2428,7 +2809,10 @@ function wire() {
     if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
     else if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
     else if ((e.key === "Delete" || e.key === "Backspace") && S.sel.kind === "pane") { e.preventDefault(); removePane(S.sel.path); }
-    else if (e.key === "Escape") { S.sel = { kind: "layout" }; render(); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && S.sel.kind === "split") { e.preventDefault(); deleteLine(S.sel.path, S.sel.boundary); }
+    else if (e.key === "Escape") { S.cut = null; S.sel = { kind: "layout" }; render(); }
+    else if (!mod && (e.key === "h" || e.key === "H")) setCutMode("h");
+    else if (!mod && (e.key === "v" || e.key === "V")) setCutMode("v");
   });
   window.addEventListener("beforeunload", (e) => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
 }
