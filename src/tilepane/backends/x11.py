@@ -119,6 +119,24 @@ class X11Backend:
         vals = self._cardinals(self.root, "_NET_NUMBER_OF_DESKTOPS")
         return vals[0] if vals else None
 
+    def desktop_info(self):
+        """Everything --workspaces shows: count, current, names, grid, viewports."""
+        from ..workspaces import Desktops
+
+        count = self.desktop_count() or 0
+        names_prop = self.root.get_full_property(self._atom("_NET_DESKTOP_NAMES"), self._X.AnyPropertyType)
+        names: list[str] = []
+        if names_prop is not None:
+            raw = names_prop.value
+            if isinstance(raw, str):
+                raw = raw.encode()
+            names = [n.decode(errors="replace") for n in bytes(raw).split(b"\0")]
+        geo = self.d.screen()
+        return Desktops(count, self.current_desktop(), names,
+                        self._cardinals(self.root, "_NET_DESKTOP_LAYOUT"),
+                        self._cardinals(self.root, "_NET_DESKTOP_GEOMETRY"),
+                        (geo.width_in_pixels, geo.height_in_pixels))
+
     def move_to_desktop(self, window_id: int, desktop: int) -> None:
         from Xlib import error
 

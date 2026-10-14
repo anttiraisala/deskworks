@@ -32,6 +32,7 @@ tilepane --toggle 3                            # open if closed, close if open
 tilepane --edit                                # start the browser editor (localhost)
 tilepane --doctor                              # print environment info (session type, monitors, terminal)
 tilepane --monitors                            # list monitors with their numbers, names, sizes and positions
+tilepane --workspaces                          # show the workspaces as the window manager arranges them
 tilepane --dry-run 3                           # print the computed rectangles without opening anything
 tilepane --explain on_exit                     # print the description of a configuration key
 tilepane --demo                                # random split with fun commands (see section 10)
@@ -205,6 +206,7 @@ If a layout is already open, tilepane reconciles instead of opening duplicates: 
 - A layout opened on workspace 1 and again on workspace 2 has two sets of windows; the first set is left alone. A new `--demo` replaces only the demo on the same monitor and workspace.
 - `--close NAME` closes on that layout's workspace (its `workspace` key) or else the current one; `--close all` closes on the current workspace. `--workspace N` picks another one, `--workspace all` closes on every workspace.
 - New windows are moved to the chosen workspace after they appear. In the editor, a "Workspace" list in the header (and the layout panel) sets the layout's `workspace`, or "not set" for none; the server reports how many workspaces the machine has.
+- `tilepane --workspaces` shows the workspaces: how many, the current one, their names when they are not the defaults, and their arrangement: the grid a pager publishes in `_NET_DESKTOP_LAYOUT` (orientation, columns, rows, starting corner), or one row when there is none. The grid is drawn twice: with the numbers `--workspace` uses now (1 = first in the window manager's order) and with a numbering under discussion with the owner (0 in the bottom left corner, along each row, rows upward). `-v` adds the raw properties. One large desktop with viewports (Compiz) is noted.
 - A window manager that reports no workspaces behaves as one workspace. Compiz/Unity implements workspaces as viewports of one large desktop, which this does not tell apart (a later addition).
 
 Closing asks each window to close (`_NET_CLOSE_WINDOW`), checks that it went, and asks once more. A window that still stays open is reported and kept in the state, so the next `--close` tries it again. tilepane never kills a terminal process: with gnome-terminal one server owns every tilepane window. A window closed by hand (its close button) is noticed the next time tilepane runs: it is dropped from the state, and opening the layout again opens only that pane.

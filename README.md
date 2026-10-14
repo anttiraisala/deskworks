@@ -150,6 +150,7 @@ tilepane keeps each workspace separate. Open a layout on workspace 1, switch to 
 
 ```
 tilepane examples/meters.json                  # opens on the current workspace
+tilepane --workspaces                          # shows your workspaces and their numbers
 tilepane examples/meters.json --workspace 3    # opens on workspace 3 (1 = first)
 tilepane --close all                           # closes tilepane's windows on this workspace only
 tilepane --close all --workspace 2             # ... on workspace 2

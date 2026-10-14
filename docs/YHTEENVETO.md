@@ -43,6 +43,7 @@ tilepane --uninstall --purge             # poista ohjelma ja ~/.config/tilepane-
 tilepane --dry-run meters.json           # näytä suorakaiteet avaamatta mitään
 tilepane --doctor                        # ympäristön tarkistus
 tilepane --monitors                      # näyttöjen numerot
+tilepane --workspaces                    # työpöydät ruudukkona numeroineen
 ```
 
 Pieni esimerkki: htop vasemmalle (60 %), oikea puoli kahtia.

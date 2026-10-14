@@ -58,6 +58,11 @@ class FakeBackend:
     def desktop_count(self):
         return None if self.desktop is None else 4
 
+    def desktop_info(self):
+        from tilepane.workspaces import Desktops
+        return Desktops(self.desktop_count() or 0, self.desktop, getattr(self, "desktop_names", []),
+                        getattr(self, "desktop_layout", None))
+
     def move_to_desktop(self, window_id, desktop):
         self.desktops[window_id] = desktop
 

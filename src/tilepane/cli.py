@@ -618,6 +618,22 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
             return 1
         print(monitors.format_table(found), file=out)
         return 0
+    if inv.action == "workspaces":
+        from . import workspaces
+        be, reason = (backend, "") if backend is not None else backends.choose()
+        if be is None:
+            print(f"tilepane: cannot reach the window system: {reason}", file=err)
+            return 1
+        try:
+            info = be.desktop_info()
+        finally:
+            if backend is None:
+                be.disconnect()
+        if not info.count:
+            print("the window manager does not report workspaces", file=err)
+            return 1
+        print(workspaces.render(info, inv.verbose), file=out)
+        return 0
     if inv.action == "explain":
         text = docgen.explain(inv.explain or "")
         if text is None:

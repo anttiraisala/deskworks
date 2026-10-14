@@ -29,6 +29,7 @@ Open terminal windows at precisely defined screen positions.
   tilepane --explain KEY                 describe a configuration key
   tilepane --uninstall [--purge]         remove tilepane (--purge: and your layouts)
   tilepane --monitors                    list monitors (numbers, names, sizes)
+  tilepane --workspaces                  show the workspaces as the window manager arranges them
   tilepane --doctor                      print environment info
 
 options:
@@ -64,7 +65,7 @@ VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
                 "--close", "--toggle", "--prune", "--demo", "--edit", "--no-browser",
                 "--exit-shell", "-x", "--uninstall", "--purge", "--yes",
-                "--monitors", "--list", "--version", "--help", "-h"}
+                "--monitors", "--workspaces", "--list", "--version", "--help", "-h"}
 # Options from SPEC.md that exist but are built in a later step.
 NOT_YET = {"--watch": 9}
 ALL_OPTIONS = VALUE_OPTIONS | FLAG_OPTIONS | set(NOT_YET)
@@ -237,6 +238,8 @@ def parse(argv: list[str]) -> Invocation:
             actions.append("doctor")
         elif opt == "--monitors":
             actions.append("monitors")
+        elif opt == "--workspaces":
+            actions.append("workspaces")
         elif opt == "--list":
             actions.append("list")
 
@@ -257,12 +260,13 @@ def parse(argv: list[str]) -> Invocation:
     if inv.purge or inv.yes:
         raise UsageError(f"{'--purge' if inv.purge else '--yes'} only works with --uninstall")
     if inv.exit_shell and (inv.dry_run or any(a in actions for a in
-                                               ("help", "version", "doctor", "monitors", "explain", "list", "edit"))):
+                                               ("help", "version", "doctor", "monitors", "workspaces",
+                                                "explain", "list", "edit"))):
         raise UsageError("--exit-shell only works when opening or closing windows")
     if "edit" in actions:
         if len(inv.tasks) > 1 or (inv.tasks and inv.tasks[0].layouts):
             raise UsageError("--edit takes one file (the editor shows all its layouts)")
-    for action in ("help", "version", "doctor", "monitors", "explain", "list", "close", "toggle",
+    for action in ("help", "version", "doctor", "monitors", "workspaces", "explain", "list", "close", "toggle",
                    "demo", "edit"):
         if action in actions:
             inv.action = action
