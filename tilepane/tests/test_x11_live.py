@@ -9,7 +9,7 @@ import unittest
 
 from deskmap import monitors, workarea
 from tilepane import config, geometry, opener, terminals
-from tilepane.backends import x11
+from deskmap.backends import x11
 
 LIVE = os.environ.get("TILEPANE_LIVE") == "1" and x11.available()[0]
 

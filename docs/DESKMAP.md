@@ -12,7 +12,7 @@ the extraction proceeds, and move finished facts into the library's own README.
 | Work area | `tilepane/.../workarea.py` | `_GTK_WORKAREAS`, struts, `_NET_WORKAREA` |
 | Workspace model and numbering | `tilepane/.../workspaces.py` | the numbering of README.md |
 | Placement maths | `tilepane/.../placement.py` | frame extents, size hints, cell snap |
-| X11 backend | `tilepane/.../backends/x11.py` | placement, find new window, close, desktops; window listing and the cascade operations come from `cascade-windows/cascade_windows/x11_backend.py` |
+| X11 backend | `tilepane/.../backends/x11.py` (moved to `deskmap/src/deskmap/backends/x11.py`) | placement, find new window, close, desktops; window listing and the cascade operations come from `cascade-windows/cascade_windows/x11_backend.py` |
 | Window listing, kinds, flags | `cascade-windows/.../model.py`, `x11_backend.py` | dialog, minimized, fullscreen, sticky, stacking order |
 | GNOME backend and protocol | `cascade-windows/.../gnome_backend.py`, `shell_protocol.py`, `gnome-extension/` | moved last |
 | Environment report | `tilepane/.../doctor.py`, `cascade-windows/.../environment.py` | merged |
@@ -20,7 +20,7 @@ the extraction proceeds, and move finished facts into the library's own README.
 
 ## Extraction order
 
-State on 2026-10-17: step 1 is done and tilepane already uses the pure parts (part of step 3). See `PROGRESS.md`.
+State on 2026-10-17: steps 1 and 2 are done and tilepane uses the pure parts and the X11 backend from the library (part of step 3). Window listing for cascade-windows and the later steps are open. See `PROGRESS.md`.
 
 1. Create the `deskmap` package with the pure parts and their tests (`Rect`, monitors, workspaces, work area, placement maths). Keep the tests that exist.
 2. Move the X11 backend; keep tilepane's live tests green.

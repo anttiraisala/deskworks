@@ -13,8 +13,8 @@ import os
 import time
 from typing import Callable, Optional
 
-from deskmap.rect import Rect
-from deskmap.placement import Extents, SizeHints, hints_from_wm, plan, visible_rect
+from ..rect import Rect
+from ..placement import Extents, SizeHints, hints_from_wm, plan, visible_rect
 from . import BackendError, Placement, WindowInfo
 
 _SOURCE_APPLICATION = 1 << 12
@@ -148,7 +148,7 @@ class X11Backend:
 
     def _viewports(self) -> Optional[tuple[int, int, int, int, int, int]]:
         """(columns, rows, viewport width, height, current x, y) on Compiz, else None."""
-        from deskmap.workspaces import Desktops, viewport_grid
+        from ..workspaces import Desktops, viewport_grid
 
         count = self._desktops_raw() or 0
         if count > 1:
@@ -180,7 +180,7 @@ class X11Backend:
 
     def desktop_info(self):
         """Everything --workspaces shows: count, current, names, grid, viewports."""
-        from deskmap.workspaces import Desktops
+        from ..workspaces import Desktops
 
         count = self._desktops_raw() or 0
         names_prop = self.root.get_full_property(self._atom("_NET_DESKTOP_NAMES"), self._X.AnyPropertyType)

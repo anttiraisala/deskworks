@@ -9,8 +9,8 @@ Newest log entries last. See `CLAUDE.md` for how this file is kept.
 | 1 | Repository created; tilepane and cascade-windows imported with history | done |
 | 2 | Repository level documents, test script, language exceptions | done |
 | 3 | `deskmap` package: pure parts (`Rect`, monitors, workspaces, work area, placement maths) with tests | done |
-| 4 | `deskmap` X11 backend moved from tilepane | next |
-| 5 | tilepane uses `deskmap` | done for the pure parts; the X11 backend follows step 4 |
+| 4 | `deskmap` X11 backend moved from tilepane | done |
+| 5 | tilepane uses `deskmap` | done |
 | 6 | Window listing and cascade operations in `deskmap`; cascade-windows uses `deskmap` | open |
 | 7 | GNOME backend and extension protocol moved into `deskmap` | open |
 
@@ -37,3 +37,8 @@ Newest log entries last. See `CLAUDE.md` for how this file is kept.
 - The `$schema` / `$id` URLs in tilepane's schema, generated `docs/CONFIG.md`, the editor's embedded schema, `demo.py`, `docgen.py`, `SPEC.md` and `examples/meters.json` now point to `anttiraisala/deskworks/master/tilepane/src/tilepane/tilepane.schema.json`. Before this they pointed to the original `anttiraisala/tilepane` repository (see the "Open" note two entries up, which this closes). `docgen` was re-run so the generated files agree.
 - `tilepane/docs/YHTEENVETO.md` (Finnish) was translated into English and renamed `tilepane/docs/PROJECT-BRIEF.md`; the content was also updated to mention the new repository layout. `.language-exceptions` now has no entries. Decisions 8 and 9 in `docs/DECISIONS.md` record this.
 - Note: the schema URL only resolves once this commit is on `master`; editors that fetch the schema over the network will get a 404 before that.
+
+### 2026-10-17: X11 backend moved into deskmap (step 4)
+- `tilepane/src/tilepane/backends/x11.py` is now `deskmap/src/deskmap/backends/x11.py` (moved with `git mv`, so history follows), and the backend interface (`Backend`, `WindowInfo`, `Placement`, `BackendError`) is `deskmap/src/deskmap/backends/__init__.py`. No behaviour change. tilepane keeps `backends/__init__.py` only for `choose()`, which depends on tilepane's `--doctor` logic, and re-exports the types so existing imports work.
+- The `card32` test moved to `deskmap/tests/test_x11_backend.py`. Tests: tilepane 344 + deskmap 40 = 384, the same total as before. Live X11 tests (Xvfb + openbox, 5 run, 2 pass, 3 skipped because gnome-terminal is missing) and a `tilepane --demo` run opened and placed xterm windows through the installed package. Not verified on the owner's Mint machine.
+- Open: the window listing and cascade operations (`unmaximize`, `raise`, window kinds and flags) are not in `deskmap` yet; cascade-windows has no `pyproject.toml` so it cannot declare the dependency; `choose()` should move into `deskmap` once cascade-windows needs it too.

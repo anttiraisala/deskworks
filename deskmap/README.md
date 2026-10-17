@@ -14,7 +14,7 @@ It is the shared base of the tools in this repository ([`tilepane`](../tilepane/
 |---|---|---|
 | Python 3.9 or newer | the library | `python3` |
 | xrandr | finds the monitors on X11 | `x11-xserver-utils` |
-| python-xlib (optional, `[x11]` extra) | talks to the X server (the X11 backend, not yet moved here) | installed by pip |
+| python-xlib (optional, `[x11]` extra) | talks to the X server (the X11 backend) | installed by pip |
 
 ## Numbering
 
@@ -30,6 +30,8 @@ It is the shared base of the tools in this repository ([`tilepane`](../tilepane/
 | `workspaces` | workspace grids, Compiz-style viewports, conversion between the window manager's index and the person's number |
 | `workarea` | per-monitor work area: `_GTK_WORKAREAS`, panel struts, `_NET_WORKAREA`, whole monitor |
 | `placement` | frame, shadow and size-hint arithmetic for exact window placement |
+| `backends` | the backend interface: `Backend`, `WindowInfo`, `Placement`, `BackendError` |
+| `backends.x11` | the X11 backend on python-xlib and EWMH: finds new windows, places them exactly, moves them between workspaces and closes them; workspace and Compiz viewport handling |
 
 ## Install and test
 
