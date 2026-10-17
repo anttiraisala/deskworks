@@ -185,4 +185,4 @@ Implemented:
 ### 2026-10-17: `--identify`
 - On the owner's Compiz, `--demo --workspace 3`, `--workspace 1 --monitor 1` and `--workspace 2 --monitor all` opened windows in every workspace and on most monitors, and the reported coordinates match the expected viewport offsets, but the owner could not tell from the random demos which windows belonged where. At their request, `tilepane --identify` opens one window on every monitor of every workspace, each printing where it should be (workspace number, its column and row in words, monitor number, name and geometry). `--monitor` and `--workspace` narrow it; a new run replaces the previous windows.
 - Tested: unit tests (8 windows for 2 monitors x 4 workspaces on a 2 x 2 grid, replacement, `--dry-run`, the grid position in words, option checks) and live under Xvfb + Openbox with a 2 x 2 grid: 4 windows, workspace 0 on desktop index 2 (bottom left). The window title set by the layout is overwritten by the shell prompt in xterm; the text inside the window is what counts. Not yet tested on the owner's Compiz.
-- Tests: 390 (5 skipped without a live X server).
+- Tests: 384 (5 skipped without a live X server).
