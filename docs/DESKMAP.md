@@ -1,0 +1,33 @@
+# deskmap
+
+The shared library. This document is the plan for extracting it; update it as
+the extraction proceeds, and move finished facts into the library's own README.
+
+## Source of each part
+
+| Part | Comes from | Notes |
+|---|---|---|
+| `Rect` | `tilepane/src/tilepane/geometry.py` | tilepane's `Rect`; cascade's extra helpers (`intersect`, `contains`, `distance_sq`) are added |
+| Monitor detection and numbering | `tilepane/.../monitors.py` | xrandr, sway, hyprland parsing; aliases stay in tilepane |
+| Work area | `tilepane/.../workarea.py` | `_GTK_WORKAREAS`, struts, `_NET_WORKAREA` |
+| Workspace model and numbering | `tilepane/.../workspaces.py` | the numbering of README.md |
+| Placement maths | `tilepane/.../placement.py` | frame extents, size hints, cell snap |
+| X11 backend | `tilepane/.../backends/x11.py` | placement, find new window, close, desktops; window listing and the cascade operations come from `cascade-windows/cascade_windows/x11_backend.py` |
+| Window listing, kinds, flags | `cascade-windows/.../model.py`, `x11_backend.py` | dialog, minimized, fullscreen, sticky, stacking order |
+| GNOME backend and protocol | `cascade-windows/.../gnome_backend.py`, `shell_protocol.py`, `gnome-extension/` | moved last |
+| Environment report | `tilepane/.../doctor.py`, `cascade-windows/.../environment.py` | merged |
+| Fake window manager for tests | `cascade-windows/tests/fake_wm.py`, `fake_backend.py` | |
+
+## Extraction order
+
+1. Create the `deskmap` package with the pure parts and their tests (`Rect`, monitors, workspaces, work area, placement maths). Keep the tests that exist.
+2. Move the X11 backend; keep tilepane's live tests green.
+3. Make tilepane import `deskmap` and delete its copies. All tilepane tests must pass unchanged in meaning; verify live on Mint.
+4. Add window listing and the cascade operations; make cascade-windows import `deskmap` and delete its copies.
+5. Move the GNOME backend and design the extension protocol so that it also offers "new window" events and close, which tilepane needs.
+
+## Rules
+
+- No behaviour change while moving code. A move and a change are separate commits.
+- Every moved module takes its tests with it.
+- The tools' documented behaviour must stay true after each step.
