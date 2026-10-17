@@ -23,6 +23,13 @@ _GRAVITY_NORTH_WEST = 1
 _ALL_DESKTOPS = 0xFFFFFFFF
 
 
+def card32(value: int) -> int:
+    """A value for a 32-bit client message field. Coordinates can be negative
+    (a viewport above or left of the current one on Compiz); the field is sent
+    as two's complement and the window manager reads it back as signed."""
+    return value & 0xFFFFFFFF
+
+
 def available() -> tuple[bool, str]:
     if not os.environ.get("DISPLAY"):
         return False, "DISPLAY is not set"
@@ -65,7 +72,7 @@ class X11Backend:
         from Xlib.protocol import event
 
         ev = event.ClientMessage(window=win, client_type=self._atom(message),
-                                 data=(32, (data + [0] * 5)[:5]))
+                                 data=(32, [card32(v) for v in (data + [0] * 5)[:5]]))
         mask = self._X.SubstructureRedirectMask | self._X.SubstructureNotifyMask
         self.root.send_event(ev, event_mask=mask)
         self.d.flush()

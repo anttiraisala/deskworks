@@ -176,3 +176,8 @@ Implemented:
 - Tested: unit tests (numbering for one row, a 2 x 2 pager grid and the owner's Compiz values; CLI with a 2 x 2 grid; windows placed at a viewport offset and re-placed there; editor selecting 0). Live under Xvfb + Openbox: one row, and a 2 x 2 `_NET_DESKTOP_LAYOUT` set by hand (`--workspace 0` put the windows on desktop index 2, the bottom left). Compiz simulated under Xvfb at 6528x2352 without a window manager: count 4, current 0, offsets (0,0), (6528,0), (0,-2352), (6528,-2352), windows at those offsets reported on workspaces 0 to 3. Not tested: real Compiz moving windows to another viewport (the owner's LENOVO), Cinnamon with the new numbers.
 - A layout saved with the old 1-based `workspace` now opens one workspace further on; the owner's own files need their numbers checked.
 - Tests: 380 (5 skipped without a live X server).
+
+### 2026-10-17: negative coordinates in client messages
+- On the owner's Compiz (LENOVO), `--demo --workspace 0` opened on the bottom left viewport as expected, but `--workspace 3` (top right) crashed: the viewport above is at y = -2352, and python-xlib packs client message data as unsigned 32-bit values. Values are now sent as two's complement (`card32`), which window managers read back as signed, as EWMH intends for `_NET_MOVERESIZE_WINDOW`.
+- Tested: unit test for the packing; live under Xvfb + Openbox, an xterm placed at (-300, -200) landed exactly there. Not yet tested: the owner's Compiz moving windows to the upper viewports.
+- Tests: 381 (5 skipped without a live X server).
