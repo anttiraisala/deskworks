@@ -1,0 +1,2891 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tilepane editor</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --ink: #1d2330; --muted: #5d6677; --line: #d6dae1;
+  --screen: #2b3140; --panel-area: #3a4152; --outer: rgba(255,255,255,0.10);
+  --pane: #e9eef8; --pane-ink: #1d2330; --empty: #9aa3b8; --accent: #2f6fde; --accent-ink: #ffffff;
+  --error: #c62828; --warn: #a15c00; --ok: #2e7d32; --handle: rgba(255,255,255,0.0); --handle-hover: #f5b400;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16191f; --panel: #1f232b; --ink: #e6e9ef; --muted: #9aa3b2; --line: #343a46;
+    --screen: #0d0f13; --panel-area: #1a1d24; --outer: rgba(255,255,255,0.06);
+    --pane: #2c3445; --pane-ink: #e6e9ef; --empty: #8d96ab; --accent: #5b8ff0; --accent-ink: #0d0f13;
+    --error: #ff6b6b; --warn: #f0b04a; --ok: #6cc070;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Ubuntu, Cantarell, sans-serif;
+  background: var(--bg); color: var(--ink);
+  display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
+}
+button, select, input, textarea { font: inherit; color: inherit; }
+button {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+select, input, textarea {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-width: 0;
+}
+textarea { width: 100%; resize: vertical; font-family: ui-monospace, "DejaVu Sans Mono", monospace; font-size: 13px; }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+
+header {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 14px;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+header .brand { font-weight: 700; letter-spacing: 0.2px; }
+header .file { color: var(--muted); max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+header .group { display: flex; gap: 6px; align-items: center; }
+header .group label { color: var(--muted); }
+header .spacer { flex: 1; }
+
+main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
+#stage { position: relative; min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; }
+#screen-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+#screen { position: relative; background: var(--screen); border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.25); user-select: none; }
+#screenbar { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
+#screenbar .size { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+#screenbar input { width: 4.5em; text-align: center; }
+#screenbar button { padding: 1px 8px; }
+.mon-handle { position: absolute; z-index: 200; }
+.mon-handle.e, .mon-handle.w { top: 10px; bottom: 10px; width: 10px; cursor: ew-resize; }
+.mon-handle.e { right: -6px; } .mon-handle.w { left: -6px; }
+.mon-handle.n, .mon-handle.s { left: 10px; right: 10px; height: 10px; cursor: ns-resize; }
+.mon-handle.n { top: -6px; } .mon-handle.s { bottom: -6px; }
+.mon-handle.ne, .mon-handle.nw, .mon-handle.se, .mon-handle.sw { width: 14px; height: 14px; }
+.mon-handle.ne { right: -7px; top: -7px; cursor: nesw-resize; } .mon-handle.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
+.mon-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; } .mon-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.mon-handle:hover { background: var(--handle-hover); opacity: 0.6; border-radius: 4px; }
+.size-tip { position: absolute; z-index: 300; background: var(--ink); color: var(--bg); padding: 2px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pane.drag-source { opacity: 0.35; }
+.drag-ghost {
+  transition: left 0.08s, top 0.08s, width 0.08s, height 0.08s;
+  position: fixed; z-index: 400; pointer-events: none; background: var(--pane); color: var(--pane-ink);
+  border: 2px solid var(--accent); border-radius: 3px; opacity: 0.96; padding: 4px 6px; font-size: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35); overflow: hidden;
+}
+.drag-ghost.empty { background: var(--screen); color: var(--empty); border-style: dashed; }
+.drag-ghost .label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#screen-tip { width: 100%; text-align: center; color: var(--muted); font-size: 12px; }
+.pane.drop-target { border: 2px dashed var(--handle-hover); box-shadow: 0 0 0 3px var(--handle-hover) inset; }
+.cmd-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.cmd-row .what { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.cmd-row .line { display: flex; gap: 6px; align-items: stretch; }
+.cmd-row code { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font-size: 12px; overflow-x: auto; white-space: nowrap; user-select: all; }
+.cmd-row button { padding: 2px 8px; font-size: 12px; }
+.cmd-note { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 2px 10px; font-size: 12px; }
+.seg button.on, .unit-row .seg button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.cut-overlay { position: absolute; inset: 0; z-index: 250; cursor: crosshair; }
+.cut-line { position: absolute; pointer-events: none; border: 0 dashed var(--handle-hover); }
+.cut-line.h { left: 0; right: 0; height: 0; border-top-width: 2px; }
+.cut-line.v { top: 0; bottom: 0; width: 0; border-left-width: 2px; }
+.pane.cut-target { box-shadow: 0 0 0 2px var(--handle-hover) inset; }
+.pane.cut-skip { box-shadow: 0 0 0 2px var(--error) inset; }
+header button.on { background: var(--handle-hover); border-color: var(--handle-hover); color: #000; }
+.merge-btn {
+  position: absolute; z-index: 120; width: 22px; height: 22px; padding: 0; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink); border: 2px solid var(--panel); font-size: 13px; line-height: 16px;
+}
+dialog.tp-dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(520px, 92vw); padding: 16px 18px; }
+dialog.tp-dialog::backdrop { background: rgba(0,0,0,0.35); }
+dialog.tp-dialog h2 { margin: 0 0 8px; font-size: 16px; }
+dialog.tp-dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+dialog#commands-dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(720px, 92vw); padding: 16px 18px; }
+dialog#commands-dialog::backdrop { background: rgba(0,0,0,0.35); }
+dialog#commands-dialog h2 { margin: 0 0 6px; font-size: 16px; }
+.panel-shade { position: absolute; background: var(--panel-area); }
+.outer { position: absolute; background: var(--outer); }
+.pane {
+  position: absolute; background: var(--pane); color: var(--pane-ink); border-radius: 3px; overflow: hidden;
+  padding: 4px 6px; font-size: 12px; cursor: pointer; border: 2px solid transparent;
+}
+.pane.empty {
+  background: repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,0.07) 6px 12px);
+  color: var(--empty); border: 1px dashed var(--empty);
+}
+.pane.selected { border: 2px solid var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+.pane.bad { border: 2px solid var(--error); }
+.pane .label { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pane .meta { opacity: 0.7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.handle { position: absolute; z-index: 5; background: var(--handle); border-radius: 3px; }
+.handle.v { cursor: col-resize; }
+.handle.h { cursor: row-resize; }
+.handle:hover, .handle.selected, .handle.dragging { background: var(--handle-hover); opacity: 0.85; }
+.screen-note { position: absolute; left: 8px; bottom: 6px; color: #aab; font-size: 11px; pointer-events: none; }
+
+aside {
+  background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 12px 14px 40px;
+}
+aside h2 { font-size: 15px; margin: 2px 0 2px; }
+aside .sub { color: var(--muted); margin-bottom: 10px; }
+aside .actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+aside .hint { background: var(--bg); border-radius: 6px; padding: 8px 10px; color: var(--muted); margin: 8px 0; }
+.field { margin: 10px 0; }
+.field label { display: block; font-weight: 600; margin-bottom: 3px; }
+.field label code { font-weight: 400; color: var(--muted); font-size: 12px; }
+.field input, .field select { width: 100%; }
+.field .desc { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.field.has-error input, .field.has-error select, .field.has-error textarea { border-color: var(--error); }
+.field .err { color: var(--error); font-size: 12px; margin-top: 2px; }
+details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+details summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+.unit-row { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.unit-row button { padding: 2px 8px; font-size: 12px; }
+.unit-row button.on { border-color: var(--accent); color: var(--accent); }
+.other-keys { font-size: 12px; color: var(--muted); }
+
+footer {
+  background: var(--panel); border-top: 1px solid var(--line); padding: 6px 14px; max-height: 30vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 3px;
+}
+footer .status { color: var(--muted); }
+footer .problem { cursor: pointer; }
+footer .problem.error { color: var(--error); }
+footer .problem.warning { color: var(--warn); }
+footer .problem:hover { text-decoration: underline; }
+footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var(--muted); }
+.banner { background: var(--error); color: #fff; padding: 6px 14px; }
+@media (max-width: 820px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 55% 45%; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+}
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">tilepane</span>
+  <span class="file" id="file"></span>
+  <span class="group"><label for="layout">Layout</label><select id="layout"></select>
+    <button id="new-layout" title="Add a new layout to this file">New</button>
+    <button id="copy-layout" title="Copy this layout">Copy</button>
+    <button id="delete-layout" title="Delete this layout">Delete</button></span>
+  <span class="group"><label for="monitor">Monitor</label><select id="monitor"></select></span>
+  <span class="group"><label for="workspace">Workspace</label><select id="workspace" title="The workspace this layout opens on, saved in the layout: 0 is the bottom left one, then along the rows and the rows upward (tilepane --workspaces shows them). 'not set': it opens on whichever workspace is current. --workspace on the command line overrides it."></select></span>
+  <span class="group"><button id="cut-h" title="Cut with a horizontal line across the whole monitor (H)">✂ Cut ─</button><button id="cut-v" title="Cut with a vertical line across the whole monitor (V)">✂ Cut │</button></span>
+  <span class="group"><button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button></span>
+  <span class="spacer"></span>
+  <span class="group">
+    <button id="new-file">New file</button>
+    <button id="open-file">Open…</button>
+    <button id="commands" title="Command lines that open this layout from a terminal">Commands</button>
+    <button id="save" class="primary" data-title="Save (Ctrl+S)">Save</button>
+    <button id="open-screen" data-title="Open this layout on the selected monitor">Open on screen</button>
+    <button id="close-screen" title="Close the windows of this layout on the selected monitor">Close on screen</button>
+  </span>
+</header>
+<main>
+  <section id="stage"><div id="screen-wrap"><div id="screen"></div><div id="screenbar"></div></div></section>
+  <aside id="inspector"></aside>
+</main>
+<footer id="footer"></footer>
+<!-- BEGIN SCHEMA (written by python -m tilepane.docgen from tilepane.schema.json) -->
+<script id="schema" type="application/json">
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/anttiraisala/tilepane/master/src/tilepane/tilepane.schema.json",
+  "title": "tilepane configuration",
+  "description": "A tilepane configuration file: one or more layouts that open terminal windows at exact positions. Keys marked as inheriting apply down the tree: leaf, then ancestor split nodes, then the layout, then the file's defaults, then the built-in value.",
+  "type": "object",
+  "additionalProperties": false,
+  "anyOf": [
+    { "required": ["layouts"] },
+    { "required": ["split"] }
+  ],
+  "properties": {
+    "$schema": { "$ref": "#/definitions/key-schema" },
+    "version": { "$ref": "#/definitions/key-version" },
+    "description": { "$ref": "#/definitions/key-description" },
+    "defaults": { "$ref": "#/definitions/defaults" },
+    "monitors": { "$ref": "#/definitions/monitors" },
+    "layouts": { "$ref": "#/definitions/key-layouts" },
+    "name": { "$ref": "#/definitions/key-name" },
+    "split": { "$ref": "#/definitions/key-split" },
+    "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
+    "area": { "$ref": "#/definitions/key-area" },
+    "workspace": { "$ref": "#/definitions/key-workspace" },
+    "at_basis": { "$ref": "#/definitions/key-at_basis" },
+    "terminal": { "$ref": "#/definitions/key-terminal" },
+    "shell": { "$ref": "#/definitions/key-shell" },
+    "profile": { "$ref": "#/definitions/key-profile" },
+    "font_size": { "$ref": "#/definitions/key-font_size" },
+    "snap": { "$ref": "#/definitions/key-snap" },
+    "on_exit": { "$ref": "#/definitions/key-on_exit" },
+    "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+    "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+    "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+    "decorations": { "$ref": "#/definitions/key-decorations" },
+    "cwd": { "$ref": "#/definitions/key-cwd" },
+    "env": { "$ref": "#/definitions/key-env" },
+    "margin": { "$ref": "#/definitions/key-margin" }
+  },
+  "definitions": {
+    "defaults": {
+      "description": "Values used when a layout, split node or leaf does not set its own.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
+        "area": { "$ref": "#/definitions/key-area" },
+        "workspace": { "$ref": "#/definitions/key-workspace" },
+        "at_basis": { "$ref": "#/definitions/key-at_basis" },
+        "terminal": { "$ref": "#/definitions/key-terminal" },
+        "shell": { "$ref": "#/definitions/key-shell" },
+        "profile": { "$ref": "#/definitions/key-profile" },
+        "font_size": { "$ref": "#/definitions/key-font_size" },
+        "snap": { "$ref": "#/definitions/key-snap" },
+        "on_exit": { "$ref": "#/definitions/key-on_exit" },
+        "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+        "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+        "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+        "decorations": { "$ref": "#/definitions/key-decorations" },
+        "cwd": { "$ref": "#/definitions/key-cwd" },
+        "env": { "$ref": "#/definitions/key-env" },
+        "margin": { "$ref": "#/definitions/key-margin" }
+      }
+    },
+    "monitors": {
+      "description": "Monitor aliases for --monitor. Each alias maps to a connector name such as \"HDMI-1\" (see tilepane --monitors) or to a monitor number.",
+      "type": "object",
+      "additionalProperties": { "type": ["string", "integer"], "minimum": 0 },
+      "examples": [{ "left": "DP-1", "main": "HDMI-1", "side": 2 }]
+    },
+    "layout": {
+      "description": "A named layout: a tree of splits and leaves that describes how a monitor is divided.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "split"],
+      "properties": {
+        "name": { "$ref": "#/definitions/key-name" },
+        "description": { "$ref": "#/definitions/key-description" },
+        "split": { "$ref": "#/definitions/key-split" },
+        "outer_margin": { "$ref": "#/definitions/key-outer_margin" },
+        "area": { "$ref": "#/definitions/key-area" },
+        "workspace": { "$ref": "#/definitions/key-workspace" },
+        "at_basis": { "$ref": "#/definitions/key-at_basis" },
+        "terminal": { "$ref": "#/definitions/key-terminal" },
+        "shell": { "$ref": "#/definitions/key-shell" },
+        "profile": { "$ref": "#/definitions/key-profile" },
+        "font_size": { "$ref": "#/definitions/key-font_size" },
+        "snap": { "$ref": "#/definitions/key-snap" },
+        "on_exit": { "$ref": "#/definitions/key-on_exit" },
+        "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+        "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+        "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+        "decorations": { "$ref": "#/definitions/key-decorations" },
+        "cwd": { "$ref": "#/definitions/key-cwd" },
+        "env": { "$ref": "#/definitions/key-env" },
+        "margin": { "$ref": "#/definitions/key-margin" }
+      }
+    },
+    "node": {
+      "description": "A tree node: a split (has dir) or a leaf (a pane).",
+      "type": "object",
+      "if": {
+        "anyOf": [
+          { "required": ["dir"] },
+          { "required": ["a"] },
+          { "required": ["b"] },
+          { "required": ["at"] },
+          { "required": ["children"] },
+          { "required": ["sizes"] }
+        ]
+      },
+      "then": { "$ref": "#/definitions/split" },
+      "else": { "$ref": "#/definitions/leaf" }
+    },
+    "split": {
+      "description": "A split node: divides its area between two children (a, b) or several (children).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dir"],
+      "properties": {
+        "dir": { "$ref": "#/definitions/key-dir" },
+        "at": { "$ref": "#/definitions/key-at" },
+        "a": { "$ref": "#/definitions/key-a" },
+        "b": { "$ref": "#/definitions/key-b" },
+        "children": { "$ref": "#/definitions/key-children" },
+        "sizes": { "$ref": "#/definitions/key-sizes" },
+        "description": { "$ref": "#/definitions/key-description" },
+        "at_basis": { "$ref": "#/definitions/key-at_basis" },
+        "terminal": { "$ref": "#/definitions/key-terminal" },
+        "shell": { "$ref": "#/definitions/key-shell" },
+        "profile": { "$ref": "#/definitions/key-profile" },
+        "font_size": { "$ref": "#/definitions/key-font_size" },
+        "snap": { "$ref": "#/definitions/key-snap" },
+        "on_exit": { "$ref": "#/definitions/key-on_exit" },
+        "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+        "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+        "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+        "decorations": { "$ref": "#/definitions/key-decorations" },
+        "cwd": { "$ref": "#/definitions/key-cwd" },
+        "env": { "$ref": "#/definitions/key-env" },
+        "margin": { "$ref": "#/definitions/key-margin" }
+      }
+    },
+    "leaf": {
+      "description": "A leaf: one rectangle of the layout, normally one terminal window running a command.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run": { "$ref": "#/definitions/key-run" },
+        "title": { "$ref": "#/definitions/key-title" },
+        "id": { "$ref": "#/definitions/key-id" },
+        "mode": { "$ref": "#/definitions/key-mode" },
+        "interval": { "$ref": "#/definitions/key-interval" },
+        "when": { "$ref": "#/definitions/key-when" },
+        "empty": { "$ref": "#/definitions/key-empty" },
+        "description": { "$ref": "#/definitions/key-description" },
+        "terminal": { "$ref": "#/definitions/key-terminal" },
+        "shell": { "$ref": "#/definitions/key-shell" },
+        "profile": { "$ref": "#/definitions/key-profile" },
+        "font_size": { "$ref": "#/definitions/key-font_size" },
+        "snap": { "$ref": "#/definitions/key-snap" },
+        "on_exit": { "$ref": "#/definitions/key-on_exit" },
+        "restart_delay": { "$ref": "#/definitions/key-restart_delay" },
+        "max_restarts": { "$ref": "#/definitions/key-max_restarts" },
+        "stop_on_error": { "$ref": "#/definitions/key-stop_on_error" },
+        "decorations": { "$ref": "#/definitions/key-decorations" },
+        "cwd": { "$ref": "#/definitions/key-cwd" },
+        "env": { "$ref": "#/definitions/key-env" },
+        "margin": { "$ref": "#/definitions/key-margin" }
+      }
+    },
+
+    "key-schema": {
+      "description": "URL of this schema, so that editors such as VS Code can complete and validate the file. Ignored by tilepane.",
+      "type": "string"
+    },
+    "key-version": {
+      "description": "Version of the configuration format. Currently 1. A file with a higher version is rejected so that a newer file is never half understood.",
+      "type": "integer",
+      "enum": [1],
+      "examples": [1]
+    },
+    "key-description": {
+      "description": "Free text about the file, layout, split node or leaf. Ignored by tilepane; JSON has no comments, so use this instead.",
+      "type": "string"
+    },
+    "key-layouts": {
+      "description": "The layouts of a multi-layout file. Choose one with --layout NAME or by naming it after the file. A single-layout file may leave this out and put name, split and the other layout keys at the top level.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/layout" }
+    },
+    "key-name": {
+      "description": "Name of the layout, used to select it (tilepane 3, --layout cpu-dash). A string or a whole number. Unique within the file. A flat single-layout file defaults to the file name without extension.",
+      "type": ["string", "integer"],
+      "examples": ["3", "cpu-dash"]
+    },
+    "key-split": {
+      "description": "The root node of the layout tree: a split node, or a single leaf for a layout with one pane.",
+      "$ref": "#/definitions/node"
+    },
+    "key-outer_margin": {
+      "description": "Gap in pixels between the windows and the edge of the screen (or work area). The total value for the outer edge, not halved. null or absent means the edge gap is half of margin. Set on the layout or in defaults.",
+      "type": ["number", "null"],
+      "minimum": 0,
+      "default": null,
+      "examples": [16]
+    },
+    "key-area": {
+      "description": "Which part of the monitor is divided: \"work\" excludes panels and docks, \"full\" uses the whole monitor. Set on the layout or in defaults.",
+      "enum": ["work", "full"],
+      "default": "work"
+    },
+    "key-workspace": {
+      "description": "The workspace (virtual desktop) the layout opens on. Workspaces are numbered from 0 in the bottom left corner, along each row, then the rows upward (one row: 0 is the first); tilepane --workspaces shows the numbers. Without it the layout opens on the current workspace. --workspace on the command line overrides it. A number that does not exist on this machine opens on the current workspace, with a warning. Set on the layout or in defaults.",
+      "type": "integer",
+      "minimum": 0,
+      "examples": [4]
+    },
+    "key-at_basis": {
+      "x-inherits": "through split nodes",
+      "description": "How a pixel size in at or sizes is read: \"outer\" is the pane rectangle before margins, \"visible\" makes the visible window exactly that size. Inherits through split nodes. Uses the margin of the split node it is set on.",
+      "enum": ["outer", "visible"],
+      "default": "outer"
+    },
+    "key-shell": {
+      "x-inherits": true,
+      "description": "The shell that runs the pane's commands and the interactive prompt afterwards: \"auto\" (your login shell, $SHELL), a name such as \"bash\", \"zsh\" or \"fish\", or a full path. A pane with only shell set opens that shell.",
+      "type": "string",
+      "minLength": 1,
+      "default": "auto",
+      "examples": ["bash", "zsh", "/usr/bin/fish"]
+    },
+    "key-terminal": {
+      "x-inherits": true,
+      "description": "The terminal that runs the pane: \"auto\" (kitty, alacritty, gnome-terminal, xterm, first found), a terminal name, or an object {\"cmd\": [...]} with a command template that contains the {command} placeholder (and optionally {title}).",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cmd"],
+          "properties": { "cmd": { "type": "array", "minItems": 1, "items": { "type": "string" } } }
+        }
+      ],
+      "default": "auto",
+      "examples": ["gnome-terminal", { "cmd": ["foot", "--title", "{title}", "--", "{command}"] }]
+    },
+    "key-profile": {
+      "x-inherits": true,
+      "description": "Terminal-specific profile name (for example a gnome-terminal profile). A terminal that cannot use it produces a warning.",
+      "type": "string",
+      "minLength": 1
+    },
+    "key-font_size": {
+      "x-inherits": true,
+      "description": "Font size in points, for terminals that can set it from the command line. A terminal that cannot honor it produces a warning.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "examples": [11]
+    },
+    "key-snap": {
+      "x-inherits": true,
+      "description": "\"cell\" rounds the window size down to whole character cells (a gap of up to one cell may remain on the right and bottom). \"pixel\" forces the exact pixel size when the terminal and window manager allow it.",
+      "enum": ["cell", "pixel"],
+      "default": "cell"
+    },
+    "key-on_exit": {
+      "x-inherits": true,
+      "description": "What happens when the pane's command ends: \"keep\" prints the exit status and leaves an interactive shell, \"close\" closes the window, \"restart\" runs the command again after restart_delay seconds.",
+      "enum": ["keep", "close", "restart"],
+      "default": "keep"
+    },
+    "key-restart_delay": {
+      "x-inherits": true,
+      "description": "Seconds to wait before restarting when on_exit is \"restart\". Also the minimum time between restarts, so a failing command does not loop at full speed.",
+      "type": "number",
+      "minimum": 0,
+      "default": 1
+    },
+    "key-max_restarts": {
+      "x-inherits": true,
+      "description": "Maximum number of restarts when on_exit is \"restart\". 0 means unlimited. After the limit the window behaves as \"keep\".",
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+    },
+    "key-stop_on_error": {
+      "x-inherits": true,
+      "description": "In a list of commands (mode \"sequence\"), stop at the first command that fails instead of continuing with the next.",
+      "type": "boolean",
+      "default": false
+    },
+    "key-decorations": {
+      "x-inherits": true,
+      "description": "false removes the window border and title bar when the terminal and window manager allow it.",
+      "type": "boolean",
+      "default": true
+    },
+    "key-cwd": {
+      "x-inherits": true,
+      "description": "Working directory of the command. ~ and $VAR are expanded. A directory that does not exist is an error shown in the pane.",
+      "type": "string",
+      "minLength": 1,
+      "examples": ["~", "~/projects/app"]
+    },
+    "key-env": {
+      "x-inherits": true,
+      "description": "Extra environment variables for the command, as an object with string values. ~ and $VAR are expanded in the values. Merged key by key down the tree instead of replaced.",
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "examples": [{ "LANG": "C" }]
+    },
+    "key-margin": {
+      "x-inherits": true,
+      "description": "Total gap in pixels between two neighbouring windows; each window gets half of it on every side (an odd value is split floor and ceiling so the gap is exact). On a split node it applies to everything below it.",
+      "type": "number",
+      "minimum": 0,
+      "default": 8,
+      "examples": [8]
+    },
+
+    "key-dir": {
+      "description": "How a split arranges its children. \"columns\": side by side, a on the left. \"rows\": stacked, a on top. The aliases \"v\"/\"vertical\" mean columns and \"h\"/\"horizontal\" mean rows (v is a vertical divider line; tmux uses the opposite convention).",
+      "enum": ["columns", "rows", "v", "vertical", "h", "horizontal"]
+    },
+    "key-at": {
+      "description": "Where a two-child split divides its area, measured from the area before margins: \"60%\", \"300px\" (a bare number means pixels), measured from the left or top. A negative value (\"-300px\", \"-40%\") is measured from the right or bottom. 0, 100% or more than the area is an error.",
+      "type": ["string", "number"],
+      "default": "50%",
+      "examples": ["60%", "300px", "-300px", "-40%"]
+    },
+    "key-a": {
+      "description": "First child of a two-child split: the left (columns) or top (rows) node. Use together with b and at. Leave it out (or write {}) to keep that part of the screen empty.",
+      "$ref": "#/definitions/node"
+    },
+    "key-b": {
+      "description": "Second child of a two-child split: the right (columns) or bottom (rows) node. Takes the space that at leaves over. Leave it out (or write {}) to keep that part of the screen empty.",
+      "$ref": "#/definitions/node"
+    },
+    "key-children": {
+      "description": "The children of an N-way split, instead of a, b and at. Sizes come from sizes; without it the children share the space equally.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/node" }
+    },
+    "key-sizes": {
+      "description": "Sizes of the children of an N-way split, one entry per child: \"2frac\" (a share of the space left over, divided proportionally), \"300px\" or \"25%\". If no entry is a frac, the last child takes the leftover.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": ["string", "number"] },
+      "examples": [["1frac", "2frac", "300px"]]
+    },
+
+    "key-run": {
+      "description": "The command, run through the pane's shell (see shell; by default your login shell) as <shell> -lc <command>. A list is run one command after another in the same terminal (see mode and stop_on_error). Without run, a pane that has any other setting (cwd, title, terminal, ...) opens an interactive shell; a pane with no settings stays empty.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      ],
+      "examples": ["htop", ["cd ~/app", "source venv/bin/activate", "python main.py"]]
+    },
+    "key-title": {
+      "description": "Window title. Programs and shells may overwrite it, so tilepane does not use it to find its windows.",
+      "type": "string",
+      "examples": ["htop"]
+    },
+    "key-id": {
+      "description": "Stable identifier of the pane, unique within the layout (letters, digits, _, - and .; not only digits and dots). Used to match windows to panes when a layout is already open. Without it the tree path (for example 1.0) is used, which changes when the tree is edited.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "examples": ["cpu"]
+    },
+    "key-mode": {
+      "description": "How a list of commands runs: \"sequence\" one after another, \"cycle\" rotate every interval seconds in the same window, \"parallel\" side by side (planned).",
+      "enum": ["sequence", "cycle", "parallel"],
+      "default": "sequence"
+    },
+    "key-interval": {
+      "description": "Seconds each command runs before the next one takes over. Required when mode is \"cycle\".",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "examples": [10]
+    },
+    "key-when": {
+      "description": "A shell command. If it exits non-zero, the pane is left out and its sibling takes the space, so one layout works on machines without, for example, a GPU. Run only when opening windows (or with --dry-run --eval-when).",
+      "type": "string",
+      "minLength": 1,
+      "examples": ["command -v nvidia-smi"]
+    },
+    "key-empty": {
+      "description": "true reserves the rectangle but opens no window. A pane with no settings (or a missing a or b) is already empty; empty makes it explicit. false gives a pane with no other settings an interactive shell. true cannot be combined with run.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}
+</script>
+<!-- END SCHEMA -->
+<script id="boot" type="application/json">{}</script>
+<script>
+// BEGIN GEOMETRY
+// A JavaScript port of src/tilepane/geometry.py: the editor's preview must give
+// exactly the rectangles tilepane uses. tests/vectors/geometry.json holds the
+// cases both implementations are checked against (tests/test_editor.py).
+const Geometry = (() => {
+  class GeometryError extends Error {}
+
+  const SIZE_RE = /^\s*(-?\d+(?:\.\d+)?)\s*(px|%|frac)?\s*$/;
+  const COLUMNS = new Set(["columns", "v", "vertical"]);
+  const ROWS = new Set(["rows", "h", "horizontal"]);
+  const SPLIT_KEYS = ["dir", "a", "b", "at", "children", "sizes"];
+
+  const round = (x) => Math.floor(x + 0.5);
+  const pid = (path) => (path.length ? path.join(".") : "root");
+  const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+  const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  const show = (v) => JSON.stringify(v);
+
+  function margin(value, what) {
+    if (typeof value !== "number" || value < 0) {
+      throw new GeometryError(`${what} must be a non-negative number, got ${show(value)}`);
+    }
+    return round(value);
+  }
+
+  function parseSize(value, what, allowNegative = false, allowFrac = true) {
+    if (typeof value === "boolean") throw new GeometryError(`${what}: invalid size ${show(value)}`);
+    const text = typeof value === "number" ? `${value}px` : String(value);
+    const m = SIZE_RE.exec(text);
+    if (!m) throw new GeometryError(`${what}: invalid size ${show(value)} (use 60%, 300px, 1frac)`);
+    const number = parseFloat(m[1]);
+    const kind = m[2] || "px";
+    if (kind === "frac" && !allowFrac) {
+      throw new GeometryError(`${what}: 'frac' is only allowed in 'sizes', got ${show(value)}`);
+    }
+    if (number === 0 || (number < 0 && !(allowNegative && kind !== "frac"))) {
+      throw new GeometryError(`${what}: size must be positive, got ${show(value)}`);
+    }
+    return { kind, value: number };
+  }
+
+  // compute(layout, area[, splits]) -> [{id, rect, outer, leaf}]
+  // When `splits` is an array, every split node is also reported there with
+  // its rectangle and boundaries (the editor draws its handles from them).
+  function compute(layout, area, splits) {
+    if (!isObject(layout) || !has(layout, "split")) throw new GeometryError("layout needs a 'split' node");
+    const m = margin(has(layout, "margin") ? layout.margin : 0, "margin");
+    const basis = has(layout, "at_basis") ? layout.at_basis : "outer";
+    if (basis !== "outer" && basis !== "visible") {
+      throw new GeometryError(`at_basis must be 'outer' or 'visible', got ${show(basis)}`);
+    }
+    const outer = has(layout, "outer_margin") ? layout.outer_margin : null;
+    if (outer !== null && outer !== undefined) {
+      const o = margin(outer, "outer_margin");
+      area = { x: area.x + o, y: area.y + o, width: area.width - 2 * o, height: area.height - 2 * o };
+    }
+    if (area.width <= 0 || area.height <= 0) throw new GeometryError("outer_margin leaves no room in the work area");
+    const out = [];
+    walk(layout.split, area, [], { margin: m, atBasis: basis, outer: outer !== null && outer !== undefined },
+      [true, true, true, true], out, splits);
+    return out;
+  }
+
+  function walk(node, rect, path, ctx, edges, out, splits) {
+    const where = `node '${pid(path)}'`;
+    if (!isObject(node)) throw new GeometryError(`${where} must be an object`);
+    if (has(node, "margin")) ctx = { ...ctx, margin: margin(node.margin, `${where} margin`) };
+    if (has(node, "at_basis")) {
+      if (node.at_basis !== "outer" && node.at_basis !== "visible") {
+        throw new GeometryError(`${where}: at_basis must be 'outer' or 'visible'`);
+      }
+      ctx = { ...ctx, atBasis: node.at_basis };
+    }
+    if (!SPLIT_KEYS.some((k) => has(node, k))) {
+      out.push(leaf(node, rect, path, ctx, edges));
+      return;
+    }
+    const vertical = direction(node, where);
+    const [children, sizes] = childrenAndSizes(node, where);
+    const n = children.length;
+    const extent = vertical ? rect.width : rect.height;
+    const origin = vertical ? rect.x : rect.y;
+    const atStart = vertical ? edges[0] : edges[1];
+    const atEnd = vertical ? edges[2] : edges[3];
+    const halfLo = Math.floor(ctx.margin / 2);
+    const halfHi = ctx.margin - halfLo;
+    const insets = [];
+    for (let i = 0; i < n; i++) {
+      insets.push([ctx.outer && i === 0 && atStart ? 0 : halfLo, ctx.outer && i === n - 1 && atEnd ? 0 : halfHi]);
+    }
+    const sizesPx = distribute(sizes, extent, insets, ctx.atBasis, where);
+    const bounds = [origin];
+    let acc = 0.0;
+    for (const s of sizesPx.slice(0, -1)) {
+      acc += s;
+      bounds.push(round(origin + acc));
+    }
+    bounds.push(origin + extent);
+    if (splits) splits.push({ id: pid(path), path: path.slice(), rect, vertical, bounds, node, margin: ctx.margin, insets, atBasis: ctx.atBasis });
+    children.forEach((child, i) => {
+      let sub, subEdges;
+      if (vertical) {
+        sub = { x: bounds[i], y: rect.y, width: bounds[i + 1] - bounds[i], height: rect.height };
+        subEdges = [edges[0] && i === 0, edges[1], edges[2] && i === n - 1, edges[3]];
+      } else {
+        sub = { x: rect.x, y: bounds[i], width: rect.width, height: bounds[i + 1] - bounds[i] };
+        subEdges = [edges[0], edges[1] && i === 0, edges[2], edges[3] && i === n - 1];
+      }
+      walk(child, sub, path.concat([i]), ctx, subEdges, out, splits);
+    });
+  }
+
+  function leaf(node, rect, path, ctx, edges) {
+    const lo = Math.floor(ctx.margin / 2);
+    const hi = ctx.margin - lo;
+    const left = ctx.outer && edges[0] ? 0 : lo;
+    const top = ctx.outer && edges[1] ? 0 : lo;
+    const right = ctx.outer && edges[2] ? 0 : hi;
+    const bottom = ctx.outer && edges[3] ? 0 : hi;
+    const win = { x: rect.x + left, y: rect.y + top, width: rect.width - left - right, height: rect.height - top - bottom };
+    if (win.width <= 0 || win.height <= 0) {
+      throw new GeometryError(`pane '${pid(path)}' is too small: ${rect.width}x${rect.height} with margin ${ctx.margin}`);
+    }
+    return { id: pid(path), rect: win, outer: rect, leaf: node, path: path.slice() };
+  }
+
+  function direction(node, where) {
+    const d = node.dir;
+    if (COLUMNS.has(d)) return true;
+    if (ROWS.has(d)) return false;
+    throw new GeometryError(`${where}: 'dir' must be 'columns' or 'rows', got ${show(d === undefined ? null : d)}`);
+  }
+
+  function childrenAndSizes(node, where) {
+    if (has(node, "children")) {
+      if (["a", "b", "at"].some((k) => has(node, k))) {
+        throw new GeometryError(`${where}: 'children' cannot be combined with a/b/at`);
+      }
+      const children = node.children;
+      if (!Array.isArray(children) || children.length === 0) {
+        throw new GeometryError(`${where}: 'children' must be a non-empty list`);
+      }
+      const raw = node.sizes;
+      if (raw === undefined || raw === null) return [children, children.map(() => ({ kind: "frac", value: 1.0 }))];
+      if (!Array.isArray(raw) || raw.length !== children.length) {
+        throw new GeometryError(`${where}: 'sizes' must be a list with one entry per child`);
+      }
+      return [children, raw.map((s, i) => parseSize(s, `${where} sizes[${i}]`))];
+    }
+    if (has(node, "sizes")) throw new GeometryError(`${where}: 'sizes' needs 'children'`);
+    if (!has(node, "a") || !has(node, "b")) throw new GeometryError(`${where}: a split needs both 'a' and 'b' (or 'children')`);
+    const at = parseSize(has(node, "at") ? node.at : "50%", `${where} at`, true, false);
+    const rest = { kind: "frac", value: 1.0 };
+    const sizes = at.value > 0 ? [at, rest] : [rest, { kind: at.kind, value: -at.value }];
+    return [[node.a, node.b], sizes];
+  }
+
+  function distribute(sizes, extent, insets, basis, where) {
+    const out = sizes.map(() => null);
+    let fixed = 0.0;
+    let fracTotal = 0.0;
+    sizes.forEach((s, i) => {
+      if (s.kind === "frac") {
+        fracTotal += s.value;
+        return;
+      }
+      const e = s.kind === "px" ? s.value + (basis === "visible" ? insets[i][0] + insets[i][1] : 0) : (extent * s.value) / 100;
+      out[i] = e;
+      fixed += e;
+    });
+    const remaining = extent - fixed;
+    if (remaining < -1e-9) throw new GeometryError(`${where}: sizes exceed the available ${extent}px`);
+    if (fracTotal > 0) {
+      sizes.forEach((s, i) => {
+        if (s.kind === "frac") out[i] = (remaining * s.value) / fracTotal;
+      });
+    } else {
+      out[out.length - 1] = (out[out.length - 1] ?? 0.0) + remaining;
+    }
+    return out;
+  }
+
+  return { compute, parseSize, GeometryError };
+})();
+// END GEOMETRY
+</script>
+<script>
+"use strict";
+// The editor. Works opened as a plain file (file://) and when served by
+// `tilepane --edit`, which adds saving to the file, the real monitors and
+// "Open on screen". Everything it writes is the same JSON tilepane reads;
+// keys it does not know are kept, in their order.
+
+const SCHEMA = JSON.parse(document.getElementById("schema").textContent);
+const BOOT = JSON.parse(document.getElementById("boot").textContent);
+const DEFS = SCHEMA.definitions;
+const SPLIT_STRUCTURE = ["dir", "a", "b", "at", "children", "sizes"];
+const NO_WINDOW_KEYS = new Set(["id", "description", "when", "empty"]);
+const FILE_KEYS = new Set(["$schema", "version", "defaults", "monitors", "layouts"]);
+const MIN_PANE = 30; // smallest window (px) a drag may leave
+
+const PRESETS = [
+  [1920, 1080], [2560, 1440], [3840, 2160], [1366, 768], [1280, 1024], [3440, 1440], [1080, 1920],
+].map(([w, h], i) => ({ number: i, name: `${w}×${h}`, x: 0, y: 0, width: w, height: h, preset: true }));
+
+const has = (o, k) => o !== null && typeof o === "object" && Object.prototype.hasOwnProperty.call(o, k);
+const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const isSplit = (n) => isObj(n) && SPLIT_STRUCTURE.some((k) => has(n, k));
+const $ = (sel) => document.querySelector(sel);
+const fmt = (v, dec) => String(Math.round(v * 10 ** dec) / 10 ** dec);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const stem = (name) => name.replace(/^.*[\\/]/, "").replace(/\.json$/i, "") || "layout";
+const idOf = (path) => (path.length ? path.join(".") : "root");
+const pathOf = (id) => (id === "root" ? [] : id.split(".").map(Number));
+
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "class") el.className = v;
+    else if (k === "style") Object.assign(el.style, v);
+    else if (v === true) el.setAttribute(k, "");
+    else el.setAttribute(k, v);
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+
+// ---------------------------------------------------------------- state
+
+const S = {
+  doc: null,
+  fileName: "untitled.json",
+  layoutIndex: 0,
+  sel: { kind: "layout" },
+  monitors: PRESETS,
+  monitorIndex: 0,
+  undo: [],
+  redo: [],
+  dirty: false,
+  server: !!BOOT.server,
+  token: BOOT.token || "",
+  fileHandle: null,
+  geo: { leaves: [], splits: [], error: null },
+  problems: [],
+  serverProblems: [],
+  log: "",
+  badDisk: false,
+  view: null,
+  custom: null,          // a monitor size set by dragging the preview's edges
+  useCustom: false,
+  monitorStyle: "number", // how commands name the monitor: "number" or "name"
+  workspaces: null,       // how many workspaces the machine has, when the server knows
+  cut: null,              // "h" or "v" while a cut line follows the mouse
+};
+
+// Per-viewer conveniences only; the page works without them.
+function remember(key, value) { try { localStorage.setItem(`tilepane.${key}`, JSON.stringify(value)); } catch (e) { /* ignore */ } }
+function recall(key) { try { const v = localStorage.getItem(`tilepane.${key}`); return v === null ? null : JSON.parse(v); } catch (e) { return null; } }
+
+function newDoc() {
+  return { $schema: SCHEMA.$id, version: 1, name: "my-layout", margin: 8, split: {} };
+}
+
+// ---------------------------------------------------------------- document model
+
+function layouts() { return Array.isArray(S.doc.layouts) ? S.doc.layouts : [S.doc]; }
+function lay() { return layouts()[S.layoutIndex] || layouts()[0]; }
+function multi() { return Array.isArray(S.doc.layouts); }
+
+function layoutName(l, i) {
+  if (has(l, "name")) return String(l.name);
+  return multi() ? `(layout ${i + 1})` : stem(S.fileName);
+}
+
+function rootNode() {
+  const l = lay();
+  if (!isObj(l.split)) l.split = {};
+  return l.split;
+}
+
+function childOf(node, i) {
+  if (!isObj(node)) return undefined;
+  if (has(node, "children")) return Array.isArray(node.children) ? node.children[i] : undefined;
+  return node[i === 0 ? "a" : "b"];
+}
+
+// Set a key; a new "a" goes before "b", a new "sizes" before "children".
+function setKey(obj, key, value) {
+  if (has(obj, key) || !(key === "a" || key === "sizes")) { obj[key] = value; return; }
+  const before = key === "a" ? "b" : "children";
+  const entries = Object.entries(obj);
+  for (const [k] of entries) delete obj[k];
+  let placed = false;
+  for (const [k, v] of entries) {
+    if (!placed && k === before) { obj[key] = value; placed = true; }
+    obj[k] = v;
+  }
+  if (!placed) obj[key] = value;
+}
+
+function setChild(parent, i, value) {
+  if (has(parent, "children")) parent.children[i] = value;
+  else setKey(parent, i === 0 ? "a" : "b", value);
+}
+
+// The node at a tree path. A missing a/b is an empty pane: {} (attached when create).
+function nodeAt(path, create = false) {
+  let n = rootNode();
+  for (const i of path) {
+    let c = childOf(n, i);
+    if (!isObj(c)) {
+      if (!create) return {};
+      c = {};
+      setChild(n, i, c);
+    }
+    n = c;
+  }
+  return n;
+}
+
+function replaceAt(path, value) {
+  if (!path.length) { lay().split = value; return; }
+  setChild(nodeAt(path.slice(0, -1), true), path[path.length - 1], value);
+}
+
+function wantsWindow(leaf) {
+  if (has(leaf, "empty")) return leaf.empty !== true;
+  return Object.keys(leaf).some((k) => !NO_WINDOW_KEYS.has(k));
+}
+
+function pickLayoutKey(l, key, builtin) {
+  if (has(l, key)) return l[key];
+  if (isObj(S.doc.defaults) && has(S.doc.defaults, key)) return S.doc.defaults[key];
+  return builtin;
+}
+
+function realMonitor() { return S.monitors[S.monitorIndex] || S.monitors[0]; }
+function monitor() { return S.useCustom && S.custom ? S.custom : realMonitor(); }
+
+function setCustomSize(width, height) {
+  const base = realMonitor();
+  S.custom = { custom: true, preset: true, number: base.number, name: `Custom ${width}×${height}`, x: 0, y: 0, width, height, base };
+  S.useCustom = true;
+  remember("custom", { width, height });
+}
+
+function areaFor(l) {
+  const m = monitor();
+  return pickLayoutKey(l, "area", "work") === "work" && m.work ? m.work : { x: m.x, y: m.y, width: m.width, height: m.height };
+}
+
+// A copy of the tree for Geometry.compute with every missing a/b filled in.
+function filled(node) {
+  if (!isSplit(node)) return node;
+  const out = { ...node };
+  if (has(node, "children")) {
+    if (Array.isArray(node.children)) out.children = node.children.map((c) => (isObj(c) ? filled(c) : c));
+  } else {
+    out.a = filled(isObj(node.a) ? node.a : {});
+    out.b = filled(isObj(node.b) ? node.b : {});
+  }
+  return out;
+}
+
+function computeGeometry() {
+  const l = lay();
+  const eff = { margin: pickLayoutKey(l, "margin", 8), at_basis: pickLayoutKey(l, "at_basis", "outer"), split: filled(rootNode()) };
+  const om = pickLayoutKey(l, "outer_margin", null);
+  if (om !== null) eff.outer_margin = om;
+  const splits = [];
+  try {
+    const leaves = Geometry.compute(eff, areaFor(l), splits);
+    S.geo = { leaves, splits, error: null };
+    S.lastGood = S.geo;
+  } catch (e) {
+    if (!(e instanceof Geometry.GeometryError)) throw e;
+    S.geo = { leaves: S.lastGood ? S.lastGood.leaves : [], splits: S.lastGood ? S.lastGood.splits : [], error: e.message, stale: true };
+  }
+}
+
+function splitRecord(path) { return S.geo.splits.find((s) => s.id === idOf(path)); }
+
+// ---------------------------------------------------------------- changes and undo
+
+function snapshot() { return JSON.stringify({ doc: S.doc, li: S.layoutIndex, sel: S.sel }); }
+function restore(text) {
+  const s = JSON.parse(text);
+  S.doc = s.doc; S.layoutIndex = s.li; S.sel = s.sel;
+}
+function change(fn) {
+  const before = snapshot();
+  fn();
+  normalize(lay());
+  if (snapshot() === before) return;
+  S.undo.push(before);
+  if (S.undo.length > 300) S.undo.shift();
+  S.redo = [];
+  S.dirty = true;
+  render();
+}
+function undo() {
+  if (!S.undo.length) return;
+  S.redo.push(snapshot());
+  restore(S.undo.pop());
+  S.dirty = true;
+  render();
+}
+function redo() {
+  if (!S.redo.length) return;
+  S.undo.push(snapshot());
+  restore(S.redo.pop());
+  S.dirty = true;
+  render();
+}
+
+// ---------------------------------------------------------------- tree operations
+
+// Split a pane in two. Its inheriting settings (cwd, shell, terminal, ...) move
+// to the new split, so both halves get them; its command, title and id stay
+// with the first half.
+function makeSplit(node, dir, at) {
+  const split = { dir, at };
+  const first = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (INHERIT_KEYS.includes(k)) split[k] = v;
+    else first[k] = v;
+  }
+  if (wantsWindow(node) && !wantsWindow(first)) first.empty = false;
+  split.a = first;
+  split.b = {};
+  return split;
+}
+
+function splitPane(path, dir) {
+  change(() => {
+    replaceAt(path, makeSplit(nodeAt(path, true), dir, "50%"));
+    S.sel = { kind: "pane", path: path.concat([1]) };
+  });
+}
+
+// Swap the contents of two panes; the rectangles stay where they are. Each
+// pane takes along everything it had, including what it inherited from
+// splits above.
+function swapPanes(a, b) {
+  if (idOf(a) === idOf(b)) return;
+  change(() => {
+    const na = materialized(a), nb = materialized(b);
+    replaceAt(a, nb);
+    replaceAt(b, na);
+    S.sel = { kind: "pane", path: b };
+  });
+}
+
+// ---------------------------------------------------------------- dialogs
+
+// A small modal question; resolves to the chosen button's value, or null.
+function ask(title, text, buttons) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const dlg = h("dialog", { class: "tp-dialog" });
+    const done = (v) => { if (answered) return; answered = true; dlg.close(); dlg.remove(); resolve(v); };
+    dlg.append(h("h2", {}, title), h("div", {}, text),
+      h("div", { class: "actions" }, ...buttons.map((b) => h("button", { class: b.primary ? "primary" : "", onclick: () => done(b.value) }, b.label))));
+    dlg.addEventListener("cancel", () => done(null));
+    document.body.append(dlg);
+    dlg.showModal();
+  });
+}
+
+function paneLabel(node) {
+  if (node.title) return node.title;
+  if (node.run) return Array.isArray(node.run) ? node.run.join("; ") : node.run;
+  return wantsWindow(node) ? "shell" : "empty";
+}
+
+// ---------------------------------------------------------------- cut line
+
+// How a pane was cut: "%" / "-%" / "px" / "-px", from the split it came from.
+function cutStyleOf(path) {
+  if (!path.length) return "%";
+  const parent = nodeAt(path.slice(0, -1));
+  if (!has(parent, "children")) {
+    const st = atStyle(parent.at);
+    return st === "num" ? "px" : st;
+  }
+  const v = sizesOf(parent)[path[path.length - 1]];
+  return looseSize(v).kind === "px" ? "px" : "%";
+}
+
+// The panes a cut at `coord` (monitor px) goes through, and the ones skipped
+// because a piece would be too small.
+function cutTargets(dir, coord) {
+  const targets = [], skipped = [];
+  for (const l of S.geo.leaves) {
+    const start = dir === "h" ? l.outer.y : l.outer.x;
+    const size = dir === "h" ? l.outer.height : l.outer.width;
+    if (coord <= start || coord >= start + size) continue;
+    const min = (pickLayoutKey(lay(), "margin", 8) || 0) + MIN_PANE;
+    if (coord - start < min || start + size - coord < min) skipped.push(l);
+    else targets.push(l);
+  }
+  return { targets, skipped };
+}
+
+function cutAt(dir, coord) {
+  const { targets, skipped } = cutTargets(dir, coord);
+  if (!targets.length) {
+    S.status = skipped.length ? "no pane cut: the pieces would be too small" : "the line does not go through any pane";
+    renderFooter();
+    return;
+  }
+  change(() => {
+    for (const l of targets) {
+      const vertical = dir === "v";
+      const rec = { vertical, rect: l.outer, atBasis: "outer" };
+      const aPx = coord - (vertical ? l.outer.x : l.outer.y);
+      const style = cutStyleOf(l.path);
+      let at = atValue(rec, aPx, style);
+      if (style === "%" || style === "-%") {
+        // Enough decimals that every cut piece ends on the same pixel.
+        const ext = splitExtent(rec);
+        at = style === "%" ? `${fmt((aPx / ext) * 100, 3)}%` : `-${fmt(((ext - aPx) / ext) * 100, 3)}%`;
+      }
+      replaceAt(l.path, makeSplit(nodeAt(l.path, true), vertical ? "columns" : "rows", at));
+    }
+    S.sel = { kind: "layout" };
+    S.status = `cut ${targets.length} pane(s)` + (skipped.length ? `; ${skipped.length} skipped (too small)` : "");
+  });
+}
+
+// ---------------------------------------------------------------- merging
+
+// Do two panes together make one rectangle? Returns the side of `a` that
+// touches `b` ("left", "right", "above", "below") or null.
+function mergeSide(a, b) {
+  const A = a.outer, B = b.outer;
+  if (A.y === B.y && A.height === B.height) {
+    if (A.x + A.width === B.x) return "right";
+    if (B.x + B.width === A.x) return "left";
+  }
+  if (A.x === B.x && A.width === B.width) {
+    if (A.y + A.height === B.y) return "below";
+    if (B.y + B.height === A.y) return "above";
+  }
+  return null;
+}
+
+function mergeNeighbours(path) {
+  const me = S.geo.leaves.find((l) => l.id === idOf(path));
+  if (!me || S.geo.stale) return [];
+  return S.geo.leaves.filter((l) => l !== me && mergeSide(me, l)).map((l) => ({ leaf: l, side: mergeSide(me, l) }));
+}
+
+function unitStyle(v, isAt) {
+  if (isAt) { const st = atStyle(v); return st === "%" || st === "-%" ? "%" : "px"; }
+  const k = looseSize(v).kind;
+  return k === "px" ? "px" : k === "%" ? "%" : "frac";
+}
+
+// Merge pane `other` into pane `keep`: `keep`'s contents fill both rectangles.
+// `unit` answers the % or px question when it had to be asked.
+function applyMerge(keep, other, unit) {
+  const kPath = keep.path, oPath = other.path;
+  const siblings = kPath.length === oPath.length && kPath.length > 0 &&
+    idOf(kPath.slice(0, -1)) === idOf(oPath.slice(0, -1));
+  const kept = materialized(kPath);
+  const union = {
+    x: Math.min(keep.outer.x, other.outer.x), y: Math.min(keep.outer.y, other.outer.y),
+    width: keep.outer.width + (keep.outer.y === other.outer.y && keep.outer.height === other.outer.height ? other.outer.width : 0),
+    height: keep.outer.height + (keep.outer.x === other.outer.x && keep.outer.width === other.outer.width ? other.outer.height : 0),
+  };
+  let tree = null;
+  if (!siblings) {
+    const items = S.geo.leaves.filter((l) => l !== keep && l !== other)
+      .map((l) => ({ rect: l.outer, node: materialized(l.path) }));
+    items.push({ rect: union, node: kept });
+    const region = { x: Math.min(...items.map((it) => it.rect.x)), y: Math.min(...items.map((it) => it.rect.y)) };
+    region.width = Math.max(...items.map((it) => it.rect.x + it.rect.width)) - region.x;
+    region.height = Math.max(...items.map((it) => it.rect.y + it.rect.height)) - region.y;
+    tree = rebuildTree(items, region, unit || "%");
+    if (!tree) {
+      ask("These panes cannot be merged", "After merging, the panes could no longer be described as splits of the screen.", [{ label: "OK", value: true, primary: true }]);
+      return;
+    }
+  }
+  change(() => {
+    if (siblings) {
+      const ppath = kPath.slice(0, -1);
+      const parent = nodeAt(ppath, true);
+      if (!has(parent, "children")) {
+        replaceAt(ppath, kept);
+      } else {
+        const i = Math.min(kPath[kPath.length - 1], oPath[oPath.length - 1]);
+        const sizes = sizesOf(parent);
+        const rec = S.geo.splits.find((sp) => sp.id === idOf(ppath));
+        sizes.splice(i, 2, mergedSize(sizes[i], sizes[i + 1], keep, other, rec, unit));
+        parent.children.splice(i, 2, kept);
+        if (has(parent, "sizes")) parent.sizes = sizes;
+        if (parent.children.length === 1) replaceAt(ppath, parent.children[0]);
+        else if (parent.children.length === 2) replaceAt(ppath, toBinary(parent));
+      }
+    } else {
+      if (pickLayoutKey(lay(), "at_basis", "outer") === "visible" && isSplit(tree)) setInherited(tree, "at_basis", "outer");
+      lay().split = tree;
+    }
+    S.mergedRect = union;
+    S.status = "merged";
+  });
+}
+
+function mergedSize(a, b, keep, other, rec, unit) {
+  const ka = unitStyle(a), kb = unitStyle(b);
+  if (ka === kb && ka !== "px") return ka === "frac" ? `${fmt(looseSize(a).value + looseSize(b).value, 3)}frac` : `${fmt(looseSize(a).value + looseSize(b).value, 3)}%`;
+  if (ka === "px" && kb === "px") return typeof a === "number" && typeof b === "number" ? a + b : `${looseSize(a).value + looseSize(b).value}px`;
+  const vertical = rec ? rec.vertical : true;
+  const px = vertical ? keep.outer.width + other.outer.width : keep.outer.height + other.outer.height;
+  const ext = rec ? splitExtent(rec) : px;
+  return unit === "px" ? `${px}px` : `${fmt((px / ext) * 100, 3)}%`;
+}
+
+// A tree of splits for rectangles that tile `region` (guillotine cuts only).
+function rebuildTree(items, region, unit) {
+  if (items.length === 1) return items[0].node;
+  for (const vertical of [true, false]) {
+    const pos = (r) => (vertical ? r.x : r.y), len = (r) => (vertical ? r.width : r.height);
+    const start = pos(region), ext = len(region);
+    const cuts = [...new Set(items.map((it) => pos(it.rect)))].filter((c) => c > start).sort((p, q) => p - q);
+    for (const c of cuts) {
+      if (items.some((it) => pos(it.rect) < c && c < pos(it.rect) + len(it.rect))) continue;
+      const A = items.filter((it) => pos(it.rect) < c), B = items.filter((it) => pos(it.rect) >= c);
+      const aPx = c - start;
+      const ra = vertical ? { ...region, width: aPx } : { ...region, height: aPx };
+      const rb = vertical ? { ...region, x: c, width: ext - aPx } : { ...region, y: c, height: ext - aPx };
+      const a = rebuildTree(A, ra, unit), b = rebuildTree(B, rb, unit);
+      if (!a || !b) return null;
+      return { dir: vertical ? "columns" : "rows", at: unit === "px" ? `${aPx}px` : `${fmt((aPx / ext) * 100, 3)}%`, a, b };
+    }
+  }
+  return null;
+}
+
+// The % or px question, asked only when the cuts involved use both.
+async function unitFor(keep, other) {
+  const kPath = keep.path, oPath = other.path;
+  const siblings = kPath.length === oPath.length && kPath.length > 0 && idOf(kPath.slice(0, -1)) === idOf(oPath.slice(0, -1));
+  let styles;
+  if (siblings) {
+    const parent = nodeAt(kPath.slice(0, -1));
+    if (!has(parent, "children")) return "%";
+    const i = Math.min(kPath[kPath.length - 1], oPath[oPath.length - 1]);
+    const sz = sizesOf(parent);
+    const a = unitStyle(sz[i]), b = unitStyle(sz[i + 1]);
+    if (a === b) return a === "px" ? "px" : "%";
+    styles = new Set([a, b]);
+  } else {
+    styles = new Set();
+    const walk = (n) => {
+      if (!isSplit(n)) return;
+      if (has(n, "children")) sizesOf(n).forEach((v) => styles.add(unitStyle(v) === "px" ? "px" : "%"));
+      else styles.add(unitStyle(n.at, true));
+      childrenOf(n).forEach(walk);
+    };
+    walk(rootNode());
+    if (styles.size <= 1) return styles.has("px") ? "px" : "%";
+  }
+  return ask("Percent or pixels?", "The panes were cut in different ways. How should the new split points be saved?", [
+    { label: "Cancel", value: null }, { label: "Pixels", value: "px" }, { label: "Percent", value: "%", primary: true }]);
+}
+
+// Merge the selected pane with a neighbour. An empty pane never wins; when
+// both have contents, the selected one stays after a confirmation.
+async function mergePanes(selPath, neighbourLeaf) {
+  const me = S.geo.leaves.find((l) => l.id === idOf(selPath));
+  if (!me || !mergeSide(me, neighbourLeaf)) return;
+  let keep = me, other = neighbourLeaf;
+  const meWin = wantsWindow(me.leaf), otherWin = wantsWindow(other.leaf);
+  if (!meWin && otherWin) { keep = neighbourLeaf; other = me; }
+  else if (meWin && otherWin) {
+    const ok = await ask("Merge panes?", `The pane '${paneLabel(other.leaf)}' and its settings will be removed; '${paneLabel(me.leaf)}' fills both places.`, [
+      { label: "Cancel", value: null }, { label: "Merge", value: true, primary: true }]);
+    if (!ok) return;
+  }
+  const unit = await unitFor(keep, other);
+  if (unit === null) return;
+  applyMerge(keep, other, unit);
+  selectMerged();
+}
+
+// Delete on a selected line: merge the two panes on its sides.
+async function deleteLine(path, boundary) {
+  const node = nodeAt(path);
+  const kids = has(node, "children") ? node.children : [childOf(node, 0) || {}, childOf(node, 1) || {}];
+  const i = has(node, "children") ? boundary || 0 : 0;
+  const [p1, p2] = [path.concat([i]), path.concat([i + 1])];
+  const n1 = kids[i], n2 = kids[i + 1];
+  const vertical = !["rows", "h", "horizontal"].includes(node.dir);
+  const sides = vertical ? ["left", "right"] : ["upper", "lower"];
+  for (const [n, p, side] of [[n1, p1, sides[0]], [n2, p2, sides[1]]]) {
+    if (!isSplit(n)) continue;
+    const count = S.geo.leaves.filter((l) => idOf(l.path).startsWith(`${idOf(p)}.`)).length;
+    await ask("This line cannot be removed", `The ${side} side has ${count} panes, so the merged area would not be a rectangle. Merge those panes first, or remove the line between them.`,
+      [{ label: "OK", value: true, primary: true }]);
+    return;
+  }
+  const l1 = S.geo.leaves.find((l) => l.id === idOf(p1)), l2 = S.geo.leaves.find((l) => l.id === idOf(p2));
+  if (!l1 || !l2) return;
+  let keep = l1, other = l2;
+  const w1 = wantsWindow(l1.leaf), w2 = wantsWindow(l2.leaf);
+  if (!w1 && w2) { keep = l2; other = l1; }
+  else if (w1 && w2) {
+    const which = await ask("Which pane stays?", "Both panes have contents. Removing the line keeps one of them; the other one's settings are removed.", [
+      { label: "Cancel", value: null },
+      { label: `Keep ${vertical ? "right" : "lower"}: ${paneLabel(l2.leaf)}`, value: 2 },
+      { label: `Keep ${vertical ? "left" : "upper"}: ${paneLabel(l1.leaf)}`, value: 1, primary: true }]);
+    if (!which) return;
+    if (which === 2) { keep = l2; other = l1; }
+  }
+  const unit = await unitFor(keep, other);
+  if (unit === null) return;
+  applyMerge(keep, other, unit);
+  selectMerged();
+}
+
+function selectMerged() {
+  const r = S.mergedRect;
+  S.mergedRect = null;
+  if (!r) return;
+  const l = S.geo.leaves.find((x) => x.outer.x === r.x && x.outer.y === r.y && x.outer.width === r.width && x.outer.height === r.height);
+  if (l) { S.sel = { kind: "pane", path: l.path }; render(); }
+}
+
+function sizesOf(node) {
+  if (Array.isArray(node.sizes)) return node.sizes.slice();
+  return (node.children || []).map(() => "1frac");
+}
+
+function looseSize(v) {
+  try { return Geometry.parseSize(v, "size", true, true); } catch (e) { return { kind: "frac", value: 1 }; }
+}
+
+// A two-child split turned into children/sizes with the same proportions. A
+// percentage becomes shares (50% -> 1frac, 1frac), so a pane added next to them
+// gets an equal share; a pixel size stays fixed.
+function toNway(node) {
+  const at = has(node, "at") ? node.at : "50%";
+  const s = looseSize(at);
+  let sizes;
+  if (s.kind === "%") {
+    const p = s.value > 0 ? s.value : 100 + s.value;
+    sizes = [`${fmt(p / 50, 2)}frac`, `${fmt((100 - p) / 50, 2)}frac`];
+  } else {
+    sizes = s.value > 0 ? [at, "1frac"] : ["1frac", typeof at === "number" ? -at : String(at).trim().slice(1)];
+  }
+  const out = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (k === "at" || k === "b") continue;
+    if (k === "a") { out.sizes = sizes; out.children = [node.a, isObj(node.b) ? node.b : {}]; continue; }
+    out[k] = v;
+  }
+  if (!has(out, "children")) { out.sizes = sizes; out.children = [{}, isObj(node.b) ? node.b : {}]; }
+  return out;
+}
+
+// An N-way split with two children turned back into a/b/at.
+function toBinary(node) {
+  const [s0, s1] = sizesOf(node);
+  const p0 = looseSize(s0), p1 = looseSize(s1);
+  let at;
+  if (p0.kind === "frac" && p1.kind === "frac") at = `${fmt((p0.value / (p0.value + p1.value)) * 100, 1)}%`;
+  else if (p0.kind === "frac") at = typeof s1 === "number" ? -s1 : `-${String(s1).trim()}`;
+  else at = s0;
+  const out = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (k === "sizes") continue;
+    if (k === "children") { out.at = at; out.a = v[0]; out.b = v[1]; continue; }
+    out[k] = v;
+  }
+  return out;
+}
+
+function addBeside(path) {
+  if (!path.length) return splitPane(path, "columns");
+  change(() => {
+    const ppath = path.slice(0, -1), i = path[path.length - 1];
+    let parent = nodeAt(ppath, true);
+    if (!has(parent, "children")) { parent = toNway(parent); replaceAt(ppath, parent); }
+    const sizes = sizesOf(parent);
+    parent.children.splice(i + 1, 0, {});
+    sizes.splice(i + 1, 0, "1frac");
+    setKey(parent, "sizes", sizes);
+    S.sel = { kind: "pane", path: ppath.concat([i + 1]) };
+  });
+}
+
+function removePane(path) {
+  change(() => {
+    if (!path.length) { lay().split = {}; S.sel = { kind: "pane", path: [] }; return; }
+    const ppath = path.slice(0, -1), i = path[path.length - 1];
+    const parent = nodeAt(ppath, true);
+    if (!has(parent, "children")) {
+      const other = childOf(parent, 1 - i);
+      replaceAt(ppath, isObj(other) ? other : {});
+      S.sel = { kind: "pane", path: ppath };
+      return;
+    }
+    const sizes = sizesOf(parent);
+    parent.children.splice(i, 1);
+    sizes.splice(i, 1);
+    if (has(parent, "sizes")) parent.sizes = sizes;
+    if (parent.children.length === 1) replaceAt(ppath, parent.children[0]);
+    else if (parent.children.length === 2) replaceAt(ppath, toBinary(parent));
+    S.sel = { kind: "pane", path: ppath.concat([Math.max(0, i - 1)]) };
+    if (parent.children.length === 1) S.sel = { kind: "pane", path: ppath };
+  });
+}
+
+function clearPane(path) { change(() => replaceAt(path, {})); }
+
+function flipSplit(path) {
+  change(() => {
+    const node = nodeAt(path, true);
+    node.dir = ["columns", "v", "vertical"].includes(node.dir) ? "rows" : "columns";
+  });
+}
+
+function addPart(path) {
+  change(() => {
+    let node = nodeAt(path, true);
+    if (!has(node, "children")) { node = toNway(node); replaceAt(path, node); }
+    const sizes = sizesOf(node);
+    node.children.push({});
+    sizes.push("1frac");
+    setKey(node, "sizes", sizes);
+  });
+}
+
+// ---------------------------------------------------------------- split points
+
+function atStyle(at) {
+  if (at === undefined) return "%";
+  if (typeof at === "number") return at > 0 ? "num" : "-px";
+  const t = String(at).trim();
+  const neg = t.startsWith("-");
+  if (t.endsWith("%")) return neg ? "-%" : "%";
+  return neg ? "-px" : "px";
+}
+
+function insetSum(split, i) { return split.insets ? split.insets[i][0] + split.insets[i][1] : 0; }
+
+function splitExtent(split) { return split.vertical ? split.rect.width : split.rect.height; }
+
+// The `at` value that puts the boundary `aPx` pixels from the start, in `style`.
+// `precise` writes percentages with three decimals, so a line snapped onto
+// another one lands on exactly the same pixel.
+function atValue(split, aPx, style, precise = false) {
+  const ext = splitExtent(split);
+  const vis = split.atBasis === "visible";
+  const dec = precise ? 3 : 1;
+  switch (style) {
+    case "-%": return `-${fmt(((ext - aPx) / ext) * 100, dec)}%`;
+    case "px": return `${Math.round(aPx - (vis ? insetSum(split, 0) : 0))}px`;
+    case "num": return Math.round(aPx - (vis ? insetSum(split, 0) : 0));
+    case "-px": return `-${Math.round(ext - aPx - (vis ? insetSum(split, 1) : 0))}px`;
+    default: return `${fmt((aPx / ext) * 100, dec)}%`;
+  }
+}
+
+function sizeValue(split, i, px, old, precise = false) {
+  const s = looseSize(old);
+  const vis = split.atBasis === "visible";
+  if (s.kind === "%") return `${fmt((px / splitExtent(split)) * 100, precise ? 3 : 1)}%`;
+  const v = Math.round(px - (vis ? insetSum(split, i) : 0));
+  return typeof old === "number" ? v : `${v}px`;
+}
+
+function moveBoundary(split, i, coord, precise = false) {
+  const node = nodeAt(split.path, true);
+  const b = split.bounds;
+  const min = split.margin + MIN_PANE;
+  if (!has(node, "children")) {
+    const ext = splitExtent(split);
+    if (ext < 2 * min) return;
+    const aPx = clamp(coord - b[0], min, ext - min);
+    node.at = atValue(split, aPx, atStyle(node.at), precise);
+    return;
+  }
+  const lo = b[i], total = b[i + 2] - b[i];
+  if (total < 2 * min) return;
+  const pi = clamp(coord - lo, min, total - min), pj = total - pi;
+  const sizes = sizesOf(node);
+  const si = looseSize(sizes[i]), sj = looseSize(sizes[i + 1]);
+  if (si.kind === "frac" && sj.kind === "frac") {
+    const f = si.value + sj.value, fi = (f * pi) / total;
+    sizes[i] = `${fmt(fi, precise ? 4 : 2)}frac`;
+    sizes[i + 1] = `${fmt(f - fi, precise ? 4 : 2)}frac`;
+  } else {
+    if (si.kind !== "frac") sizes[i] = sizeValue(split, i, pi, sizes[i], precise);
+    if (sj.kind !== "frac") sizes[i + 1] = sizeValue(split, i + 1, pj, sizes[i + 1], precise);
+  }
+  setKey(node, "sizes", sizes);
+}
+
+// ---------------------------------------------------------------- schema helpers
+
+function keyDef(key) {
+  let d = DEFS[`key-${key}`] || {};
+  const description = d.description;
+  while (d && d.$ref) d = DEFS[d.$ref.split("/").pop()];
+  return { ...d, description: description || d.description };
+}
+
+function propsOf(defName) { return Object.keys((DEFS[defName] || SCHEMA).properties || {}); }
+
+const ALL_KEYS = new Set([...Object.keys(SCHEMA.properties), ...["defaults", "layout", "split", "leaf"].flatMap(propsOf)]);
+
+function resolveRef(s) {
+  while (s && s.$ref) s = DEFS[s.$ref.split("/").pop()];
+  return s || {};
+}
+
+const TYPE_NAMES = { string: "a string", number: "a number", integer: "a whole number", boolean: "true or false", array: "a list", object: "an object", null: "null" };
+
+function typeOk(v, t) {
+  switch (t) {
+    case "string": return typeof v === "string";
+    case "number": return typeof v === "number" && Number.isFinite(v);
+    case "integer": return Number.isInteger(v);
+    case "boolean": return typeof v === "boolean";
+    case "array": return Array.isArray(v);
+    case "object": return isObj(v);
+    case "null": return v === null;
+    default: return true;
+  }
+}
+
+// A small JSON-schema check, enough for tilepane's schema. Returns a message or null.
+function check(v, schema) {
+  const s = resolveRef(schema);
+  for (const key of ["oneOf", "anyOf"]) {
+    if (s[key]) {
+      const errs = s[key].map((x) => check(v, x));
+      if (errs.some((e) => e === null)) return null;
+      return errs.find((e) => e && !e.startsWith("must be")) || errs[0];
+    }
+  }
+  if (s.type) {
+    const types = [].concat(s.type);
+    if (!types.some((t) => typeOk(v, t))) return `must be ${types.map((t) => TYPE_NAMES[t] || t).join(" or ")}`;
+  }
+  if (s.enum && !s.enum.includes(v)) return `must be one of ${s.enum.map((x) => JSON.stringify(x)).join(", ")}`;
+  if (typeof v === "number") {
+    if (s.minimum !== undefined && v < s.minimum) return `must be at least ${s.minimum}`;
+    if (s.exclusiveMinimum !== undefined && v <= s.exclusiveMinimum) return `must be more than ${s.exclusiveMinimum}`;
+  }
+  if (typeof v === "string") {
+    if (s.minLength && v.length < s.minLength) return "must not be empty";
+    if (s.pattern && !new RegExp(s.pattern).test(v)) return `does not match ${s.pattern}`;
+  }
+  if (Array.isArray(v)) {
+    if (s.minItems && v.length < s.minItems) return "must not be empty";
+    if (s.items) for (const [i, x] of v.entries()) { const e = check(x, s.items); if (e) return `[${i}] ${e}`; }
+  }
+  if (isObj(v)) {
+    for (const r of s.required || []) if (!has(v, r)) return `needs '${r}'`;
+    for (const [k, x] of Object.entries(v)) {
+      if (s.properties && has(s.properties, k)) { const e = check(x, s.properties[k]); if (e) return `${k}: ${e}`; }
+      else if (s.additionalProperties === false) return `unknown key '${k}'`;
+      else if (isObj(s.additionalProperties)) { const e = check(x, s.additionalProperties); if (e) return `${k}: ${e}`; }
+    }
+  }
+  return null;
+}
+
+function suggest(key) {
+  let best = null, bestD = 3;
+  for (const k of ALL_KEYS) {
+    const d = distance(key, k);
+    if (d < bestD) { best = k; bestD = d; }
+  }
+  return best ? ` (did you mean '${best}'?)` : "";
+}
+
+function distance(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  }
+  return dp[a.length][b.length];
+}
+
+// ---------------------------------------------------------------- validation
+
+function validate() {
+  const out = [];
+  const add = (level, where, text, li = null, id = null) => out.push({ level, text: where ? `${where}: ${text}` : text, li, id });
+  const doc = S.doc;
+  const keys = (obj, defName, where, li, id, what) => {
+    const props = defName ? (DEFS[defName] || {}).properties || {} : SCHEMA.properties;
+    for (const [k, v] of Object.entries(obj)) {
+      if (["a", "b", "children", "split", "layouts", "defaults"].includes(k) && defName !== "defaults") continue;
+      if (!has(props, k)) {
+        if (ALL_KEYS.has(k)) add("error", where, `'${k}' is not allowed on ${what}`, li, id);
+        else add("warning", where, `unknown key '${k}'${suggest(k)} (kept as is)`, li, id);
+        continue;
+      }
+      const e = check(v, props[k]);
+      if (e) add("error", `${where ? where + "." : ""}${k}`, e, li, id);
+    }
+  };
+
+  if (!isObj(doc)) { add("error", "", "the file must be a JSON object"); return out; }
+  if (multi() && has(doc, "split")) add("error", "", "a file cannot have both 'layouts' and a top-level 'split'");
+  if (multi()) {
+    for (const k of Object.keys(doc)) if (!FILE_KEYS.has(k) && k !== "description" && ALL_KEYS.has(k)) add("error", "", `'${k}' belongs in a layout, not at the top of a file with 'layouts'`);
+  }
+  for (const k of ["$schema", "version", "monitors"]) if (has(doc, k)) { const e = check(doc[k], SCHEMA.properties[k]); if (e) add("error", k, e); }
+  if (has(doc, "defaults")) {
+    if (!isObj(doc.defaults)) add("error", "defaults", "must be an object");
+    else keys(doc.defaults, "defaults", "defaults", null, null, "defaults");
+  }
+  const names = new Map();
+  layouts().forEach((l, li) => {
+    const where = multi() ? `layouts[${li}]` : "";
+    if (!isObj(l)) { add("error", where, "must be an object", li); return; }
+    if (multi()) {
+      keys(l, "layout", where, li, null, "a layout");
+      if (!has(l, "name")) add("error", where, "a layout needs a 'name'", li);
+    } else {
+      for (const k of Object.keys(l)) if (!FILE_KEYS.has(k) && !has(DEFS.layout.properties, k) && k !== "description") {
+        if (ALL_KEYS.has(k)) add("error", "", `'${k}' is not allowed at the top of a layout`, li);
+        else add("warning", "", `unknown key '${k}'${suggest(k)} (kept as is)`, li);
+      }
+      for (const k of Object.keys(DEFS.layout.properties)) if (has(l, k) && !["split"].includes(k)) {
+        const e = check(l[k], DEFS.layout.properties[k]); if (e) add("error", k, e, li);
+      }
+    }
+    const name = layoutName(l, li);
+    if (names.has(name)) add("error", where, `layout name '${name}' is used twice`, li);
+    names.set(name, li);
+    if (!has(l, "split")) { add("error", where, "a layout needs a 'split'", li); return; }
+    const ids = new Map();
+    walk(l.split, `${where ? where + "." : ""}split`, [], li, ids);
+  });
+
+  function walk(node, where, path, li, ids) {
+    const id = idOf(path);
+    if (node === undefined) return; // a missing a/b: an empty pane
+    if (!isObj(node)) { add("error", where, "must be an object", li, id); return; }
+    if (isSplit(node)) {
+      keys(node, "split", where, li, id, "a split node");
+      if (!has(node, "dir")) add("error", where, "a split needs 'dir' ('columns' or 'rows')", li, id);
+      if (has(node, "children")) {
+        for (const k of ["a", "b", "at"]) if (has(node, k)) add("error", `${where}.${k}`, "cannot be combined with 'children'", li, id);
+        if (!Array.isArray(node.children) || !node.children.length) { add("error", `${where}.children`, "must be a non-empty list", li, id); return; }
+        if (has(node, "sizes") && (!Array.isArray(node.sizes) || node.sizes.length !== node.children.length)) add("error", `${where}.sizes`, "must be a list with one entry per child", li, id);
+        node.children.forEach((c, i) => walk(c, `${where}.children[${i}]`, path.concat([i]), li, ids));
+        return;
+      }
+      if (has(node, "sizes")) add("error", `${where}.sizes`, "needs 'children'", li, id);
+      walk(node.a, `${where}.a`, path.concat([0]), li, ids);
+      walk(node.b, `${where}.b`, path.concat([1]), li, ids);
+      return;
+    }
+    keys(node, "leaf", where, li, id, "a leaf");
+    if (typeof node.id === "string" && node.id) {
+      if (/^\d+(\.\d+)*$/.test(node.id)) add("error", `${where}.id`, "ids made only of digits and dots are reserved for tree paths", li, id);
+      else if (ids.has(node.id)) add("error", `${where}.id`, `duplicate id '${node.id}' (also at ${ids.get(node.id)})`, li, id);
+      else ids.set(node.id, where);
+    }
+    const mode = has(node, "mode") ? node.mode : "sequence";
+    if (mode === "cycle" && !has(node, "interval")) add("error", where, "mode 'cycle' needs 'interval'", li, id);
+    if (has(node, "interval") && mode !== "cycle") add("warning", `${where}.interval`, "ignored unless mode is 'cycle'", li, id);
+    if (node.empty === true && has(node, "run")) add("error", where, "'empty' cannot be combined with 'run'", li, id);
+  }
+
+  if (S.geo.error) {
+    const m = /(?:pane|node) '([^']+)'/.exec(S.geo.error);
+    add("error", `layout '${layoutName(lay(), S.layoutIndex)}' on ${monitor().name}`, S.geo.error, S.layoutIndex, m ? m[1] : null);
+  }
+  return out;
+}
+
+function errorsCount() { return S.problems.filter((p) => p.level === "error").length; }
+
+// ---------------------------------------------------------------- inheritance
+
+function inherited(key, path, scope) {
+  const d = keyDef(key);
+  const builtinValue = d.default;
+  if (!d["x-inherits"] && !["at_basis", "outer_margin", "area"].includes(key)) {
+    return builtinValue === undefined ? null : { value: builtinValue, from: "default" };
+  }
+  let value = builtinValue, from = "built-in";
+  if (scope === "defaults") return value === undefined ? null : { value, from };
+  if (isObj(S.doc.defaults) && has(S.doc.defaults, key)) { value = S.doc.defaults[key]; from = "file defaults"; }
+  if (scope === "layout") return value === undefined ? null : { value, from };
+  const l = lay();
+  if (has(l, key)) { value = l[key]; from = "layout"; }
+  let n = rootNode();
+  const chain = [n];
+  for (const i of path) { n = childOf(n, i); if (!isObj(n)) break; chain.push(n); }
+  chain.slice(0, path.length).forEach((node) => { if (has(node, key)) { value = node[key]; from = "a split above"; } });
+  return value === undefined ? null : { value, from };
+}
+
+function display(v) {
+  if (v === null) return "none";
+  if (typeof v === "string") return v;
+  return JSON.stringify(v);
+}
+
+// Keys that inherit down the tree (x-inherits in the schema).
+const INHERIT_KEYS = Object.keys(DEFS).filter((k) => k.startsWith("key-") && DEFS[k]["x-inherits"]).map((k) => k.slice(4));
+// Moved up automatically. margin changes sizes and env merges key by key, so
+// those are only tidied (a copy equal to the inherited value is dropped).
+const HOIST_KEYS = INHERIT_KEYS.filter((k) => k !== "margin" && k !== "env");
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+function childrenOf(node) {
+  if (!isSplit(node)) return [];
+  if (has(node, "children")) return Array.isArray(node.children) ? node.children.filter(isObj) : [];
+  return [node.a, node.b].filter(isObj);
+}
+
+// A key placed among a node's settings: before the structure keys of a split,
+// before "split" in a layout, at the end of a leaf.
+function setInherited(node, key, value) {
+  const before = isSplit(node) ? ["a", "b", "children"] : has(node, "split") ? ["split"] : [];
+  if (has(node, key) || !before.some((k) => has(node, k))) { node[key] = value; return; }
+  const entries = Object.entries(node);
+  for (const [k] of entries) delete node[k];
+  let placed = false;
+  for (const [k, v] of entries) {
+    if (!placed && before.includes(k)) { node[key] = value; placed = true; }
+    node[k] = v;
+  }
+}
+
+function valueAbove(key) {
+  const d = S.doc.defaults;
+  return isObj(d) && has(d, key) ? d[key] : keyDef(key).default;
+}
+
+// Every inheriting value a pane gets from above it: built-in value, file
+// defaults, layout and the split nodes on its path (env merged key by key).
+function inheritedValues(path) {
+  const out = {};
+  const apply = (n) => {
+    if (!isObj(n)) return;
+    for (const k of INHERIT_KEYS) {
+      if (!has(n, k)) continue;
+      out[k] = k === "env" && isObj(out.env) && isObj(n[k]) ? { ...out.env, ...n[k] } : n[k];
+    }
+  };
+  for (const k of INHERIT_KEYS) { const v = keyDef(k).default; if (v !== undefined && v !== null) out[k] = v; }
+  apply(S.doc.defaults);
+  apply(lay());
+  let n = rootNode();
+  for (const i of path) {
+    if (!isSplit(n)) break;
+    apply(n);
+    n = childOf(n, i);
+    if (!isObj(n)) break;
+  }
+  return out;
+}
+
+// The pane at `path` with everything it currently gets from above written onto
+// it, so it looks and behaves the same anywhere. normalize() then drops what
+// is not needed at the new place.
+function materialized(path) {
+  const node = JSON.parse(JSON.stringify(nodeAt(path)));
+  if (!wantsWindow(node)) return node;
+  for (const [k, v] of Object.entries(inheritedValues(path))) {
+    if (k === "env") node.env = { ...(isObj(v) ? v : {}), ...(isObj(node.env) ? node.env : {}) };
+    else if (!has(node, k)) node[k] = v;
+  }
+  return node;
+}
+
+// Rewrite the layout so shared settings sit as high in the tree as they can,
+// without changing what any window gets. Empty panes do not count; the file
+// defaults are left alone.
+function normalize(l) {
+  if (!isObj(l) || !isObj(l.split)) return;
+  const isWindow = (n) => !isSplit(n) && wantsWindow(n);
+  for (const key of HOIST_KEYS) {
+    const eff = new Map();
+    const walk = (n, inh) => {
+      const here = has(n, key) ? n[key] : inh;
+      if (isSplit(n)) childrenOf(n).forEach((c) => walk(c, here));
+      else if (isWindow(n)) eff.set(n, here);
+    };
+    const top = valueAbove(key);
+    walk(l.split, has(l, key) ? l[key] : top);
+    const windows = [...eff.keys()];
+    const clear = (n) => {
+      if (isSplit(n)) { delete n[key]; childrenOf(n).forEach(clear); }
+      else if (eff.has(n)) delete n[key];
+    };
+    delete l[key];
+    clear(l.split);
+    const valuesUnder = (n) => (isSplit(n) ? childrenOf(n).flatMap(valuesUnder) : eff.has(n) ? [eff.get(n)] : []);
+    const assign = (n, inh, isLayout) => {
+      const values = isLayout ? valuesUnder(l.split) : valuesUnder(n);
+      if (!values.length) return;
+      // The most common value goes here (a tie keeps the inherited one).
+      const counts = new Map();
+      for (const v of values) {
+        const k = v === undefined ? "" : JSON.stringify(v);
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+      const inhKey = inh === undefined ? "" : JSON.stringify(inh);
+      let best = inhKey, bestN = counts.get(inhKey) || 0;
+      for (const [k, c] of counts) if (c > bestN) { best = k; bestN = c; }
+      let here = inh;
+      if (best !== inhKey && best !== "") {
+        here = JSON.parse(best);
+        setInherited(n, key, here);
+      }
+      if (isLayout) assign(l.split, here, false);
+      else childrenOf(n).forEach((c) => assign(c, here, false));
+    };
+    assign(l, top, true);
+    // A pane whose only setting moved up would turn empty: give it back.
+    for (const w of windows) if (!wantsWindow(w)) w[key] = eff.get(w);
+  }
+  tidy(l);
+}
+
+// Drop margin and env copies that equal what the node inherits anyway.
+function tidy(l) {
+  const d = isObj(S.doc.defaults) ? S.doc.defaults : {};
+  const walk = (n, margin, env) => {
+    const window = !isSplit(n) && wantsWindow(n);
+    if (!isSplit(n) && !window) return;
+    if (has(n, "margin") && same(n.margin, margin)) {
+      delete n.margin;
+      if (!isSplit(n) && !wantsWindow(n)) n.margin = margin;
+    }
+    if (isObj(n.env)) {
+      for (const [k, v] of Object.entries(n.env)) if (has(env, k) && env[k] === v) delete n.env[k];
+      if (!Object.keys(n.env).length) {
+        delete n.env;
+        if (!isSplit(n) && !wantsWindow(n)) n.env = {};
+      }
+    }
+    const m = has(n, "margin") ? n.margin : margin;
+    const e = isObj(n.env) ? { ...env, ...n.env } : env;
+    childrenOf(n).forEach((c) => walk(c, m, e));
+  };
+  const margin = has(l, "margin") ? l.margin : has(d, "margin") ? d.margin : 8;
+  const env = { ...(isObj(d.env) ? d.env : {}), ...(isObj(l.env) ? l.env : {}) };
+  walk(l.split, margin, env);
+}
+
+// ---------------------------------------------------------------- inspector fields
+
+const PANE_MAIN = ["run", "title", "cwd", "shell", "terminal", "on_exit"];
+const PANE_MORE = ["empty", "snap", "decorations", "margin", "env", "restart_delay", "max_restarts", "stop_on_error",
+  "mode", "interval", "id", "when", "profile", "font_size", "description"];
+const SPLIT_MORE = ["at_basis", "terminal", "shell", "cwd", "on_exit", "snap", "decorations", "env", "restart_delay",
+  "max_restarts", "stop_on_error", "profile", "font_size", "description"];
+const LAYOUT_MAIN = ["name", "workspace", "margin", "outer_margin", "area", "at_basis", "description"];
+const LAYOUT_MORE = ["terminal", "shell", "cwd", "on_exit", "snap", "decorations", "env", "restart_delay",
+  "max_restarts", "stop_on_error", "profile", "font_size"];
+
+const LABELS = {
+  run: "Command", title: "Window title", cwd: "Working directory", shell: "Shell", terminal: "Terminal",
+  on_exit: "When the command ends", empty: "Empty pane", snap: "Snap", decorations: "Window borders",
+  margin: "Margin (px)", env: "Environment variables", restart_delay: "Restart delay (s)",
+  max_restarts: "Max restarts", stop_on_error: "Stop at first failing command", mode: "Mode",
+  interval: "Interval (s)", id: "Id", when: "Only when", profile: "Profile", font_size: "Font size",
+  description: "Description", name: "Name", outer_margin: "Outer margin (px)", area: "Area",
+  at_basis: "Pixel sizes measure", dir: "Direction", at: "Split point", sizes: "Sizes", workspace: "Workspace",
+};
+
+function textOf(key, v) {
+  if (v === undefined) return "";
+  if (key === "run") return Array.isArray(v) ? v.join("\n") : String(v);
+  if (key === "env") return isObj(v) ? Object.entries(v).map(([k, x]) => `${k}=${x}`).join("\n") : JSON.stringify(v);
+  if (key === "sizes") return Array.isArray(v) ? v.join(", ") : JSON.stringify(v);
+  if (typeof v === "string") return v;
+  return JSON.stringify(v);
+}
+
+function valueOf(key, text, def) {
+  const t = text.trim();
+  if (key === "run") {
+    const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
+    return lines.length === 0 ? undefined : lines.length === 1 ? lines[0] : lines;
+  }
+  if (t === "") return undefined;
+  if (key === "env") {
+    const out = {};
+    for (const line of text.split("\n")) {
+      const s = line.trim();
+      if (!s) continue;
+      const eq = s.indexOf("=");
+      if (eq <= 0) return s; // invalid; validation reports it
+      out[s.slice(0, eq).trim()] = s.slice(eq + 1);
+    }
+    return out;
+  }
+  if (key === "sizes") return t.split(",").map((s) => s.trim()).filter(Boolean).map((s) => (/^-?\d+(\.\d+)?$/.test(s) ? Number(s) : s));
+  if (key === "terminal" && t.startsWith("{")) { try { return JSON.parse(t); } catch (e) { return t; } }
+  const types = [].concat(def.type || []);
+  if (key === "at") return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : t;
+  if ((types.includes("number") || types.includes("integer")) && !types.includes("string")) {
+    const n = Number(t);
+    return Number.isFinite(n) ? n : t;
+  }
+  return text;
+}
+
+function problemFor(key, li, id) {
+  return S.problems.find((p) => p.li === li && p.id === id && (p.text.includes(`.${key}:`) || p.text.startsWith(`${key}:`)));
+}
+
+function field(obj, key, opts) {
+  const def = keyDef(key);
+  const cur = obj[key];
+  const inh = opts.inherited;
+  const commit = (v) => change(() => {
+    const target = opts.target();
+    if (v === undefined) delete target[key];
+    else setKey(target, key, v);
+  });
+  let control;
+  const values = def.enum || (key === "dir" ? ["columns", "rows"] : null);
+  if (key === "dir") {
+    const canon = ["columns", "v", "vertical"].includes(cur) ? "columns" : ["rows", "h", "horizontal"].includes(cur) ? "rows" : cur;
+    control = h("select", { onchange: (e) => commit(e.target.value) },
+      ...["columns", "rows"].map((v) => h("option", { value: v, selected: v === canon }, v === "columns" ? "columns (side by side)" : "rows (stacked)")));
+  } else if (values) {
+    control = h("select", { onchange: (e) => commit(e.target.value === "" ? undefined : JSON.parse(e.target.value)) },
+      h("option", { value: "" }, inh ? `(inherited: ${display(inh.value)})` : "(not set)"),
+      ...values.map((v) => h("option", { value: JSON.stringify(v), selected: cur === v }, display(v))));
+  } else if ([].concat(def.type || []).length === 1 && def.type === "boolean") {
+    control = h("select", { onchange: (e) => commit(e.target.value === "" ? undefined : e.target.value === "true") },
+      h("option", { value: "" }, inh ? `(inherited: ${display(inh.value)})` : "(not set)"),
+      h("option", { value: "true", selected: cur === true }, "true"),
+      h("option", { value: "false", selected: cur === false }, "false"));
+  } else if (key === "run" || key === "env") {
+    control = h("textarea", {
+      rows: key === "run" ? 3 : 2, spellcheck: "false",
+      placeholder: key === "run" ? "one command per line, e.g.\nhtop" : (inh ? `inherited: ${display(inh.value)}` : "NAME=value, one per line"),
+      onchange: (e) => commit(valueOf(key, e.target.value, def)),
+    });
+    control.value = textOf(key, cur);
+  } else {
+    control = h("input", {
+      type: "text", spellcheck: "false",
+      placeholder: inh ? `inherited: ${display(inh.value)}` : (def.examples ? `e.g. ${display(def.examples[0])}` : ""),
+      onchange: (e) => commit(valueOf(key, e.target.value, def)),
+      onkeydown: (e) => { if (e.key === "Enter") e.target.blur(); },
+    });
+    control.value = textOf(key, cur);
+  }
+  control.dataset.key = key;
+  const prob = opts.problem;
+  return h("div", { class: `field${prob ? " has-error" : ""}` },
+    h("label", {}, LABELS[key] || key, " ", h("code", {}, key)),
+    control,
+    prob ? h("div", { class: "err" }, prob.text.replace(/^.*?: /, "")) : null,
+    def.description ? h("div", { class: "desc" }, def.description) : null);
+}
+
+function fieldList(obj, keyNames, opts) {
+  return keyNames.filter((k) => opts.allowed.includes(k)).map((k) => field(obj, k, {
+    target: opts.target, inherited: opts.inherit ? opts.inherit(k) : null, problem: opts.problemFor ? opts.problemFor(k) : null,
+  }));
+}
+
+function otherKeys(obj, known) {
+  const extra = Object.keys(obj).filter((k) => !known.includes(k) && !SPLIT_STRUCTURE.includes(k) && k !== "split" && k !== "layouts");
+  return extra.length ? h("p", { class: "other-keys" }, `Other keys, kept as they are: ${extra.join(", ")}`) : null;
+}
+
+// ---------------------------------------------------------------- command lines
+
+function shellQuote(s) {
+  s = String(s);
+  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, "'\\''")}'`;
+}
+
+function filePart() {
+  if (!S.server || !BOOT.path) return { arg: shellQuote(S.fileName), note: "Run these in the folder where the file is." };
+  const path = BOOT.path, home = BOOT.home;
+  if (home && path.startsWith(`${home}/`)) return { arg: `~/${shellQuote(path.slice(home.length + 1))}`, note: null };
+  return { arg: shellQuote(path), note: null };
+}
+
+function monitorArg() {
+  const m = realMonitor();
+  if (!m || m.preset) return null;
+  return S.monitorStyle === "name" ? m.name : String(m.number);
+}
+
+function commandLines() {
+  const file = filePart();
+  const layoutArgs = multi() ? ["--layout", shellQuote(layoutName(lay(), S.layoutIndex))] : [];
+  const mon = monitorArg();
+  const monArgs = mon === null ? [] : ["--monitor", shellQuote(mon)];
+  const rest = [...layoutArgs, ...monArgs];
+  const lines = [
+    ["Open the layout", ["tilepane", file.arg, ...rest]],
+    ["Open it, or close it if it is open", ["tilepane", "--toggle", file.arg, ...rest]],
+    ["Close it", ["tilepane", "--close", file.arg, ...rest]],
+    ["Show the rectangles without opening anything", ["tilepane", "--dry-run", file.arg, ...rest]],
+    ["Edit it in the browser", ["tilepane", "--edit", file.arg]],
+  ].map(([what, words]) => ({ what, text: words.join(" ") }));
+  const notes = [];
+  if (file.note) notes.push(file.note);
+  if (mon === null) notes.push("The preview monitor is a size, not one of your monitors, so --monitor is left out (monitor 0 is used); see tilepane --monitors.");
+  if (S.dirty) notes.push("The commands use the file as saved: save first.");
+  return { lines, notes };
+}
+
+async function copyText(text, button) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+    const t = h("textarea", { style: { position: "fixed", opacity: "0" } });
+    t.value = text;
+    document.body.append(t);
+    t.select();
+    try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+    t.remove();
+  }
+  if (button) {
+    const old = button.textContent;
+    button.textContent = ok ? "Copied" : "Select and copy";
+    setTimeout(() => { button.textContent = old; }, 1400);
+  }
+}
+
+function commandsBlock(onChange) {
+  const { lines, notes } = commandLines();
+  const setStyle = (style) => { S.monitorStyle = style; remember("monitorStyle", style); onChange(); };
+  const real = realMonitor();
+  return h("div", {},
+    h("div", { class: "unit-row" },
+      h("span", { style: { color: "var(--muted)", fontSize: "12px", alignSelf: "center" } }, "Monitor as"),
+      h("span", { class: "seg" },
+        h("button", { class: S.monitorStyle === "number" ? "on" : "", onclick: () => setStyle("number"),
+          title: "The monitor's number (0 is the leftmost); it can change when monitors are plugged in or out" }, `number${real && !real.preset ? ` (${real.number})` : ""}`),
+        h("button", { class: S.monitorStyle === "name" ? "on" : "", onclick: () => setStyle("name"),
+          title: "The monitor's connector name; it stays the same when other monitors change" }, `name${real && !real.preset ? ` (${real.name})` : ""}`))),
+    h("div", { class: "cmd-list" }, ...lines.map((c) => {
+      const btn = h("button", { title: "Copy to the clipboard" }, "Copy");
+      btn.addEventListener("click", () => copyText(c.text, btn));
+      return h("div", { class: "cmd-row" }, h("div", { class: "what" }, c.what), h("div", { class: "line" }, h("code", {}, c.text), btn));
+    })),
+    ...notes.map((n) => h("div", { class: "cmd-note" }, n)));
+}
+
+function openCommands() {
+  let dlg = $("#commands-dialog");
+  if (!dlg) {
+    dlg = h("dialog", { id: "commands-dialog" });
+    document.body.append(dlg);
+  }
+  const fill = () => {
+    dlg.replaceChildren(
+      h("h2", {}, `Command lines for '${layoutName(lay(), S.layoutIndex)}'`),
+      h("div", { class: "desc" }, `Run these in a terminal. Monitor: ${realMonitor().preset ? realMonitor().name : `${realMonitor().number}: ${realMonitor().name}`}.`),
+      commandsBlock(() => { fill(); renderInspector(); }),
+      h("div", { class: "actions", style: { justifyContent: "flex-end", display: "flex", marginTop: "10px" } },
+        h("button", { onclick: () => dlg.close() }, "Close")));
+  };
+  fill();
+  if (!dlg.open) dlg.showModal();
+}
+
+// ---------------------------------------------------------------- inspector
+
+function renderInspector() {
+  const box = $("#inspector");
+  box.replaceChildren();
+  const sel = S.sel;
+  const parts = sel.kind === "pane" ? paneInspector(sel.path)
+    : sel.kind === "split" ? splitInspector(sel.path)
+      : sel.kind === "defaults" ? defaultsInspector() : layoutInspector();
+  box.append(...parts.filter(Boolean));
+}
+
+function paneInspector(path) {
+  const node = nodeAt(path);
+  const leafProps = propsOf("leaf");
+  const id = idOf(path);
+  const geo = S.geo.leaves.find((l) => l.id === id);
+  const label = node.title || (node.run ? (Array.isArray(node.run) ? node.run[0] : node.run) : null);
+  const empty = !wantsWindow(node);
+  const parts = [
+    h("h2", {}, label ? `Pane: ${label}` : empty ? "Empty pane" : "Pane: shell"),
+    h("div", { class: "sub" }, `id ${node.id || id}`, geo ? ` · ${geo.rect.width}×${geo.rect.height} px at ${geo.rect.x - monitor().x},${geo.rect.y - monitor().y}` : ""),
+    h("div", { class: "actions" },
+      h("button", { onclick: () => splitPane(path, "columns"), title: "Divide this pane into left and right" }, "Split ⇆ left | right"),
+      h("button", { onclick: () => splitPane(path, "rows"), title: "Divide this pane into top and bottom" }, "Split ⇅ top / bottom"),
+      path.length ? h("button", { onclick: () => addBeside(path), title: "Add another pane next to this one in the same direction" }, "Add pane next to it") : null,
+      !empty ? h("button", { onclick: () => clearPane(path), title: "Remove all settings: no window opens here" }, "Make empty") : null,
+      path.length ? h("button", { onclick: () => removePane(path), title: "Remove this pane; its neighbour takes the space (Delete)" }, "Remove pane") : null),
+    empty ? h("div", { class: "hint" }, "This pane is empty: no window opens here. Type a command (or any other setting) below to give it a terminal window.") : null,
+    h("div", { class: "desc" }, "Drag this pane onto another one to swap their contents; the sizes stay."),
+  ];
+  const opts = {
+    allowed: leafProps,
+    target: () => nodeAt(path, true),
+    inherit: (k) => inherited(k, path, "pane"),
+    problemFor: (k) => problemFor(k, S.layoutIndex, id),
+  };
+  const neighbours = mergeNeighbours(path);
+  if (neighbours.length) {
+    parts.push(h("div", { class: "actions" }, ...neighbours.map((n) =>
+      h("button", { onclick: () => mergePanes(path, n.leaf), title: `Make one pane of this and '${paneLabel(n.leaf.leaf)}'` }, `Merge with ${n.side}`))));
+  }
+  parts.push(...fieldList(node, PANE_MAIN, opts));
+  const more = h("details", {}, h("summary", {}, "More settings"), ...fieldList(node, PANE_MORE, opts));
+  if (PANE_MORE.some((k) => has(node, k))) more.open = true;
+  parts.push(more, otherKeys(node, leafProps));
+  return parts;
+}
+
+function splitInspector(path) {
+  const node = nodeAt(path);
+  const rec = splitRecord(path);
+  const nway = has(node, "children");
+  const n = nway ? (Array.isArray(node.children) ? node.children.length : 0) : 2;
+  const id = idOf(path);
+  const opts = {
+    allowed: propsOf("split"),
+    target: () => nodeAt(path, true),
+    inherit: (k) => inherited(k, path.concat([0]), "pane"),
+    problemFor: (k) => problemFor(k, S.layoutIndex, id),
+  };
+  const parts = [
+    h("h2", {}, `Split: ${n} panes, ${["rows", "h", "horizontal"].includes(node.dir) ? "stacked" : "side by side"}`),
+    h("div", { class: "sub" }, `id ${id}${rec ? ` · ${rec.rect.width}×${rec.rect.height} px` : ""}`),
+    h("div", { class: "actions" },
+      h("button", { onclick: () => flipSplit(path) }, "Flip direction"),
+      h("button", { onclick: () => addPart(path) }, "Add a pane"),
+      h("button", { onclick: () => { S.sel = { kind: "pane", path: path.concat([0]) }; render(); } }, "Select first pane")),
+    field(node, "dir", { target: opts.target }),
+  ];
+  if (!nway) {
+    parts.push(field(node, "at", opts.problemFor ? { target: opts.target, problem: opts.problemFor("at") } : { target: opts.target }));
+    if (rec) {
+      const style = atStyle(node.at);
+      const aPx = rec.bounds[1] - rec.bounds[0];
+      const set = (st) => change(() => { nodeAt(path, true).at = atValue(rec, aPx, st); });
+      parts.push(h("div", { class: "unit-row" },
+        h("button", { class: style === "%" ? "on" : "", onclick: () => set("%") }, "% from start"),
+        h("button", { class: style === "-%" ? "on" : "", onclick: () => set("-%") }, "% from end"),
+        h("button", { class: style === "px" || style === "num" ? "on" : "", onclick: () => set("px") }, "px from start"),
+        h("button", { class: style === "-px" ? "on" : "", onclick: () => set("-px") }, "px from end")));
+      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point; hold Shift to line it up with another line. The value keeps its unit; the buttons switch it without moving the line. Delete removes the line and merges the two panes."));
+    }
+  } else {
+    parts.push(field(node, "sizes", { target: opts.target, problem: opts.problemFor("sizes") }));
+  }
+  parts.push(field(node, "margin", { target: opts.target, inherited: inherited("margin", path, "pane"), problem: opts.problemFor("margin") }));
+  const more = h("details", {}, h("summary", {}, "Settings for every pane below"), ...fieldList(node, SPLIT_MORE, opts));
+  if (SPLIT_MORE.some((k) => has(node, k))) more.open = true;
+  parts.push(more, otherKeys(node, propsOf("split")));
+  return parts;
+}
+
+function layoutInspector() {
+  const l = lay();
+  const allowed = propsOf("layout");
+  const opts = {
+    allowed,
+    target: () => lay(),
+    inherit: (k) => inherited(k, [], "layout"),
+    problemFor: (k) => S.problems.find((p) => p.li === S.layoutIndex && p.id === null && p.text.includes(k)),
+  };
+  const parts = [
+    h("h2", {}, `Layout: ${layoutName(l, S.layoutIndex)}`),
+    h("div", { class: "sub" }, `${monitor().name}${monitor().preset ? "" : ` · ${monitor().width}×${monitor().height}`}`),
+    h("div", { class: "hint" }, "Click a pane to edit it or split it. Drag the lines between panes to resize them, a pane onto another to swap them, and the monitor's edges to try another size. Ctrl+Z undoes."),
+  ];
+  parts.push(h("details", { open: true, id: "command-lines" }, h("summary", {}, "Command line"), commandsBlock(() => renderInspector())));
+  parts.push(...fieldList(l, LAYOUT_MAIN, opts));
+  const more = h("details", {}, h("summary", {}, "Settings for every pane"), ...fieldList(l, LAYOUT_MORE, opts));
+  if (LAYOUT_MORE.some((k) => has(l, k))) more.open = true;
+  parts.push(more);
+  parts.push(h("div", { class: "actions" }, h("button", { onclick: () => { S.sel = { kind: "defaults" }; render(); } }, "File defaults…")));
+  parts.push(otherKeys(l, allowed.concat([...FILE_KEYS])));
+  return parts;
+}
+
+function defaultsInspector() {
+  const d = isObj(S.doc.defaults) ? S.doc.defaults : {};
+  const allowed = propsOf("defaults");
+  const opts = {
+    allowed,
+    target: () => { if (!isObj(S.doc.defaults)) S.doc.defaults = {}; return S.doc.defaults; },
+    inherit: (k) => inherited(k, [], "defaults"),
+    problemFor: (k) => S.problems.find((p) => p.text.startsWith(`defaults.${k}`)),
+  };
+  return [
+    h("h2", {}, "File defaults"),
+    h("div", { class: "sub" }, "Used by every layout in this file unless the layout, a split or a pane sets its own."),
+    h("div", { class: "actions" }, h("button", { onclick: () => { S.sel = { kind: "layout" }; render(); } }, "Back to the layout")),
+    ...fieldList(d, allowed, opts),
+  ];
+}
+
+// ---------------------------------------------------------------- screen
+
+function renderScreen() {
+  const stage = $("#stage");
+  const screen = $("#screen");
+  const m = monitor();
+  const pad = 28, bar = 44;
+  const scale = S.fixedScale || Math.max(0.01, Math.min((stage.clientWidth - 2 * pad) / m.width, (stage.clientHeight - 2 * pad - bar) / m.height));
+  S.view = { scale, m };
+  screen.style.width = `${Math.round(m.width * scale)}px`;
+  screen.style.height = `${Math.round(m.height * scale)}px`;
+  screen.replaceChildren();
+  const box = (r, cls) => h("div", { class: cls, style: {
+    left: `${(r.x - m.x) * scale}px`, top: `${(r.y - m.y) * scale}px`, width: `${r.width * scale}px`, height: `${r.height * scale}px`,
+  } });
+  const area = areaFor(lay());
+  if (area.width !== m.width || area.height !== m.height) {
+    screen.append(box({ x: m.x, y: m.y, width: m.width, height: m.height }, "panel-shade"));
+    const work = box(area, "outer");
+    work.style.background = "var(--screen)";
+    screen.append(work);
+  }
+  const bad = new Set(S.problems.filter((p) => p.level === "error" && p.li === S.layoutIndex && p.id).map((p) => p.id));
+  for (const l of S.geo.leaves) {
+    screen.append(box(l.outer, "outer"));
+    const empty = !wantsWindow(l.leaf);
+    const selected = S.sel.kind === "pane" && idOf(S.sel.path) === l.id;
+    const label = l.leaf.title || (l.leaf.run ? (Array.isArray(l.leaf.run) ? l.leaf.run.join("; ") : l.leaf.run) : empty ? "(empty)" : "(shell)");
+    const el = box(l.rect, `pane${empty ? " empty" : ""}${selected ? " selected" : ""}${bad.has(l.id) ? " bad" : ""}`);
+    el.dataset.id = l.id;
+    el.append(h("div", { class: "label" }, label), h("div", { class: "meta" }, `${l.rect.width}×${l.rect.height}`, l.leaf.id ? ` · ${l.leaf.id}` : ""));
+    el.title = `${label}\n${l.rect.width}×${l.rect.height} px, pane ${l.leaf.id || l.id}`;
+    el.addEventListener("pointerdown", (e) => startPaneDrag(e, l));
+    screen.append(el);
+  }
+  for (const s of S.geo.splits) {
+    for (let i = 1; i < s.bounds.length - 1; i++) {
+      const b = s.bounds[i];
+      const thick = 10;
+      // The ends stop short of the split's edges, so where a nested split's line
+      // meets this one the outer line stays grabbable; outer splits are on top.
+      const inset = thick;
+      const r = s.vertical
+        ? { left: (b - m.x) * scale - thick / 2, top: (s.rect.y - m.y) * scale + inset, width: thick, height: Math.max(thick, s.rect.height * scale - 2 * inset) }
+        : { left: (s.rect.x - m.x) * scale + inset, top: (b - m.y) * scale - thick / 2, width: Math.max(thick, s.rect.width * scale - 2 * inset), height: thick };
+      const selected = S.sel.kind === "split" && idOf(S.sel.path) === s.id;
+      const el = h("div", { class: `handle ${s.vertical ? "v" : "h"}${selected ? " selected" : ""}`, title: "Drag to resize; click to edit the split",
+        style: { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, zIndex: String(100 - s.path.length) } });
+      el.dataset.split = s.id;
+      el.dataset.boundary = String(i);
+      el.addEventListener("pointerdown", (e) => startDrag(e, s, i - 1));
+      screen.append(el);
+    }
+  }
+  if (S.geo.stale) screen.append(h("div", { class: "screen-note" }, "Showing the last layout that fit; see the problems below."));
+  if (S.sel.kind === "pane" && !S.cut) {
+    const me = S.geo.leaves.find((l) => l.id === idOf(S.sel.path));
+    if (me) {
+      for (const n of mergeNeighbours(S.sel.path)) {
+        const r = me.rect, o = n.leaf.rect;
+        const mid = (a, b) => (a + b) / 2;
+        let cx, cy;
+        if (n.side === "left" || n.side === "right") {
+          cx = n.side === "left" ? mid(o.x + o.width, r.x) : mid(r.x + r.width, o.x);
+          cy = r.y + r.height / 2;
+        } else {
+          cy = n.side === "above" ? mid(o.y + o.height, r.y) : mid(r.y + r.height, o.y);
+          cx = r.x + r.width / 2;
+        }
+        const arrow = { left: "⇠", right: "⇢", above: "⇡", below: "⇣" }[n.side];
+        const b = h("button", { class: "merge-btn", title: `Merge with the pane ${n.side === "above" || n.side === "below" ? n.side : `on the ${n.side}`} ('${paneLabel(n.leaf.leaf)}')`,
+          style: { left: `${(cx - m.x) * scale - 11}px`, top: `${(cy - m.y) * scale - 11}px` } }, arrow);
+        b.dataset.merge = n.side;
+        b.addEventListener("pointerdown", (e) => e.stopPropagation());
+        b.addEventListener("click", () => mergePanes(S.sel.path, n.leaf));
+        screen.append(b);
+      }
+    }
+  }
+  if (S.cut) screen.append(cutOverlay());
+  for (const side of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
+    const el = h("div", { class: `mon-handle ${side}`, title: "Drag to change the preview's monitor size (Shift keeps the shape, Alt gives exact pixels)" });
+    el.addEventListener("pointerdown", (e) => startMonitorResize(e, side));
+    screen.append(el);
+  }
+  renderScreenbar();
+}
+
+function setCutMode(dir) {
+  S.cut = S.cut === dir ? null : dir;
+  render();
+}
+
+// While cutting: a dashed line across the monitor follows the mouse, snaps to
+// existing boundaries, shows its position and marks the panes it would cut.
+function cutOverlay() {
+  const { scale, m } = S.view;
+  const dir = S.cut;
+  const overlay = h("div", { class: "cut-overlay", id: "cut-overlay" });
+  const line = h("div", { class: `cut-line ${dir}` });
+  const tip = h("div", { class: "size-tip", style: { position: "absolute" } });
+  overlay.append(line, tip);
+  const edges = [...new Set(S.geo.leaves.flatMap((l) => (dir === "h" ? [l.outer.y, l.outer.y + l.outer.height] : [l.outer.x, l.outer.x + l.outer.width])))];
+  let coord = null;
+  const at = (ev) => {
+    const r = overlay.getBoundingClientRect();
+    let c = dir === "h" ? (ev.clientY - r.top) / scale + m.y : (ev.clientX - r.left) / scale + m.x;
+    const near = edges.map((e) => [Math.abs(e - c) * scale, e]).sort((p, q) => p[0] - q[0])[0];
+    if (near && near[0] < 8 && !ev.altKey) c = near[1];
+    return Math.round(c);
+  };
+  const mark = () => {
+    document.querySelectorAll(".pane.cut-target, .pane.cut-skip").forEach((p) => p.classList.remove("cut-target", "cut-skip"));
+    if (coord === null) return;
+    const { targets, skipped } = cutTargets(dir, coord);
+    targets.forEach((l) => document.querySelector(`.pane[data-id="${l.id}"]`)?.classList.add("cut-target"));
+    skipped.forEach((l) => document.querySelector(`.pane[data-id="${l.id}"]`)?.classList.add("cut-skip"));
+  };
+  overlay.addEventListener("pointermove", (ev) => {
+    coord = at(ev);
+    const pos = (coord - (dir === "h" ? m.y : m.x)) * scale;
+    if (dir === "h") { line.style.top = `${pos - 1}px`; tip.style.top = `${pos + 6}px`; tip.style.left = "8px"; }
+    else { line.style.left = `${pos - 1}px`; tip.style.left = `${pos + 6}px`; tip.style.top = "8px"; }
+    tip.textContent = `${dir === "h" ? "y" : "x"} = ${coord - (dir === "h" ? m.y : m.x)} px · click to cut, Esc to stop`;
+    mark();
+  });
+  overlay.addEventListener("pointerleave", () => { coord = null; mark(); });
+  overlay.addEventListener("pointerdown", (ev) => {
+    ev.stopPropagation();
+    const c = at(ev);
+    S.cut = ev.shiftKey ? S.cut : null;
+    cutAt(dir, c);
+    if (S.cut) render();
+  });
+  return overlay;
+}
+
+function renderScreenbar() {
+  const m = monitor();
+  const l = lay();
+  const margin = pickLayoutKey(l, "margin", 8);
+  const setMargin = (v) => {
+    if (!Number.isFinite(v) || v < 0) return;
+    change(() => setInherited(lay(), "margin", Math.round(v)));
+  };
+  const input = h("input", { type: "text", inputmode: "numeric", value: String(margin), id: "margin-input", title: "Gap between windows, in pixels (the layout's margin)" });
+  input.addEventListener("change", () => setMargin(Number(input.value)));
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") input.blur(); });
+  const parts = [
+    h("span", {}, "Monitor ", h("span", { class: "size", id: "monitor-size" }, `${m.width} × ${m.height} px`)),
+  ];
+  if (S.useCustom) parts.push(h("button", { onclick: () => { S.useCustom = false; S.lastGood = null; render(); }, title: "Back to the monitor chosen in the list" }, "Reset size"));
+  parts.push(h("span", {}, "Margin ",
+    h("button", { onclick: () => setMargin(margin - 1), title: "Smaller gap" }, "−"), " ", input, " ",
+    h("button", { onclick: () => setMargin(margin + 1), title: "Larger gap" }, "+"), " px"));
+  parts.push(h("div", { id: "screen-tip" },
+    S.sel.kind === "pane" || S.sel.kind === "split"
+      ? "Tip: click outside the monitor to unselect and see the command lines."
+      : "Tip: click a pane to edit it; drag a pane onto another to swap them."));
+  $("#screenbar").replaceChildren(...parts);
+}
+
+// Drag a pane onto another to swap their contents; a short click selects it.
+function startPaneDrag(e, leaf) {
+  e.preventDefault();
+  e.stopPropagation();
+  const startX = e.clientX, startY = e.clientY;
+  let dragging = false, target = null, ghost = null;
+  const source = () => document.querySelector(`.pane[data-id="${leaf.id}"]`);
+  const box = e.currentTarget.getBoundingClientRect();
+  // While moving, the copy is at most 240x150 and held by its middle; over a
+  // target it takes that pane's place, showing where the contents will land.
+  const gw = Math.min(box.width, 240), gh = Math.min(box.height, 150);
+  const onMove = (ev) => {
+    if (!dragging && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 6) return;
+    if (!dragging) {
+      // A copy of the pane follows the pointer, so the move is visible.
+      const el = source();
+      ghost = h("div", { class: `drag-ghost${el && el.classList.contains("empty") ? " empty" : ""}`, id: "drag-ghost" },
+        h("div", { class: "label" }, el ? el.querySelector(".label").textContent : ""),
+        h("div", { class: "ghost-hint" }, "drop on another pane to swap"));
+      document.body.append(ghost);
+    }
+    dragging = true;
+    source()?.classList.add("drag-source");
+    document.body.style.cursor = "grabbing";
+    const place = (x, y, w, hh) => Object.assign(ghost.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${hh}px` });
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    const pane = under ? under.closest(".pane") : null;
+    const id = pane && pane.dataset.id !== leaf.id ? pane.dataset.id : null;
+    if (id !== target) {
+      document.querySelectorAll(".pane.drop-target").forEach((p) => p.classList.remove("drop-target"));
+      target = id;
+      if (pane && id) pane.classList.add("drop-target");
+    }
+    ghost.querySelector(".ghost-hint").textContent = pane && id ? "release to swap here" : "drop on another pane to swap";
+    if (pane && id) {
+      const r = pane.getBoundingClientRect();
+      place(r.left, r.top, r.width, r.height);
+    } else {
+      place(ev.clientX - gw / 2, ev.clientY - gh / 2, gw, gh);
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    document.body.style.cursor = "";
+    if (ghost) ghost.remove();
+    if (dragging && target) {
+      swapPanes(leaf.path, pathOf(target));
+      return;
+    }
+    S.sel = { kind: "pane", path: leaf.path };
+    render();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+// Drag an edge or corner of the preview to try the layout on another size.
+function startMonitorResize(e, side) {
+  e.preventDefault();
+  e.stopPropagation();
+  const m0 = monitor();
+  const w0 = m0.width, h0 = m0.height;
+  const startX = e.clientX, startY = e.clientY;
+  S.fixedScale = S.view.scale;
+  const tip = h("div", { class: "size-tip" });
+  document.body.append(tip);
+  const onMove = (ev) => {
+    const dx = (ev.clientX - startX) / S.fixedScale, dy = (ev.clientY - startY) / S.fixedScale;
+    let w = w0, hh = h0;
+    if (side.includes("e")) w = w0 + dx;
+    if (side.includes("w")) w = w0 - dx;
+    if (side.includes("s")) hh = h0 + dy;
+    if (side.includes("n")) hh = h0 - dy;
+    if (ev.shiftKey) {
+      const ratio = w0 / h0;
+      if (side.length === 2) { if (Math.abs(w / w0) > Math.abs(hh / h0)) hh = w / ratio; else w = hh * ratio; }
+      else if (side === "e" || side === "w") hh = w / ratio;
+      else w = hh * ratio;
+    }
+    const step = ev.altKey ? 1 : 10;
+    w = clamp(Math.round(w / step) * step, 320, 16384);
+    hh = clamp(Math.round(hh / step) * step, 200, 16384);
+    setCustomSize(w, hh);
+    computeGeometry();
+    renderScreen();
+    tip.textContent = `${w} × ${hh} px`;
+    tip.style.left = `${ev.clientX + 14}px`;
+    tip.style.top = `${ev.clientY + 14}px`;
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    tip.remove();
+    S.fixedScale = null;
+    S.lastGood = null;
+    render();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+function startDrag(e, split, i) {
+  e.preventDefault();
+  e.stopPropagation();
+  const before = snapshot();
+  let moved = false;
+  const startX = e.clientX, startY = e.clientY;
+  const screenRect = $("#screen").getBoundingClientRect();
+  const { scale, m } = S.view;
+  // Shift snaps the line onto the nearest parallel line elsewhere on the
+  // monitor, so the panes on both sides line up and can then be merged.
+  const own = split.bounds[i + 1];
+  const lo = split.bounds[i], hi = split.bounds[i + 2];
+  const edges = [...new Set(S.geo.leaves.flatMap((l) => (split.vertical
+    ? [l.outer.x, l.outer.x + l.outer.width] : [l.outer.y, l.outer.y + l.outer.height])))]
+    .filter((v) => v !== own && v > lo && v < hi);
+  const onMove = (ev) => {
+    if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 3) return;
+    moved = true;
+    let coord = split.vertical ? (ev.clientX - screenRect.left) / scale + m.x : (ev.clientY - screenRect.top) / scale + m.y;
+    let snapped = null;
+    if (ev.shiftKey && edges.length) {
+      const near = edges.map((v) => [Math.abs(v - coord), v]).sort((p, q) => p[0] - q[0])[0];
+      if (near[0] * scale < 60) { snapped = near[1]; coord = snapped; }
+    }
+    moveBoundary(split, i, coord, snapped !== null);
+    computeGeometry();
+    renderScreen();
+    const el = document.querySelector(`[data-split="${split.id}"][data-boundary="${i + 1}"]`);
+    if (el) el.classList.add("dragging");
+    if (snapped !== null) {
+      const pos = (snapped - (split.vertical ? m.x : m.y)) * scale;
+      const guide = h("div", { class: `cut-line ${split.vertical ? "v" : "h"}`, id: "snap-guide",
+        style: split.vertical ? { left: `${pos - 1}px` } : { top: `${pos - 1}px` } });
+      const tip = h("div", { class: "size-tip", style: { position: "absolute", ...(split.vertical ? { left: `${pos + 6}px`, top: "8px" } : { top: `${pos + 6}px`, left: "8px" }) } },
+        `lined up at ${split.vertical ? "x" : "y"} = ${snapped - (split.vertical ? m.x : m.y)} px`);
+      $("#screen").append(guide, tip);
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    if (moved && snapshot() !== before) {
+      S.undo.push(before);
+      S.redo = [];
+      S.dirty = true;
+    }
+    S.sel = { kind: "split", path: split.path, boundary: i };
+    render();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+// ---------------------------------------------------------------- header and footer
+
+function renderHeader() {
+  $("#file").textContent = `${S.fileName}${S.dirty ? " •" : ""}`;
+  $("#file").title = S.server ? BOOT.path || S.fileName : S.fileName;
+  const sel = $("#layout");
+  sel.replaceChildren(...layouts().map((l, i) => h("option", { value: String(i), selected: i === S.layoutIndex }, layoutName(l, i))));
+  $("#delete-layout").disabled = layouts().length < 2;
+  const ms = $("#monitor");
+  ms.replaceChildren(...S.monitors.map((m, i) => h("option", { value: String(i), selected: !S.useCustom && i === S.monitorIndex },
+    m.preset ? m.name : `${m.number}: ${m.name} ${m.width}×${m.height}`)),
+  ...(S.custom ? [h("option", { value: "custom", selected: S.useCustom }, `Custom size: ${S.custom.width}×${S.custom.height}`)] : []));
+  const ws = $("#workspace");
+  const own = pickLayoutKey(lay(), "workspace", null);
+  // Numbers as tilepane uses them: 0 bottom left, along the rows, rows upward.
+  const count = Math.max(S.workspaces || 9, Number.isInteger(own) ? own + 1 : 0);
+  ws.replaceChildren(h("option", { value: "", selected: !Number.isInteger(own) }, "not set (current)"),
+    ...Array.from({ length: count }, (_, i) => h("option", { value: String(i), selected: own === i },
+      `${i}${i === 0 ? " (bottom left)" : ""}${S.workspaces && i >= S.workspaces ? " (not on this machine)" : ""}`)));
+  $("#undo").disabled = !S.undo.length;
+  $("#redo").disabled = !S.redo.length;
+  $("#cut-h").classList.toggle("on", S.cut === "h");
+  $("#cut-v").classList.toggle("on", S.cut === "v");
+  const errors = errorsCount();
+  for (const id of ["#save", "#open-screen"]) {
+    const b = $(id);
+    if (!b) continue;
+    b.disabled = errors > 0;
+    b.title = errors ? `Fix the ${errors} problem(s) listed at the bottom first` : b.dataset.title || "";
+  }
+  if ($("#open-screen")) $("#open-screen").textContent = S.dirty ? "Save and open on screen" : "Open on screen";
+  document.title = `${S.dirty ? "• " : ""}${S.fileName} – tilepane editor`;
+}
+
+function renderFooter() {
+  const f = $("#footer");
+  f.replaceChildren();
+  const all = S.problems.concat(S.serverProblems.map((t) => ({ level: "error", text: t, li: null, id: null })));
+  const errors = all.filter((p) => p.level === "error").length;
+  const warnings = all.length - errors;
+  f.append(h("div", { class: "status" },
+    errors ? `${errors} problem(s) to fix before saving` : "No problems",
+    warnings ? ` · ${warnings} warning(s)` : "",
+    S.status ? ` · ${S.status}` : ""));
+  for (const p of all) {
+    f.append(h("div", {
+      class: `problem ${p.level}`,
+      onclick: () => {
+        if (p.li !== null && p.li !== undefined) S.layoutIndex = p.li;
+        if (p.id) {
+          const path = pathOf(p.id);
+          const isSplitNode = isSplit(nodeAt(path));
+          S.sel = { kind: isSplitNode ? "split" : "pane", path };
+        }
+        render();
+      },
+    }, `${p.level === "error" ? "✖" : "⚠"} ${p.text}`));
+  }
+  if (S.log) f.append(h("pre", {}, S.log));
+}
+
+function render() {
+  if (S.layoutIndex >= layouts().length) S.layoutIndex = 0;
+  if ((S.sel.kind === "pane" || S.sel.kind === "split") && !pathValid(S.sel.path)) S.sel = { kind: "layout" };
+  computeGeometry();
+  S.problems = validate();
+  renderHeader();
+  renderScreen();
+  renderInspector();
+  renderFooter();
+}
+
+function pathValid(path) {
+  let n = rootNode();
+  for (const i of path) {
+    if (!isSplit(n)) return false;
+    if (has(n, "children") && (!Array.isArray(n.children) || i >= n.children.length)) return false;
+    if (!has(n, "children") && i > 1) return false;
+    n = childOf(n, i) || {};
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------- layouts
+
+function ensureMulti() {
+  if (multi()) return;
+  const top = {}, l = {};
+  for (const [k, v] of Object.entries(S.doc)) (FILE_KEYS.has(k) ? top : l)[k] = v;
+  const named = { name: has(l, "name") ? l.name : stem(S.fileName), ...l };
+  top.layouts = [named];
+  S.doc = top;
+}
+
+function uniqueName(base) {
+  const names = new Set(layouts().map((l, i) => layoutName(l, i)));
+  if (!names.has(base)) return base;
+  for (let i = 2; ; i++) if (!names.has(`${base}-${i}`)) return `${base}-${i}`;
+}
+
+function newLayout() {
+  change(() => {
+    ensureMulti();
+    S.doc.layouts.push({ name: uniqueName("layout"), split: {} });
+    S.layoutIndex = S.doc.layouts.length - 1;
+    S.sel = { kind: "layout" };
+  });
+}
+
+function copyLayout() {
+  change(() => {
+    const name = layoutName(lay(), S.layoutIndex);
+    ensureMulti();
+    const copy = JSON.parse(JSON.stringify(S.doc.layouts[S.layoutIndex]));
+    copy.name = uniqueName(`${name}-copy`);
+    S.doc.layouts.splice(S.layoutIndex + 1, 0, copy);
+    S.layoutIndex += 1;
+    S.sel = { kind: "layout" };
+  });
+}
+
+function deleteLayout() {
+  if (layouts().length < 2) return;
+  if (!confirm(`Delete layout '${layoutName(lay(), S.layoutIndex)}'?`)) return;
+  change(() => {
+    S.doc.layouts.splice(S.layoutIndex, 1);
+    S.layoutIndex = Math.max(0, S.layoutIndex - 1);
+    S.sel = { kind: "layout" };
+  });
+}
+
+// ---------------------------------------------------------------- files
+
+function docText() { return JSON.stringify(S.doc, null, 2) + "\n"; }
+
+function load(text, name) {
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch (e) {
+    alert(`${name} is not valid JSON: ${e.message}`);
+    return false;
+  }
+  if (!isObj(doc)) { alert(`${name} does not contain a JSON object`); return false; }
+  S.doc = doc;
+  S.fileName = name;
+  S.layoutIndex = 0;
+  S.sel = { kind: "layout" };
+  S.undo = []; S.redo = []; S.dirty = false; S.serverProblems = []; S.lastGood = null;
+  render();
+  return true;
+}
+
+async function api(path, body) {
+  const init = { method: body === undefined ? "GET" : "POST", headers: { "X-Tilepane-Token": S.token } };
+  if (body !== undefined) { init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(body); }
+  const r = await fetch(path, init);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const err = new Error(data.error || `${r.status} ${r.statusText}`);
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+async function save() {
+  render();
+  if (errorsCount()) { S.status = "not saved: fix the problems first"; render(); return false; }
+  const text = docText();
+  if (S.server) {
+    if (S.badDisk && !confirm("The file on disk is not valid JSON. Replace it with this layout?")) return false;
+    try {
+      const res = await api("/api/save", { text });
+      S.serverProblems = [];
+      S.badDisk = false;
+      S.dirty = false;
+      S.status = `saved ${new Date().toLocaleTimeString()}` + (res.warnings && res.warnings.length ? ` (${res.warnings.length} warning(s))` : "");
+      render();
+      return true;
+    } catch (e) {
+      S.serverProblems = (e.data && e.data.errors) || [e.message];
+      S.status = "not saved";
+      render();
+      return false;
+    }
+  }
+  try {
+    if (S.fileHandle) {
+      const w = await S.fileHandle.createWritable();
+      await w.write(text);
+      await w.close();
+    } else if (window.showSaveFilePicker) {
+      S.fileHandle = await window.showSaveFilePicker({ suggestedName: S.fileName, types: [{ description: "tilepane layout", accept: { "application/json": [".json"] } }] });
+      S.fileName = S.fileHandle.name;
+      const w = await S.fileHandle.createWritable();
+      await w.write(text);
+      await w.close();
+    } else {
+      const a = h("a", { href: URL.createObjectURL(new Blob([text], { type: "application/json" })), download: S.fileName });
+      document.body.append(a);
+      a.click();
+      a.remove();
+    }
+  } catch (e) {
+    if (e.name === "AbortError") return false;
+    S.status = `not saved: ${e.message}`;
+    render();
+    return false;
+  }
+  S.dirty = false;
+  S.status = `saved ${new Date().toLocaleTimeString()}`;
+  render();
+  return true;
+}
+
+async function openFile() {
+  if (S.dirty && !confirm("Discard the unsaved changes?")) return;
+  if (window.showOpenFilePicker) {
+    try {
+      const [handle] = await window.showOpenFilePicker({ types: [{ description: "tilepane layout", accept: { "application/json": [".json"] } }] });
+      const file = await handle.getFile();
+      if (load(await file.text(), file.name)) S.fileHandle = handle;
+    } catch (e) { if (e.name !== "AbortError") alert(e.message); }
+    return;
+  }
+  const input = h("input", { type: "file", accept: ".json,application/json" });
+  input.addEventListener("change", async () => {
+    const file = input.files[0];
+    if (file && load(await file.text(), file.name)) S.fileHandle = null;
+  });
+  input.click();
+}
+
+function newFile() {
+  if (S.dirty && !confirm("Discard the unsaved changes?")) return;
+  S.fileHandle = null;
+  load(JSON.stringify(newDoc()), "my-layout.json");
+}
+
+async function onScreen(action) {
+  if (action === "open" && S.dirty && !(await save())) return;
+  const m = monitor();
+  S.status = action === "open" ? "opening windows…" : "closing windows…";
+  renderFooter();
+  try {
+    const res = await api(`/api/${action}`, { layout: layoutName(lay(), S.layoutIndex), monitor: m.number });
+    S.log = (res.output || "").trim();
+    S.status = res.code === 0 ? (action === "open" ? "opened on screen" : "closed") : `tilepane exited with status ${res.code}`;
+  } catch (e) {
+    S.log = "";
+    S.status = e.message;
+  }
+  renderFooter();
+}
+
+// ---------------------------------------------------------------- start
+
+function wire() {
+  $("#layout").addEventListener("change", (e) => { S.layoutIndex = Number(e.target.value); S.sel = { kind: "layout" }; S.lastGood = null; render(); });
+  $("#monitor").addEventListener("change", (e) => {
+    if (e.target.value === "custom") S.useCustom = true;
+    else { S.monitorIndex = Number(e.target.value); S.useCustom = false; }
+    S.lastGood = null;
+    render();
+  });
+  $("#commands").addEventListener("click", openCommands);
+  $("#cut-h").addEventListener("click", () => setCutMode("h"));
+  $("#cut-v").addEventListener("click", () => setCutMode("v"));
+  $("#workspace").addEventListener("change", (e) => change(() => {
+    const l = lay();
+    if (e.target.value === "") delete l.workspace;
+    else setInherited(l, "workspace", Number(e.target.value));
+  }));
+  $("#new-layout").addEventListener("click", newLayout);
+  $("#copy-layout").addEventListener("click", copyLayout);
+  $("#delete-layout").addEventListener("click", deleteLayout);
+  $("#undo").addEventListener("click", undo);
+  $("#redo").addEventListener("click", redo);
+  $("#save").addEventListener("click", save);
+  // A click on the monitor between panes, or anywhere outside it, clears the selection.
+  $("#screen").addEventListener("pointerdown", () => { S.sel = { kind: "layout" }; render(); });
+  $("#stage").addEventListener("pointerdown", (e) => {
+    if (e.target.closest("#screen") || e.target.closest("#screenbar")) return;
+    S.sel = { kind: "layout" };
+    render();
+  });
+  if (S.server) {
+    $("#new-file").remove();
+    $("#open-file").remove();
+    $("#open-screen").addEventListener("click", () => onScreen("open"));
+    $("#close-screen").addEventListener("click", () => onScreen("close"));
+  } else {
+    $("#open-screen").remove();
+    $("#close-screen").remove();
+    $("#new-file").addEventListener("click", newFile);
+    $("#open-file").addEventListener("click", openFile);
+  }
+  window.addEventListener("resize", () => renderScreen());
+  window.addEventListener("keydown", (e) => {
+    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
+    if (typing) return;
+    if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && S.sel.kind === "pane") { e.preventDefault(); removePane(S.sel.path); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && S.sel.kind === "split") { e.preventDefault(); deleteLine(S.sel.path, S.sel.boundary); }
+    else if (e.key === "Escape") { S.cut = null; S.sel = { kind: "layout" }; render(); }
+    else if (!mod && (e.key === "h" || e.key === "H")) setCutMode("h");
+    else if (!mod && (e.key === "v" || e.key === "V")) setCutMode("v");
+  });
+  window.addEventListener("beforeunload", (e) => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
+}
+
+function restoreCustomSize() {
+  const c = recall("custom");
+  if (c && Number.isInteger(c.width) && Number.isInteger(c.height) && c.width >= 320 && c.height >= 200) {
+    setCustomSize(c.width, c.height);
+    S.useCustom = false;
+  }
+}
+
+async function start() {
+  const style = recall("monitorStyle");
+  if (style === "name" || style === "number") S.monitorStyle = style;
+  wire();
+  if (!S.server) {
+    restoreCustomSize();
+    load(JSON.stringify(newDoc()), "my-layout.json");
+    return;
+  }
+  try {
+    const st = await api("/api/state");
+    S.monitors = st.monitors.length ? st.monitors : PRESETS;
+    restoreCustomSize();
+    S.fileName = st.name;
+    BOOT.path = st.path;
+    BOOT.home = st.home;
+    S.workspaces = Number.isInteger(st.workspaces) ? st.workspaces : null;
+    let doc = null;
+    if (st.text !== null) {
+      try { doc = JSON.parse(st.text); } catch (e) {
+        S.badDisk = true;
+        document.body.prepend(h("div", { class: "banner" }, `${st.name} is not valid JSON (${e.message}). Saving will replace it.`));
+      }
+    }
+    S.doc = isObj(doc) ? doc : newDoc();
+    S.dirty = st.text === null;
+    if (st.text === null) S.status = "new file: it is written when you save";
+    render();
+  } catch (e) {
+    document.body.prepend(h("div", { class: "banner" }, `Cannot reach tilepane: ${e.message}`));
+    load(JSON.stringify(newDoc()), "my-layout.json");
+  }
+  setInterval(() => api("/api/ping", {}).catch(() => {}), 10000);
+  window.addEventListener("pagehide", () => navigator.sendBeacon(`/api/bye?t=${encodeURIComponent(S.token)}`, ""));
+}
+
+start();
+</script>
+</body>
+</html>

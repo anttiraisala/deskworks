@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anttiraisala/tilepane/master/src/tilepane/tilepane.schema.json",
+  "version": 1,
+  "description": "System meters: htop on the left, sensors and GPU on the right.",
+  "name": "meters",
+  "margin": 8,
+  "outer_margin": 16,
+  "split": {
+    "dir": "columns",
+    "at": "60%",
+    "a": { "run": "htop", "title": "htop", "id": "htop" },
+    "b": {
+      "dir": "rows",
+      "at": "300px",
+      "a": { "run": "watch -n1 sensors", "when": "command -v sensors" },
+      "b": { "run": "nvidia-smi -l 1", "on_exit": "restart", "when": "command -v nvidia-smi" }
+    }
+  }
+}
