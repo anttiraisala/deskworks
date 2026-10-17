@@ -102,7 +102,7 @@ Valmiina ja testattuna:
 - geometria, asetusten luku ja tarkistus, `--dry-run`
 - ikkunoiden avaus X11:ssä gnome-terminalilla ja xtermillä, tarkka sijoitus
 - ikkunoiden muistaminen, `--close`, `--toggle`, uudelleenavaus, työtilat
-  (myös Compizin työtilat; niitä ei ole vielä kokeiltu oikealla Compizilla)
+  (myös Compizin työtilat)
 - `snap` (merkkiruudukko tai tarkka pikselikoko), ikkunareunuksen poisto
 - `--demo` ja `--for` (ikkunat sulkeutuvat annetun ajan jälkeen)
 - komentotulkin valinta ruutukohtaisesti
@@ -112,8 +112,8 @@ Valmiina ja testattuna:
   työpöydän valinta, komentorivit
   kopioitavina, yhteiset asetukset siirtyvät automaattisesti puussa ylös
 
-Testattu omistajan koneella (Linux Mint, Cinnamon): työtilat vanhalla
-numeroinnilla; Ubuntu/Compiz-koneella: `--workspaces` näyttää 2x2-ruudukon. Kehitysympäristössä
+Testattu omistajan koneilla: työtilat ja niiden numerointi (`--identify`)
+Linux Mintissä (Cinnamon) ja Ubuntussa (Unity/Compiz, 2x2 työtilaa, 4 monitoria). Kehitysympäristössä
 testattu virtuaalinäytöllä (Xvfb, Openbox, xterm): demo, työtilat, editorin
 "Open on screen".
 

@@ -190,3 +190,6 @@ Implemented:
 ### 2026-10-17: verified on Compiz; merged into master
 - The owner ran `tilepane --identify` on LENOVO (Ubuntu Unity / Compiz, 2 x 2 viewports, 4 monitors): every window was on the workspace and monitor its text named. Compiz viewports as workspaces and the numbering from the bottom left are verified live there. Cinnamon with the new numbering is still to be run.
 - At the owner's request, `claude-personal` was merged into `master` (fast-forward). Deleting the branch on GitHub was refused to this session (HTTP 403 from the git proxy), so the owner deletes it in the GitHub web page. Before this, the owner had decided to keep `master` as it was; development now continues on branches made from `master`.
+
+### 2026-10-17: verified on Cinnamon
+- The owner ran `tilepane --identify` on Linux Mint (Cinnamon): it works there too, so the numbering from the bottom left is verified live on both of the owner's machines (Cinnamon and Unity/Compiz).
