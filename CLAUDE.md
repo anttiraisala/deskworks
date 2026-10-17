@@ -20,7 +20,7 @@ first (Wayland backends are planned, not built). Public, GPL-3.0.
   the other documentation. A file that says at its top that the maintainer
   approved another language is such an exception.
 - Branches: `master` holds the approved work (the earlier development branch
-  `claude-personal` was merged into it and deleted on 2026-10-17). Develop on a
+  `claude-personal` was merged into it on 2026-10-17 and is to be deleted). Develop on a
   branch made from `master`; merge into `master` only when the owner approves.
 - The owner runs Linux Mint (Cinnamon, X11) and tests changes there. Say clearly
   what was verified live and what was not.
