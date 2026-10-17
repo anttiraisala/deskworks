@@ -24,6 +24,24 @@ class Desktops:
     layout: Optional[list[int]] = None       # raw _NET_DESKTOP_LAYOUT
     geometry: Optional[list[int]] = None     # _NET_DESKTOP_GEOMETRY (Compiz viewports)
     screen: Optional[tuple[int, int]] = None
+    viewport: Optional[tuple[int, int]] = None   # _NET_DESKTOP_VIEWPORT of the current desktop
+
+
+def viewport_grid(d: Desktops) -> Optional[tuple[int, int, Optional[tuple[int, int]]]]:
+    """(columns, rows, current cell as (column, row from the top)) when the
+    desktop is a large area shown one screen at a time (Compiz), else None."""
+    if not d.geometry or not d.screen or len(d.geometry) < 2:
+        return None
+    sw, sh = d.screen
+    if sw <= 0 or sh <= 0:
+        return None
+    cols, rows = round(d.geometry[0] / sw), round(d.geometry[1] / sh)
+    if cols * rows <= 1:
+        return None
+    cell = None
+    if d.viewport is not None:
+        cell = (min(cols - 1, max(0, d.viewport[0] // sw)), min(rows - 1, max(0, d.viewport[1] // sh)))
+    return cols, rows, cell
 
 
 def grid(count: int, layout: Optional[list[int]]) -> tuple[list[list[Optional[int]]], str]:
@@ -69,12 +87,13 @@ def proposed_numbers(cells: list[list[Optional[int]]]) -> dict[int, int]:
 
 
 def render(d: Desktops, verbose: bool = False) -> str:
+    vp = viewport_grid(d) if d.count <= 1 else None
+    if vp is not None:
+        return _render_viewports(d, vp, verbose)
     cells, how = grid(d.count, d.layout)
     lines = []
     cur = f" (current: {d.current + 1})" if d.current is not None else ""
     lines.append(f"{d.count} workspace(s){cur}: {how}")
-    if d.count == 1 and d.geometry and d.screen and (d.geometry[0] > d.screen[0] or d.geometry[1] > d.screen[1]):
-        lines.append("  note: one large desktop with viewports (Compiz style); tilepane does not tell viewports apart yet")
     width = max(len(str(d.count)), 1) + 2
 
     def draw(label) -> None:
@@ -103,7 +122,43 @@ def render(d: Desktops, verbose: bool = False) -> str:
     nums = proposed_numbers(cells)
     draw(lambda i: nums[i])
     if verbose:
-        lines.append("")
-        lines.append(f"_NET_DESKTOP_LAYOUT: {d.layout if d.layout else 'not set'}")
-        lines.append(f"_NET_DESKTOP_GEOMETRY: {d.geometry if d.geometry else 'not set'}")
+        lines += _raw(d)
+    return "\n".join(lines)
+
+
+def _raw(d: Desktops) -> list[str]:
+    return ["", f"_NET_NUMBER_OF_DESKTOPS: {d.count}",
+            f"_NET_DESKTOP_LAYOUT: {d.layout if d.layout else 'not set'}",
+            f"_NET_DESKTOP_GEOMETRY: {d.geometry if d.geometry else 'not set'}",
+            f"_NET_DESKTOP_VIEWPORT (current): {list(d.viewport) if d.viewport is not None else 'not set'}",
+            f"screen: {d.screen[0]}x{d.screen[1]}" if d.screen else "screen: unknown"]
+
+
+def _render_viewports(d: Desktops, vp: tuple, verbose: bool) -> str:
+    """Compiz: one desktop, several screen-sized viewports in a grid."""
+    cols, rows, cell = vp
+    sw, sh = d.screen
+    lines = [f"{cols * rows} workspaces as viewports of one large desktop ({cols} x {rows}, "
+             f"each {sw}x{sh}, all monitors in each)" + (f"; you are in column {cell[0] + 1}, "
+             f"row {cell[1] + 1} from the top" if cell else "")]
+    lines.append("  note: tilepane cannot open on or close per viewport yet; --workspace and the")
+    lines.append("  layout's \"workspace\" treat them all as one workspace")
+
+    def draw(label) -> None:
+        width = len(str(cols * rows)) + 2
+        for r in range(rows):
+            out = []
+            for c in range(cols):
+                text = str(label(c, r))
+                out.append((f"[{text}]" if cell == (c, r) else f" {text} ").rjust(width))
+            lines.append("  " + " ".join(out).rstrip())
+
+    lines.append("")
+    lines.append("In the window manager's order (1 = top left, along the rows):")
+    draw(lambda c, r: r * cols + c + 1)
+    lines.append("")
+    lines.append("Proposed numbering (0 bottom left, along the rows, rows upward):")
+    draw(lambda c, r: (rows - 1 - r) * cols + c)
+    if verbose:
+        lines += _raw(d)
     return "\n".join(lines)

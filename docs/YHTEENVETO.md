@@ -118,7 +118,9 @@ Puuttuu tai kesken:
 - kitty- ja alacritty-terminaalien valmis tuki
 - `mode: cycle` (komennot vuorottelevat samassa ruudussa)
 - editorin merkkiruudukon esikatselu
-- Compiz/Unityn työtilat (ne toteutetaan siellä eri tavalla)
+- Compiz/Unityn työtilat: `--workspaces` näyttää ne jo ruudukkona, mutta
+  ikkunoita ei vielä osata avata tai sulkea työtilakohtaisesti (Compiz tekee
+  työtilat yhden ison työpöydän osina)
 
 Uusien toimintojen ehdotukset ja suositeltu järjestys ovat SPEC.md:n luvussa 6
 ("Open work and proposals"). Seuraavaksi suositeltu: `--watch` ja lokitiedosto,

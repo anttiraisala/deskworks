@@ -135,7 +135,14 @@ class X11Backend:
         return Desktops(count, self.current_desktop(), names,
                         self._cardinals(self.root, "_NET_DESKTOP_LAYOUT"),
                         self._cardinals(self.root, "_NET_DESKTOP_GEOMETRY"),
-                        (geo.width_in_pixels, geo.height_in_pixels))
+                        (geo.width_in_pixels, geo.height_in_pixels), self._viewport())
+
+    def _viewport(self) -> Optional[tuple[int, int]]:
+        vals = self._cardinals(self.root, "_NET_DESKTOP_VIEWPORT")
+        if not vals or len(vals) < 2:
+            return None
+        i = 2 * (self.current_desktop() or 0)
+        return (vals[i], vals[i + 1]) if len(vals) >= i + 2 else (vals[0], vals[1])
 
     def move_to_desktop(self, window_id: int, desktop: int) -> None:
         from Xlib import error
