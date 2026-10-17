@@ -19,8 +19,9 @@ first (Wayland backends are planned, not built). Public, GPL-3.0.
   for the owner's Claude project). Do not translate it; keep it current like
   the other documentation. A file that says at its top that the maintainer
   approved another language is such an exception.
-- Development branch: `claude-personal` (branched from `master`). Do not merge
-  into or push to `master` until the owner asks; they decided to keep it as is.
+- Branches: `master` holds the approved work (the earlier development branch
+  `claude-personal` was merged into it and deleted on 2026-10-17). Develop on a
+  branch made from `master`; merge into `master` only when the owner approves.
 - The owner runs Linux Mint (Cinnamon, X11) and tests changes there. Say clearly
   what was verified live and what was not.
 - When a design choice is the owner's to make, propose one option with reasons
@@ -118,4 +119,4 @@ last) is a log file too; when unsure, ask before changing old entries.
   test count) and the status table is updated.
 - Decisions that change behaviour go into SPEC.md (for the editor, see "As
   built" in section 5); user-facing changes go into README.md.
-- Commit in small, described steps and push to `claude-personal`.
+- Commit in small, described steps and push to the development branch.

@@ -129,8 +129,8 @@ Uusien toimintojen ehdotukset ja suositeltu järjestys ovat SPEC.md:n luvussa 6
 ("Open work and proposals"). Seuraavaksi suositeltu: `--watch` ja lokitiedosto,
 sitten `--install-autostart` ja `--install-shortcut`, sitten `--dry-run --ascii`.
 
-Kehitys tehdään haarassa `claude-personal`; `master` pidetään ennallaan, kunnes
-omistaja päättää yhdistää.
+Hyväksytty työ on `master`-haarassa. Kehitys tehdään masterista tehdyssä
+haarassa, ja se yhdistetään masteriin, kun omistaja hyväksyy.
 
 ## Tarkemmat tiedot repossa
 
