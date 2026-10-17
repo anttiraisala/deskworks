@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Changed: workspace numbering.** Workspaces in `exclude` rules and in `--list-targets` are now numbered from the bottom left corner, left to right along each row and then row by row upwards, like in the other deskworks tools (before: reading order from the top left). The grid position `"x,y"` counts `y` from the bottom: `"0,0"` is the bottom-left workspace (before: the top-left one). On a 2 x 2 grid the old numbers 0, 1, 2, 3 (top row, then bottom row) are now 2, 3, 0, 1. Existing `exclude` rules that name a workspace must be updated; run `cascade-windows --list-targets` to see the numbers.
 - The `Rect` type now comes from the shared `deskmap` library, which `install.sh` copies next to the program. Install from a full clone of the deskworks repository.
 - Excluding monitors and workspaces: the `exclude` setting lists rules (`monitor` and/or `workspace`) for places the cascade leaves alone. Monitors are given by name or number, workspaces by number or by grid position `x,y`, numbered left to right and top to bottom from 0.
 - `--list-targets` prints the workspace numbers and positions and the monitor names and numbers; `--diagnose` includes the same and warns about rules that match nothing.

@@ -100,8 +100,9 @@ and the other monitors are cascaded as usual.
 - Both: only that monitor on that workspace. A rule matches when all its keys match, and a monitor is left
   alone when any rule matches. A value can be one item or a list.
 - A **monitor** is its name (not case sensitive) or its number, a **workspace** is its number or its grid
-  position `"x,y"`. Workspaces are numbered left to right and then top to bottom, starting from 0, so `0,0`
-  is the top-left workspace and, in a 2 x 2 grid, number 2 is the same as `0,1`.
+  position `"x,y"`. Workspaces are numbered from the bottom left corner, left to right along each row and then
+  row by row upwards, starting from 0 (the same numbering as in the other deskworks tools), so `0,0` is the
+  bottom-left workspace and, in a 2 x 2 grid, number 2 is the same as `0,1`, the top-left one.
 - `cascade-windows --list-targets` prints the numbers, positions and names to use (and warns about rules that
   match nothing right now; a monitor may simply be unplugged).
 - When you start a cascade on an excluded monitor and nothing happens, a short notification explains why

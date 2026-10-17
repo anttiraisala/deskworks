@@ -79,10 +79,11 @@ An empty rule, an unknown key or a wrong kind of value stops the command with a 
 
 - A **monitor** is its name, compared without regard to case (for example `"HDMI-1"` on X11), or its number
   (index) as `cascade-windows --list-targets` prints it. On GNOME the names are `Monitor 0`, `Monitor 1`, ...
-- A **workspace** is its number or its grid position `"x,y"` (a string). Workspaces are numbered in reading
-  order, left to right and then top to bottom, starting from 0; `"0,0"` is the top-left workspace. In a 2 x 2
-  grid the numbers are 0 and 1 on the first row and 2 and 3 on the second (`"0,1"` is number 2). A single row
-  of workspaces has positions `"0,0"`, `"1,0"`, `"2,0"`, ... A single column has `"0,0"`, `"0,1"`, ...
+- A **workspace** is its number or its grid position `"x,y"` (a string). Workspaces are numbered from the
+  bottom left corner, left to right along each row and then row by row upwards, starting from 0; `"0,0"` is the
+  bottom-left workspace. In a 2 x 2 grid the numbers are 0 and 1 on the bottom row and 2 and 3 on the top row
+  (`"0,1"` is number 2). A single row of workspaces has positions `"0,0"`, `"1,0"`, `"2,0"`, ... A single column
+  has `"0,0"` at the bottom and `"0,1"`, `"0,2"`, ... above it.
 - A rule that matches nothing right now (an unplugged monitor, a workspace that does not exist) is ignored;
   `--list-targets` and `--diagnose` warn about it.
 

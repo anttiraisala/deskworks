@@ -1,8 +1,9 @@
 """Excluding monitors and workspaces from the cascade. Pure logic, no window system access.
 
 A rule names monitors and/or workspaces. A monitor is given by its name or its index, a workspace by its
-index or its grid position "x,y". Workspaces are numbered in reading order: left to right, then top to
-bottom, starting from 0, so ``0,0`` is the top-left workspace. A rule with only ``monitor`` excludes
+number or its grid position "x,y". Workspaces are numbered like in every deskworks tool: from the bottom
+left corner, left to right along each row and then row by row upwards, starting from 0, so ``0,0`` is the
+bottom-left workspace. A rule with only ``monitor`` excludes
 those monitors on every workspace, a rule with only ``workspace`` excludes every monitor of those
 workspaces, and a rule with both excludes only that combination.
 """
@@ -12,6 +13,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from typing import Any, List, Optional, Sequence, Tuple, Union
+
+from deskmap.workspaces import user_numbers
 
 from .model import Monitor
 
@@ -33,7 +36,8 @@ class ExcludeRule:
 
 @dataclass(frozen=True)
 class WorkspaceGrid:
-    """The workspaces in the order the backend lists them, laid out ``columns`` per row."""
+    """The workspaces in the order the backend lists them (reading order, top left first), laid out
+    ``columns`` per row. People number them from the bottom left, row by row upwards (``number``)."""
 
     keys: Tuple[str, ...]
     columns: int
@@ -49,24 +53,43 @@ class WorkspaceGrid:
     def rows(self) -> int:
         return max(1, -(-len(self.keys) // self.columns))
 
+    def _cells(self) -> List[List[Optional[int]]]:
+        """Rows from the top; each cell holds the backend index of its workspace or None."""
+        total = len(self.keys)
+        return [
+            [r * self.columns + c if r * self.columns + c < total else None for c in range(self.columns)]
+            for r in range(self.rows)
+        ]
+
     def index_of(self, key: str) -> Optional[int]:
         try:
             return self.keys.index(key)
         except ValueError:
             return None
 
+    def number(self, index: int) -> int:
+        """The number people use for the workspace at this backend index."""
+        return user_numbers(self._cells())[index]
+
+    def index_of_number(self, number: int) -> Optional[int]:
+        for index, value in user_numbers(self._cells()).items():
+            if value == number:
+                return index
+        return None
+
     def position(self, index: int) -> Tuple[int, int]:
-        return index % self.columns, index // self.columns
+        """(column from the left, row from the bottom) of the workspace at this backend index."""
+        return index % self.columns, self.rows - 1 - index // self.columns
 
     def index_at(self, x: int, y: int) -> Optional[int]:
-        if not 0 <= x < self.columns or y < 0:
+        if not 0 <= x < self.columns or not 0 <= y < self.rows:
             return None
-        index = y * self.columns + x
+        index = (self.rows - 1 - y) * self.columns + x
         return index if index < len(self.keys) else None
 
     def label(self, index: int) -> str:
         x, y = self.position(index)
-        return "%d (%d,%d)" % (index, x, y)
+        return "%d (%d,%d)" % (self.number(index), x, y)
 
 
 # ---------------------------------------------------------------------------------- parsing
@@ -155,7 +178,7 @@ def _monitor_matches(ref: MonitorRef, monitor: Monitor) -> bool:
 
 def _workspace_matches(ref: WorkspaceRef, index: int, grid: WorkspaceGrid) -> bool:
     if isinstance(ref, int):
-        return index == ref
+        return grid.number(index) == ref
     return grid.position(index) == ref
 
 
@@ -178,9 +201,10 @@ def is_excluded(rules: Sequence[ExcludeRule], monitor: Monitor, workspace: str, 
 def describe_targets(monitors: Sequence[Monitor], grid: WorkspaceGrid, current: str) -> List[str]:
     """The numbers and names to use in 'exclude' rules, one per line."""
     lines = ["workspaces (%d column(s), %d row(s)); use the number or the position x,y:" % (grid.columns, grid.rows)]
-    for index, key in enumerate(grid.keys):
+    ordered = sorted(range(len(grid.keys)), key=grid.number)
+    for index in ordered:
         x, y = grid.position(index)
-        lines.append("  %d  %d,%d%s" % (index, x, y, "  (current)" if key == current else ""))
+        lines.append("  %d  %d,%d%s" % (grid.number(index), x, y, "  (current)" if grid.keys[index] == current else ""))
     lines.append("monitors; use the number or the name:")
     for monitor in monitors:
         lines.append("  %d  %s  %s" % (monitor.index, monitor.name, monitor.rect))
@@ -195,8 +219,8 @@ def unmatched_references(rules: Sequence[ExcludeRule], monitors: Sequence[Monito
             if not any(_monitor_matches(ref, m) for m in monitors):
                 messages.append("exclude[%d]: no monitor matches %r at the moment" % (number, ref))
         for ref in rule.workspaces or ():
-            index = ref if isinstance(ref, int) else grid.index_at(*ref)
-            if index is None or index >= len(grid.keys):
+            index = grid.index_of_number(ref) if isinstance(ref, int) else grid.index_at(*ref)
+            if index is None:
                 shown = ref if isinstance(ref, int) else "%d,%d" % ref
                 messages.append("exclude[%d]: no workspace matches %s at the moment" % (number, shown))
     return messages

@@ -24,16 +24,29 @@ from tests.fake_backend import FakeBackend, make_monitor, make_window
 
 LEFT = make_monitor(0, 0, 0, 1920, 1080, name="HDMI-1")
 RIGHT = make_monitor(1, 1920, 0, 1920, 1080, name="eDP-1")
-GRID = WorkspaceGrid.create(["0", "1", "2", "3"], 2)  # 2 columns, 2 rows
+# 2 columns, 2 rows; the backend lists them in reading order, so key "0" is the top-left workspace
+# (number 2) and key "2" the bottom-left one (number 0):
+#     2 3        keys 0 1
+#     0 1        keys 2 3
+GRID = WorkspaceGrid.create(["0", "1", "2", "3"], 2)
 
 
 class GridTest(unittest.TestCase):
-    def test_workspaces_are_numbered_in_reading_order(self):
-        self.assertEqual([GRID.position(i) for i in range(4)], [(0, 0), (1, 0), (0, 1), (1, 1)])
-        self.assertEqual(GRID.index_at(1, 1), 3)
-        self.assertEqual(GRID.index_at(0, 1), 2)
+    def test_workspaces_are_numbered_from_the_bottom_left(self):
+        self.assertEqual([GRID.number(i) for i in range(4)], [2, 3, 0, 1])
+        self.assertEqual([GRID.index_of_number(n) for n in range(4)], [2, 3, 0, 1])
+        self.assertEqual([GRID.position(i) for i in range(4)], [(0, 1), (1, 1), (0, 0), (1, 0)])
+        self.assertEqual(GRID.index_at(1, 1), 1)
+        self.assertEqual(GRID.index_at(0, 1), 0)
+        self.assertEqual(GRID.index_at(1, 0), 3)
         self.assertIsNone(GRID.index_at(2, 0))
         self.assertIsNone(GRID.index_at(0, 2))
+        self.assertIsNone(GRID.index_of_number(4))
+
+    def test_a_short_last_row_is_the_bottom_row(self):
+        grid = WorkspaceGrid.create(["0", "1", "2", "3", "4"], 3)    # keys 0 1 2 / 3 4
+        self.assertEqual([grid.number(i) for i in range(5)], [2, 3, 4, 0, 1])
+        self.assertIsNone(grid.index_at(2, 0))
 
     def test_unknown_columns_mean_one_row(self):
         grid = WorkspaceGrid.create(["0", "1", "2"])
@@ -42,10 +55,11 @@ class GridTest(unittest.TestCase):
 
     def test_a_single_column(self):
         grid = WorkspaceGrid.create(["0", "1", "2"], 1)
-        self.assertEqual(grid.position(2), (0, 2))
+        self.assertEqual(grid.position(2), (0, 0))
+        self.assertEqual([grid.number(i) for i in range(3)], [2, 1, 0])
 
     def test_labels(self):
-        self.assertEqual(GRID.label(2), "2 (0,1)")
+        self.assertEqual(GRID.label(2), "0 (0,0)")
 
 
 class ParseTest(unittest.TestCase):
@@ -98,26 +112,26 @@ class MatchTest(unittest.TestCase):
         self.assertFalse(self.excluded([{"monitor": 1}], LEFT, "0"))
 
     def test_workspace_alone_applies_to_every_monitor(self):
-        self.assertTrue(self.excluded([{"workspace": 2}], LEFT, "2"))
-        self.assertTrue(self.excluded([{"workspace": 2}], RIGHT, "2"))
+        self.assertTrue(self.excluded([{"workspace": 2}], LEFT, "0"))
+        self.assertTrue(self.excluded([{"workspace": 2}], RIGHT, "0"))
         self.assertFalse(self.excluded([{"workspace": 2}], LEFT, "1"))
 
     def test_workspace_by_position(self):
-        self.assertTrue(self.excluded([{"workspace": "0,1"}], LEFT, "2"))
+        self.assertTrue(self.excluded([{"workspace": "0,1"}], LEFT, "0"))
         self.assertFalse(self.excluded([{"workspace": "0,1"}], LEFT, "1"))
         self.assertFalse(self.excluded([{"workspace": "1,0"}], LEFT, "2"))
 
     def test_both_keys_exclude_only_the_combination(self):
         rules = [{"workspace": "1,0", "monitor": "HDMI-1"}]
-        self.assertTrue(self.excluded(rules, LEFT, "1"))
-        self.assertFalse(self.excluded(rules, RIGHT, "1"))
+        self.assertTrue(self.excluded(rules, LEFT, "3"))
+        self.assertFalse(self.excluded(rules, RIGHT, "3"))
         self.assertFalse(self.excluded(rules, LEFT, "0"))
 
     def test_any_rule_may_match(self):
         rules = [{"monitor": 0}, {"workspace": 3}]
         self.assertTrue(self.excluded(rules, LEFT, "1"))
-        self.assertTrue(self.excluded(rules, RIGHT, "3"))
-        self.assertFalse(self.excluded(rules, RIGHT, "1"))
+        self.assertTrue(self.excluded(rules, RIGHT, "1"))
+        self.assertFalse(self.excluded(rules, RIGHT, "3"))
 
     def test_unknown_workspace_key_matches_no_workspace_rule(self):
         self.assertFalse(self.excluded([{"workspace": 0}], LEFT, "elsewhere"))
@@ -128,8 +142,8 @@ class ReportTest(unittest.TestCase):
         lines = describe_targets([LEFT, RIGHT], GRID, "1")
         text = "\n".join(lines)
         self.assertIn("2 column(s), 2 row(s)", text)
-        self.assertIn("  1  1,0  (current)", text)
-        self.assertIn("  2  0,1", text)
+        self.assertIn("  3  1,1  (current)", text)
+        self.assertIn("  0  0,0", text)
         self.assertIn("  0  HDMI-1", text)
         self.assertIn("  1  eDP-1", text)
 
@@ -170,12 +184,12 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(result.excluded_windows, 1)
 
     def test_all_scope_applies_the_rules_per_workspace(self):
-        result = plan(self.windows, [{"monitor": "HDMI-1", "workspace": 1}], scope=SCOPE_ALL)
+        result = plan(self.windows, [{"monitor": "HDMI-1", "workspace": 3}], scope=SCOPE_ALL)
         self.assertEqual(moved(result), [1, 2, 4])
         self.assertEqual(result.excluded_windows, 1)
 
     def test_an_excluded_workspace_skips_every_monitor(self):
-        result = plan(self.windows, [{"workspace": "1,0"}], scope=SCOPE_ALL)
+        result = plan(self.windows, [{"workspace": "1,1"}], scope=SCOPE_ALL)
         self.assertEqual(moved(result), [1, 2])
         self.assertEqual(result.excluded_windows, 2)
 
@@ -195,7 +209,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(result.excluded_windows, 0)
 
     def test_describe_mentions_the_exclusions(self):
-        text = "\n".join(plan(self.windows, [{"workspace": 0}]).describe())
+        text = "\n".join(plan(self.windows, [{"workspace": 2}]).describe())
         self.assertIn("2 window(s) left alone", text)
 
 
