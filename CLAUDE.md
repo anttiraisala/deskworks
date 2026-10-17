@@ -43,8 +43,9 @@ files, documentation, commit messages and branch names.
 
 ```
 ./scripts/test-all.sh                                   # all projects
-cd tilepane && PYTHONPATH=src:. python3 -m unittest discover -s tests -t .
-cd cascade-windows && python3 -m unittest discover -s tests
+cd tilepane && PYTHONPATH=src:.:../deskmap/src python3 -m unittest discover -s tests -t .
+cd cascade-windows && python3 -m unittest discover -s tests -t .
+cd deskmap && PYTHONPATH=src:. python3 -m unittest discover -s tests -t .
 ```
 
 Project specific commands (docgen, test vectors, the editor tests, testing real

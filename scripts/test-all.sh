@@ -8,7 +8,7 @@ echo "== tilepane"
 (cd "$root/tilepane" && PYTHONPATH=src:.:../deskmap/src python3 -m unittest discover -s tests -t .) || status=1
 
 echo "== cascade-windows"
-(cd "$root/cascade-windows" && python3 -m unittest discover -s tests) || status=1
+(cd "$root/cascade-windows" && python3 -m unittest discover -s tests -t .) || status=1
 
 if [ -d "$root/deskmap/tests" ]; then
     echo "== deskmap"

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The `Rect` type now comes from the shared `deskmap` library, which `install.sh` copies next to the program. Install from a full clone of the deskworks repository.
 - Excluding monitors and workspaces: the `exclude` setting lists rules (`monitor` and/or `workspace`) for places the cascade leaves alone. Monitors are given by name or number, workspaces by number or by grid position `x,y`, numbered left to right and top to bottom from 0.
 - `--list-targets` prints the workspace numbers and positions and the monitor names and numbers; `--diagnose` includes the same and warns about rules that match nothing.
 - A short notification (and a message in the terminal) tells why nothing happened when the monitor is excluded; `notify.excluded` turns the notification off.

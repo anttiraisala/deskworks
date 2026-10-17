@@ -91,10 +91,16 @@ if [ "$backend" = "x11" ] && ! python3 -c "import Xlib" >/dev/null 2>&1; then
     fi
 fi
 
+deskmap_dir="$source_dir/../deskmap/src/deskmap"
+if [ ! -d "$deskmap_dir" ]; then
+    echo "The deskmap library was not found at $deskmap_dir." >&2
+    echo "cascade-windows is built on it; install from a full clone of the deskworks repository." >&2
+    exit 1
+fi
 echo "Installing to $install_dir"
 rm -rf "$install_dir/lib"
 mkdir -p "$install_dir/lib" "$bin_dir"
-cp -r "$source_dir/cascade_windows" "$install_dir/lib/"
+cp -r "$source_dir/cascade_windows" "$deskmap_dir" "$install_dir/lib/"
 find "$install_dir/lib" -name '__pycache__' -type d -prune -exec rm -rf {} +
 
 cat > "$command_path" <<WRAPPER

@@ -21,7 +21,7 @@ the EWMH protocol.
 ```
 cascade_windows/
   settings.py      load, validate and merge configuration (JSON)
-  model.py         Rect, Monitor, WindowInfo (backend independent)
+  model.py         Monitor, WindowInfo (backend independent); Rect comes from deskmap
   geometry.py      pure layout math: Anchored, Fit, Percent, Fixed, wrap
   regions.py       monitor -> cascade regions (hook for ultrawide/portrait support)
   cascade.py       scopes, grouping, ordering, applying a plan

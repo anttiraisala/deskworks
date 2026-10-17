@@ -7,7 +7,7 @@ the extraction proceeds, and move finished facts into the library's own README.
 
 | Part | Comes from | Notes |
 |---|---|---|
-| `Rect` | `tilepane/src/tilepane/geometry.py` | tilepane's `Rect`; cascade's extra helpers (`intersect`, `contains`, `distance_sq`) are added |
+| `Rect` | `tilepane/src/tilepane/geometry.py` | tilepane's `Rect`; cascade's extra helpers (`intersect`, `contains`, `distance_sq`, `to_list`, `from_list`, `__str__`) were added; both tools use it |
 | Monitor detection and numbering | `tilepane/.../monitors.py` | xrandr, sway, hyprland parsing; aliases stay in tilepane |
 | Work area | `tilepane/.../workarea.py` | `_GTK_WORKAREAS`, struts, `_NET_WORKAREA` |
 | Workspace model and numbering | `tilepane/.../workspaces.py` | the numbering of README.md |
@@ -20,7 +20,7 @@ the extraction proceeds, and move finished facts into the library's own README.
 
 ## Extraction order
 
-State on 2026-10-17: steps 1 and 2 are done and tilepane uses the pure parts and the X11 backend from the library (part of step 3). Window listing for cascade-windows and the later steps are open. See `PROGRESS.md`.
+State on 2026-10-17: steps 1 and 2 are done and tilepane uses the pure parts and the X11 backend from the library (part of step 3). cascade-windows uses `Rect` and the workspace numbering rule from the library (start of step 4); its own X11 backend, which is richer in some places (dock windows, struts per monitor), is not merged yet because that needs live comparison on Mint and Unity. See `PROGRESS.md`.
 
 1. Create the `deskmap` package with the pure parts and their tests (`Rect`, monitors, workspaces, work area, placement maths). Keep the tests that exist.
 2. Move the X11 backend; keep tilepane's live tests green.

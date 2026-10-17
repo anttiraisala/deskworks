@@ -19,11 +19,11 @@ Planned: GNOME Shell extension for Ubuntu 24.04 on Wayland (see `docs/PLAN.md`).
 
 ## Install
 
-Requirements: Python 3 and `python3-xlib` (`sudo apt install python3-xlib`).
+Requirements: Python 3 and `python3-xlib` (`sudo apt install python3-xlib`). The program is built on the shared `deskmap` library, which lives next to it in the [deskworks](https://github.com/anttiraisala/deskworks) repository, so install from a full clone; the installer copies both.
 
 ```sh
-git clone https://github.com/anttiraisala/cascade-windows.git
-cd cascade-windows
+git clone https://github.com/anttiraisala/deskworks.git
+cd deskworks/cascade-windows
 ./install.sh
 ```
 
@@ -147,7 +147,7 @@ attach its output when reporting a problem.
 ## Development
 
 ```sh
-python3 -m unittest discover -s tests -v
+python3 -m unittest discover -s tests -t . -v
 ```
 
 This also runs the Node tests of the GNOME Shell extension (`node --test gnome-extension/tests/*.test.js`) when Node.js
