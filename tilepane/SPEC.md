@@ -2,7 +2,7 @@
 
 A tool that opens terminal windows at precisely defined positions on the screen (per monitor) and starts the desired commands in them (htop, watch, nvidia-smi, and so on). Layouts are defined in JSON files and can be edited with the mouse in a browser.
 
-Repo: `tilepane`, default branch `master`. Language: Python 3 (3.9 or newer), standard library only; `python-xlib` is an optional dependency for the X11 backend. Platform: Linux, X11 first (see section 4).
+Repo: `deskworks` (folder `tilepane/`), default branch `master`. Monitors, workspaces, work areas and placement arithmetic come from the `deskmap` library in the same repository. Language: Python 3 (3.9 or newer), standard library only; `python-xlib` is an optional dependency for the X11 backend. Platform: Linux, X11 first (see section 4).
 
 The authority for configuration keys is the JSON schema (`src/tilepane/tilepane.schema.json`). `docs/CONFIG.md` is generated from it and lists every key with type, default, inheritance and description. This document describes behavior; it does not repeat every key. `docs/SPEC-REVIEW.md` records the review behind several decisions below.
 

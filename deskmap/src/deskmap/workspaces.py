@@ -5,7 +5,7 @@ their arrangement as a grid in `_NET_DESKTOP_LAYOUT` (orientation, columns,
 rows, starting corner); without it they form one row. Compiz/Unity instead has
 one large desktop shown one screen at a time: its viewports form the grid.
 
-Inside tilepane (backends, manager, state) a workspace is its index in the
+Inside the tools and backends a workspace is its index in the
 window manager's order: the desktop number, or for viewports the cell counted
 from the top left along the rows. The number a person uses (`--workspace N`,
 the layout key `workspace`, messages, the editor) counts from 0 in the bottom

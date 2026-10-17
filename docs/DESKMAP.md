@@ -20,6 +20,8 @@ the extraction proceeds, and move finished facts into the library's own README.
 
 ## Extraction order
 
+State on 2026-10-17: step 1 is done and tilepane already uses the pure parts (part of step 3). See `PROGRESS.md`.
+
 1. Create the `deskmap` package with the pure parts and their tests (`Rect`, monitors, workspaces, work area, placement maths). Keep the tests that exist.
 2. Move the X11 backend; keep tilepane's live tests green.
 3. Make tilepane import `deskmap` and delete its copies. All tilepane tests must pass unchanged in meaning; verify live on Mint.

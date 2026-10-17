@@ -7,7 +7,8 @@ import tempfile
 import unittest
 
 from tests.fakes import FakeBackend, fake_terminals_on_path
-from tilepane import cli, config, demo, geometry, monitors
+from deskmap import monitors
+from tilepane import cli, config, demo, geometry
 from tilepane.geometry import Rect
 from tilepane.state import StateStore
 

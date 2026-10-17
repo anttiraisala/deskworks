@@ -4,7 +4,7 @@ The editor's JavaScript geometry is checked against the same file
 (tests/test_editor.py), so the two implementations cannot drift apart.
 Regenerate after a deliberate change to geometry.py:
 
-    PYTHONPATH=src:. python3 -m tests.make_vectors
+    PYTHONPATH=src:.:../deskmap/src python3 -m tests.make_vectors
 """
 
 import json

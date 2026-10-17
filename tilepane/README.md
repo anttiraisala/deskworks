@@ -12,6 +12,7 @@ Quickest way to see what it does: `tilepane --demo` (see [Try the demo](#try-the
 | Python 3.9 or newer | tilepane is a Python program | `python3` (preinstalled) |
 | pipx (or pip in a virtualenv) | installs tilepane | `pipx` (or `python3-venv`) |
 | python-xlib | talks to the X server; installed by the `[x11]` extra below | (installed by pipx/pip) |
+| deskmap | the shared library that reads monitors, workspaces and work areas (folder `deskmap/` in this repository) | (installed by pipx/pip from this repository) |
 | xrandr | finds the monitors | `x11-xserver-utils` |
 | gnome-terminal or xterm | the terminal windows | `gnome-terminal` (preinstalled on Ubuntu) or `xterm` |
 | git | gets the source | `git` |
@@ -27,18 +28,18 @@ Optional, only for a more colourful `--demo`: `htop`, `cmatrix`, `sl`, `figlet`,
 
 ## Get the repository
 
-Clone with HTTPS:
+tilepane lives in the `tilepane/` folder of the [deskworks](https://github.com/anttiraisala/deskworks) repository. Clone with HTTPS:
 
 ```
-git clone https://github.com/anttiraisala/tilepane.git
-cd tilepane
+git clone https://github.com/anttiraisala/deskworks.git
+cd deskworks/tilepane
 ```
 
 Or with SSH:
 
 ```
-git clone git@github.com:anttiraisala/tilepane.git
-cd tilepane
+git clone git@github.com:anttiraisala/deskworks.git
+cd deskworks/tilepane
 ```
 
 Update an existing clone:
@@ -49,20 +50,20 @@ git pull
 
 ## Install
 
-In the cloned directory:
+In the `tilepane` directory of the clone:
 
 ```
 pipx install -e '.[x11]'
 ```
 
-`[x11]` pulls in python-xlib; without it tilepane can compute layouts (`--dry-run`) but cannot open windows. `-e` makes `git pull` take effect without reinstalling.
+`[x11]` pulls in python-xlib; without it tilepane can compute layouts (`--dry-run`) but cannot open windows. `-e` makes `git pull` take effect for tilepane without reinstalling. The `deskmap` library is fetched from this repository's `master` branch as a dependency; to work on `deskmap` and tilepane together, use the virtualenv install below.
 
 Without pipx, in a virtualenv:
 
 ```
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -e '.[x11]'
+pip install -e ../deskmap -e '.[x11]'
 ```
 
 Check the result:
@@ -116,7 +117,7 @@ tilepane --edit examples/meters.json                  # edit it in the browser (
 tilepane --explain on_exit                            # describe any configuration key
 ```
 
-Without installing: `PYTHONPATH=src python3 -m tilepane.cli --dry-run examples/meters.json`.
+Without installing: `PYTHONPATH=src:../deskmap/src python3 -m tilepane.cli --dry-run examples/meters.json`.
 
 ## Edit layouts in the browser
 
@@ -226,10 +227,11 @@ A layout file is a program: opening it runs the commands in it. Only open files 
 ## Development
 
 ```
-PYTHONPATH=src:. python3 -m unittest discover -s tests -t .
-TILEPANE_LIVE=1 TILEPANE_MONITOR=3 PYTHONPATH=src:. python3 -m unittest tests.test_x11_live   # opens real windows
-PYTHONPATH=src python3 -m tilepane.docgen      # after editing the schema: docs/CONFIG.md and the editor's copy
-PYTHONPATH=src:. python3 -m tests.make_vectors # after a deliberate change to geometry.py
+export PYTHONPATH=src:.:../deskmap/src         # run from the tilepane directory; or pip install -e ../deskmap
+python3 -m unittest discover -s tests -t .
+TILEPANE_LIVE=1 TILEPANE_MONITOR=3 python3 -m unittest tests.test_x11_live   # opens real windows
+python3 -m tilepane.docgen      # after editing the schema: docs/CONFIG.md and the editor's copy
+python3 -m tests.make_vectors   # after a deliberate change to geometry.py
 ```
 
 The key tables in `src/tilepane/config.py`, the schema, `docs/CONFIG.md` and the schema embedded in the editor are checked against each other by the tests. The editor's JavaScript geometry is checked against `tests/vectors/geometry.json` when `node` is installed, and the editor is driven in Chromium (`tests/js/editor.e2e.mjs`) when Playwright is installed too; both are skipped otherwise.

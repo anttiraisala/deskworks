@@ -131,6 +131,12 @@ sitten `--install-autostart` ja `--install-shortcut`, sitten `--dry-run --ascii`
 
 Kehitys tehdään suoraan `master`-haarassa.
 
+Repositorio on nyt `deskworks`, jossa tilepane on kansiossa `tilepane/`. Samassa
+repossa ovat `cascade-windows/` ja yhteinen kirjasto `deskmap/`. Näyttöjen
+tunnistus ja numerointi, työtilojen numerointi, näyttökohtainen työalue ja
+ikkunan sijoituslaskenta ovat nyt `deskmap`issa; tilepane käyttää niitä sieltä.
+Numerointi on ennallaan.
+
 ## Tarkemmat tiedot repossa
 
 - `README.md`: asennus, vaatimukset ja käyttö

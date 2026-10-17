@@ -21,7 +21,7 @@ from typing import Callable, Optional
 from . import terminals
 from .backends import Backend, BackendError, Placement
 from .geometry import LeafRect
-from .placement import PlacementError, plan
+from deskmap.placement import PlacementError, plan
 
 WINDOW_TIMEOUT = 5.0
 _RUNNER = str(Path(__file__).with_name("runner.py"))

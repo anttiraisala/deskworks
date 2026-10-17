@@ -10,8 +10,9 @@ import sys
 from dataclasses import dataclass
 from typing import Iterator, Optional, TextIO
 
+from deskmap import monitors, workarea
 from . import (__version__, backends, config, demo, docgen, doctor, geometry, launcher,
-               manager, monitors, opener, state, workarea)
+               manager, opener, state)
 from .invocation import HELP, Invocation, Task, UsageError, parse
 
 
@@ -230,7 +231,7 @@ class _Runner:
 
     def _resolve_workspace(self, backend) -> bool:
         """Read the workspaces and check a --workspace number against them."""
-        from .workspaces import Numbering
+        from deskmap.workspaces import Numbering
 
         self._current_ws = backend.current_desktop()
         self._numbering = Numbering.of(backend.desktop_info() if self._current_ws is not None else None)
@@ -250,7 +251,7 @@ class _Runner:
         """The workspace index (None: every one, or none known) for a layout.
 
         --workspace wins; then the layout's own "workspace"; then the current one.
-        Both are numbers as people use them (0 bottom left); see workspaces.py.
+        Both are numbers as people use them (0 bottom left); see deskmap.workspaces.
         """
         spec = self.inv.workspace
         if spec == "all":
@@ -691,7 +692,7 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
         print(monitors.format_table(found), file=out)
         return 0
     if inv.action == "workspaces":
-        from . import workspaces
+        from deskmap import workspaces
         be, reason = (backend, "") if backend is not None else backends.choose()
         if be is None:
             print(f"tilepane: cannot reach the window system: {reason}", file=err)

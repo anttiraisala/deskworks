@@ -9,7 +9,7 @@ description = "Open terminal windows at precisely defined screen positions and r
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.9"
-dependencies = []
+dependencies = ["deskmap @ git+https://github.com/anttiraisala/deskworks.git#subdirectory=deskmap"]
 
 [project.optional-dependencies]
 x11 = ["python-xlib"]

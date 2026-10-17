@@ -32,25 +32,11 @@ import re
 from dataclasses import dataclass, replace
 from typing import Any, Optional
 
+from deskmap.rect import Rect
+
 
 class GeometryError(ValueError):
     """The layout cannot be laid out in the given area."""
-
-
-@dataclass(frozen=True)
-class Rect:
-    x: int
-    y: int
-    width: int
-    height: int
-
-    @property
-    def right(self) -> int:
-        return self.x + self.width
-
-    @property
-    def bottom(self) -> int:
-        return self.y + self.height
 
 
 @dataclass(frozen=True)

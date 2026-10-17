@@ -1,11 +1,11 @@
 import unittest
 
-from tilepane import workarea
-from tilepane.geometry import Rect
-from tilepane.monitors import Monitor, number_monitors
-from tilepane.workarea import Strut
+from deskmap import workarea
+from deskmap.rect import Rect
+from deskmap.monitors import Monitor, number_monitors
+from deskmap.workarea import Strut
 
-# The four-monitor setup of the dev machine, in tilepane numbering.
+# The four-monitor setup of the dev machine, in deskmap numbering.
 MONS = number_monitors([
     Monitor(0, "eDP-1", 4480, 1200, 2048, 1152, True),
     Monitor(0, "DP-1-1-5", 1920, 0, 2560, 1440),

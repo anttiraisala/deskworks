@@ -5,7 +5,8 @@ import tempfile
 import unittest
 
 from tests.fakes import FakeBackend, fake_terminals_on_path
-from tilepane import cli, manager, monitors, opener, state, terminals
+from deskmap import monitors
+from tilepane import cli, manager, opener, state, terminals
 from tilepane.geometry import LeafRect, Rect
 from tilepane.state import Record, StateStore
 

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deskmap"
+version = "0.1.0"
+description = "Understand monitors, workspaces and work areas on Linux desktops, and place windows exactly"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+x11 = ["python-xlib"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

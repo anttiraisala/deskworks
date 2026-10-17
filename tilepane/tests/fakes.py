@@ -1,7 +1,7 @@
 """Test doubles for the window backend."""
 
 from tilepane.backends import Placement, WindowInfo
-from tilepane.placement import Extents, SizeHints
+from deskmap.placement import Extents, SizeHints
 
 
 class FakeBackend:
@@ -59,7 +59,7 @@ class FakeBackend:
         return None if self.desktop is None else 4
 
     def desktop_info(self):
-        from tilepane.workspaces import Desktops
+        from deskmap.workspaces import Desktops
         return Desktops(self.desktop_count() or 0, self.desktop, getattr(self, "desktop_names", []),
                         getattr(self, "desktop_layout", None))
 

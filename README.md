@@ -5,7 +5,7 @@ monitors there are, how the workspaces are arranged, and where windows may go.
 
 | Folder | What it is | State |
 |---|---|---|
-| [`deskmap/`](deskmap/) | Library. Reads monitors, workspaces, work areas and windows, and moves and sizes windows. Both tools below are built on it. | planned, being extracted (see [PROGRESS.md](PROGRESS.md)) |
+| [`deskmap/`](deskmap/) | Library. Reads monitors, workspaces, work areas and windows, and moves and sizes windows. Both tools below are built on it. | pure parts done (`Rect`, monitors, workspaces, work area, placement maths), used by tilepane; X11 backend next (see [PROGRESS.md](PROGRESS.md)) |
 | [`tilepane/`](tilepane/) | Opens terminal windows at exact positions per monitor and workspace and runs commands in them. Layouts are JSON trees of splits and panes, editable in a browser. | working (X11) |
 | [`cascade-windows/`](cascade-windows/) | Windows-style "Cascade windows" for Linux: stacks the windows of a monitor or workspace in a neat cascade. | working (X11, GNOME Shell extension) |
 

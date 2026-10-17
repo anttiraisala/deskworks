@@ -5,7 +5,8 @@ import tempfile
 import unittest
 
 from tests.fakes import fake_terminals_on_path
-from tilepane import cli, monitors
+from deskmap import monitors
+from tilepane import cli
 from tilepane.invocation import Task, UsageError, parse
 
 MONS = monitors.number_monitors([

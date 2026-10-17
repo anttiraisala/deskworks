@@ -19,6 +19,10 @@ first (Wayland backends are planned, not built). Public, GPL-3.0.
   for the owner's Claude project). Do not translate it; keep it current like
   the other documentation. A file that says at its top that the maintainer
   approved another language is such an exception.
+- This project lives in the `tilepane/` folder of the deskworks repository; the
+  repository level `../CLAUDE.md` also applies. Monitor detection and numbering,
+  workspaces, per-monitor work areas and placement arithmetic live in the
+  `deskmap` library (`../deskmap`); change them there, not here.
 - Branch: work is done directly on `master` and pushed there (the owner's
   decision on 2026-10-17; the earlier development branches `claude-personal`
   and `claude/zealous-clarke-naq4z8` were merged into it and are to be deleted).
@@ -32,10 +36,12 @@ first (Wayland backends are planned, not built). Public, GPL-3.0.
 ## Commands
 
 ```
-PYTHONPATH=src:. python3 -m unittest discover -s tests -t .      # all tests
-PYTHONPATH=src python3 -m tilepane.docgen                         # after editing the schema
-PYTHONPATH=src:. python3 -m tests.make_vectors                    # after a deliberate geometry change
-PYTHONPATH=src python3 -m tilepane.cli --dry-run examples/meters.json
+# run from the tilepane/ directory; deskmap is the sibling folder ../deskmap
+export PYTHONPATH=src:.:../deskmap/src
+python3 -m unittest discover -s tests -t .      # all tests
+python3 -m tilepane.docgen                       # after editing the schema
+python3 -m tests.make_vectors                    # after a deliberate geometry change
+python3 -m tilepane.cli --dry-run examples/meters.json
 ```
 
 - The schema (`src/tilepane/tilepane.schema.json`) is the source of truth for
@@ -55,7 +61,7 @@ There is no screen by default. This works (Ubuntu container):
 
 ```
 apt-get install -y openbox xterm x11-xserver-utils x11-utils
-python3 -m venv /tmp/venv && /tmp/venv/bin/pip install -e '.[x11]'
+python3 -m venv /tmp/venv && /tmp/venv/bin/pip install -e ../deskmap -e '.[x11]'
 export DISPLAY=:99 XDG_SESSION_TYPE=x11 XDG_STATE_HOME=/tmp/tp-state
 Xvfb :99 -screen 0 1920x1080x24 & openbox &
 TILEPANE_LIVE=1 TILEPANE_MONITOR=0 PYTHONPATH=src:. /tmp/venv/bin/python -m unittest tests.test_x11_live

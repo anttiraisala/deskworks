@@ -8,7 +8,7 @@ are opened, and windows whose pane is gone are closed only with `prune`.
 Workspaces keep instances apart: a layout opened on workspace 1 and again on
 workspace 2 has two sets of windows. `workspace` arguments are workspace
 indexes in the window manager's order (EWMH desktops, or Compiz viewports;
-see workspaces.py); None matches every workspace (and is what a window manager
+see deskmap.workspaces); None matches every workspace (and is what a window manager
 without workspaces gives). A window on all workspaces matches any of them.
 A viewport lies at an offset from the current one, so windows meant for it are
 placed at that offset.

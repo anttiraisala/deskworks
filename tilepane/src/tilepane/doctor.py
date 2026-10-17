@@ -12,7 +12,7 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 
-from . import monitors as mon
+from deskmap import monitors as mon
 
 TERMINALS = [
     "kitty", "alacritty", "gnome-terminal", "xterm", "konsole",

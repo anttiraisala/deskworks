@@ -7,7 +7,8 @@ import unittest
 from unittest import mock
 
 from tests.fakes import FakeBackend
-from tilepane import cli, monitors, uninstall
+from deskmap import monitors
+from tilepane import cli, uninstall
 from tilepane.invocation import UsageError, parse
 from tilepane.state import Record, StateStore
 

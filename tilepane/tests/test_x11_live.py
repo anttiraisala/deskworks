@@ -1,13 +1,14 @@
 """Opens real windows. Skipped unless TILEPANE_LIVE=1 (set TILEPANE_MONITOR to pick the monitor).
 
-    TILEPANE_LIVE=1 TILEPANE_MONITOR=3 PYTHONPATH=src:. python3 -m unittest tests.test_x11_live -v
+    TILEPANE_LIVE=1 TILEPANE_MONITOR=3 PYTHONPATH=src:.:../deskmap/src python3 -m unittest tests.test_x11_live -v
 """
 
 import os
 import time
 import unittest
 
-from tilepane import config, geometry, monitors, opener, terminals, workarea
+from deskmap import monitors, workarea
+from tilepane import config, geometry, opener, terminals
 from tilepane.backends import x11
 
 LIVE = os.environ.get("TILEPANE_LIVE") == "1" and x11.available()[0]

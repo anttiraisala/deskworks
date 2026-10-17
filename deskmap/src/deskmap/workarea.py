@@ -21,7 +21,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-from .geometry import Rect
+from .rect import Rect
 from .monitors import Monitor
 
 

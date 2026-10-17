@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .geometry import Rect
+from .rect import Rect
 
 
 class PlacementError(ValueError):

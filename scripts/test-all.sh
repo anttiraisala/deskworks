@@ -5,7 +5,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 status=0
 
 echo "== tilepane"
-(cd "$root/tilepane" && PYTHONPATH=src:. python3 -m unittest discover -s tests -t .) || status=1
+(cd "$root/tilepane" && PYTHONPATH=src:.:../deskmap/src python3 -m unittest discover -s tests -t .) || status=1
 
 echo "== cascade-windows"
 (cd "$root/cascade-windows" && python3 -m unittest discover -s tests) || status=1
