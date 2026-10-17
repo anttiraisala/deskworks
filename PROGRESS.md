@@ -193,3 +193,6 @@ Implemented:
 
 ### 2026-10-17: verified on Cinnamon
 - The owner ran `tilepane --identify` on Linux Mint (Cinnamon): it works there too, so the numbering from the bottom left is verified live on both of the owner's machines (Cinnamon and Unity/Compiz).
+
+### 2026-10-17: work continues on master
+- The owner decided that everything goes into `master` and work continues there directly. Before this, development was to happen on branches made from `master` and be merged on approval; `claude/zealous-clarke-naq4z8` (the Cinnamon note) was merged into `master` (fast-forward). The old branches are deleted by the owner on GitHub (this session cannot delete branches).
