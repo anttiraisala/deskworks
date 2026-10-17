@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/anttiraisala/tilepane/master/src/tilepane/tilepane.schema.json",
+  "$schema": "https://raw.githubusercontent.com/anttiraisala/deskworks/master/tilepane/src/tilepane/tilepane.schema.json",
   "version": 1,
   "description": "System meters: htop on the left, sensors and GPU on the right.",
   "name": "meters",

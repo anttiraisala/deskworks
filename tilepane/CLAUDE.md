@@ -14,11 +14,10 @@ first (Wayland backends are planned, not built). Public, GPL-3.0.
 
 - The owner (Antti) writes in Finnish, often by speech-to-text, so words can be
   garbled; read for intent. Answer in Finnish, plainly; explain technical terms
-  simply when asked. Code, comments, docs and commit messages are in English,
-  with one approved exception: `docs/YHTEENVETO.md` is in Finnish (a summary
-  for the owner's Claude project). Do not translate it; keep it current like
-  the other documentation. A file that says at its top that the maintainer
-  approved another language is such an exception.
+  simply when asked. Code, comments, docs and commit messages are in English.
+  `docs/PROJECT-BRIEF.md` is a summary written for adding to the owner's Claude
+  project; keep it current like the other documentation. Exceptions to the
+  English rule are listed in `../.language-exceptions` (none at the moment).
 - This project lives in the `tilepane/` folder of the deskworks repository; the
   repository level `../CLAUDE.md` also applies. Monitor detection and numbering,
   workspaces, per-monitor work areas and placement arithmetic live in the
@@ -90,7 +89,7 @@ the file you edited. Check in particular:
 - `HELP` in `invocation.py`, error and status messages, `--doctor` output;
 - the schema descriptions (they become `docs/CONFIG.md`, `--explain` and the
   editor's field help), then run `docgen`;
-- README.md, SPEC.md, PROGRESS.md, CLAUDE.md, `docs/YHTEENVETO.md` (Finnish),
+- README.md, SPEC.md, PROGRESS.md, CLAUDE.md, `docs/PROJECT-BRIEF.md`,
   `examples/` and the editor's texts in `editor.html`;
 - test names and docstrings that describe the old behaviour.
 
@@ -112,7 +111,7 @@ Two kinds of files are treated differently:
   The current-state parts of a log file are updated, not appended to: the
   status table at the top of `PROGRESS.md`.
 - **Every other file** describes the project as it is now (README.md, SPEC.md,
-  CLAUDE.md, docs/CONFIG.md, docs/YHTEENVETO.md, code, comments, help texts). These are rewritten
+  CLAUDE.md, docs/CONFIG.md, docs/PROJECT-BRIEF.md, code, comments, help texts). These are rewritten
   so they are true today, with no leftover description of old behaviour.
 
 A file that is not listed here and looks like a log (dated entries, newest

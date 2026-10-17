@@ -14,7 +14,7 @@ A file holds one or more **layouts**. A layout is a tree: a **split node** divid
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/anttiraisala/tilepane/master/src/tilepane/tilepane.schema.json",
+  "$schema": "https://raw.githubusercontent.com/anttiraisala/deskworks/master/tilepane/src/tilepane/tilepane.schema.json",
   "name": "cpu-dash",
   "margin": 8,
   "split": {

@@ -140,7 +140,7 @@ def render() -> str:
     add("")
     add("```json")
     add('{')
-    add('  "$schema": "https://raw.githubusercontent.com/anttiraisala/tilepane/master/src/tilepane/tilepane.schema.json",')
+    add('  "$schema": "https://raw.githubusercontent.com/anttiraisala/deskworks/master/tilepane/src/tilepane/tilepane.schema.json",')
     add('  "name": "cpu-dash",')
     add('  "margin": 8,')
     add('  "split": {')

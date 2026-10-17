@@ -15,8 +15,8 @@ import shutil
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-SCHEMA_URL = ("https://raw.githubusercontent.com/anttiraisala/tilepane/master/"
-              "src/tilepane/tilepane.schema.json")
+SCHEMA_URL = ("https://raw.githubusercontent.com/anttiraisala/deskworks/master/"
+              "tilepane/src/tilepane/tilepane.schema.json")
 DEFAULT_COUNTS = (3, 4, 5, 6)
 MAX_PANES = 12
 # Smallest pane the generator makes, in pixels (before margins).

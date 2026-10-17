@@ -71,7 +71,7 @@ Default location, when no file is given: `$XDG_CONFIG_HOME/tilepane/config.json`
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/anttiraisala/tilepane/master/src/tilepane/tilepane.schema.json",
+  "$schema": "https://raw.githubusercontent.com/anttiraisala/deskworks/master/tilepane/src/tilepane/tilepane.schema.json",
   "version": 1,
   "defaults": {
     "terminal": "auto",

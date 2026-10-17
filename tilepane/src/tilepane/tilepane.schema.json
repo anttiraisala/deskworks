@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/anttiraisala/tilepane/master/src/tilepane/tilepane.schema.json",
+  "$id": "https://raw.githubusercontent.com/anttiraisala/deskworks/master/tilepane/src/tilepane/tilepane.schema.json",
   "title": "tilepane configuration",
   "description": "A tilepane configuration file: one or more layouts that open terminal windows at exact positions. Keys marked as inheriting apply down the tree: leaf, then ancestor split nodes, then the layout, then the file's defaults, then the built-in value.",
   "type": "object",

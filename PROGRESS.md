@@ -32,3 +32,8 @@ Newest log entries last. See `CLAUDE.md` for how this file is kept.
 
 ### 2026-10-17: dependency check
 - Verified after the push: `pip install './tilepane[x11]'` in a fresh virtualenv fetches `deskmap` from this repository's `master` through the git URL, and `tilepane --version` runs. This closes the "not verified" item about the git URL dependency in the previous entry.
+
+### 2026-10-17: schema URLs and project brief
+- The `$schema` / `$id` URLs in tilepane's schema, generated `docs/CONFIG.md`, the editor's embedded schema, `demo.py`, `docgen.py`, `SPEC.md` and `examples/meters.json` now point to `anttiraisala/deskworks/master/tilepane/src/tilepane/tilepane.schema.json`. Before this they pointed to the original `anttiraisala/tilepane` repository (see the "Open" note two entries up, which this closes). `docgen` was re-run so the generated files agree.
+- `tilepane/docs/YHTEENVETO.md` (Finnish) was translated into English and renamed `tilepane/docs/PROJECT-BRIEF.md`; the content was also updated to mention the new repository layout. `.language-exceptions` now has no entries. Decisions 8 and 9 in `docs/DECISIONS.md` record this.
+- Note: the schema URL only resolves once this commit is on `master`; editors that fetch the schema over the network will get a 404 before that.
