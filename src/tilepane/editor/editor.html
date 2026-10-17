@@ -175,7 +175,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
     <button id="copy-layout" title="Copy this layout">Copy</button>
     <button id="delete-layout" title="Delete this layout">Delete</button></span>
   <span class="group"><label for="monitor">Monitor</label><select id="monitor"></select></span>
-  <span class="group"><label for="workspace">Workspace</label><select id="workspace" title="The workspace this layout opens on, saved in the layout. 'not set': it opens on whichever workspace is current. --workspace on the command line overrides it."></select></span>
+  <span class="group"><label for="workspace">Workspace</label><select id="workspace" title="The workspace this layout opens on, saved in the layout: 0 is the bottom left one, then along the rows and the rows upward (tilepane --workspaces shows them). 'not set': it opens on whichever workspace is current. --workspace on the command line overrides it."></select></span>
   <span class="group"><button id="cut-h" title="Cut with a horizontal line across the whole monitor (H)">✂ Cut ─</button><button id="cut-v" title="Cut with a vertical line across the whole monitor (V)">✂ Cut │</button></span>
   <span class="group"><button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button></span>
   <span class="spacer"></span>
@@ -408,9 +408,9 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
       "default": "work"
     },
     "key-workspace": {
-      "description": "The workspace (virtual desktop) the layout opens on, 1 for the first one. Without it the layout opens on the current workspace. --workspace on the command line overrides it. A number larger than the number of workspaces opens on the current one, with a warning. Set on the layout or in defaults.",
+      "description": "The workspace (virtual desktop) the layout opens on. Workspaces are numbered from 0 in the bottom left corner, along each row, then the rows upward (one row: 0 is the first); tilepane --workspaces shows the numbers. Without it the layout opens on the current workspace. --workspace on the command line overrides it. A number that does not exist on this machine opens on the current workspace, with a warning. Set on the layout or in defaults.",
       "type": "integer",
-      "minimum": 1,
+      "minimum": 0,
       "examples": [4]
     },
     "key-at_basis": {
@@ -2540,10 +2540,11 @@ function renderHeader() {
   ...(S.custom ? [h("option", { value: "custom", selected: S.useCustom }, `Custom size: ${S.custom.width}×${S.custom.height}`)] : []));
   const ws = $("#workspace");
   const own = pickLayoutKey(lay(), "workspace", null);
-  const count = Math.max(S.workspaces || 9, Number.isInteger(own) ? own : 0);
+  // Numbers as tilepane uses them: 0 bottom left, along the rows, rows upward.
+  const count = Math.max(S.workspaces || 9, Number.isInteger(own) ? own + 1 : 0);
   ws.replaceChildren(h("option", { value: "", selected: !Number.isInteger(own) }, "not set (current)"),
-    ...Array.from({ length: count }, (_, i) => h("option", { value: String(i + 1), selected: own === i + 1 },
-      `${i + 1}${S.workspaces && i + 1 > S.workspaces ? " (not on this machine)" : ""}`)));
+    ...Array.from({ length: count }, (_, i) => h("option", { value: String(i), selected: own === i },
+      `${i}${i === 0 ? " (bottom left)" : ""}${S.workspaces && i >= S.workspaces ? " (not on this machine)" : ""}`)));
   $("#undo").disabled = !S.undo.length;
   $("#redo").disabled = !S.redo.length;
   $("#cut-h").classList.toggle("on", S.cut === "h");

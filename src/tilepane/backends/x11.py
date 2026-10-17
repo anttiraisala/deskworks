@@ -95,7 +95,22 @@ class X11Backend:
 
     def find(self, wm_class: str) -> list[WindowInfo]:
         found = [self.info(w) for w in sorted(self.windows())]
-        return [i for i in found if i is not None and i.wm_class[1] == wm_class]
+        found = [i for i in found if i is not None and i.wm_class[1] == wm_class]
+        vps = self._viewports()
+        if vps is not None:
+            # One large desktop: a window's workspace is the viewport it is in.
+            from dataclasses import replace
+
+            from Xlib import error
+
+            for n, i in enumerate(found):
+                if i.desktop is None:
+                    continue           # on every workspace
+                try:
+                    found[n] = replace(i, desktop=self._window_viewport(self._window(i.id), vps))
+                except error.XError:
+                    pass
+        return found
 
     def wait_new_window(self, before: set[int], match: Callable[[WindowInfo], bool],
                         timeout: float) -> Optional[WindowInfo]:
@@ -109,21 +124,58 @@ class X11Backend:
                 return None
             time.sleep(0.05)
 
-    # --- workspaces (EWMH desktops) -------------------------------------------
+    # --- workspaces (EWMH desktops, or Compiz viewports) ----------------------
+    #
+    # A workspace is an index: the EWMH desktop number, or on one large desktop
+    # split into screen-sized viewports (Compiz), the viewport counted from the
+    # top left along the rows. There a window's workspace is where it is, and
+    # windows go to another viewport by being placed at its offset.
 
-    def current_desktop(self) -> Optional[int]:
+    def _desktops_raw(self) -> Optional[int]:
+        vals = self._cardinals(self.root, "_NET_NUMBER_OF_DESKTOPS")
+        return vals[0] if vals else None
+
+    def _current_raw(self) -> Optional[int]:
         vals = self._cardinals(self.root, "_NET_CURRENT_DESKTOP")
         return vals[0] if vals else None
 
+    def _viewports(self) -> Optional[tuple[int, int, int, int, int, int]]:
+        """(columns, rows, viewport width, height, current x, y) on Compiz, else None."""
+        from ..workspaces import Desktops, viewport_grid
+
+        count = self._desktops_raw() or 0
+        if count > 1:
+            return None
+        scr = self.d.screen()
+        size = (scr.width_in_pixels, scr.height_in_pixels)
+        vp = viewport_grid(Desktops(count, 0, geometry=self._cardinals(self.root, "_NET_DESKTOP_GEOMETRY"),
+                                    screen=size))
+        if vp is None:
+            return None
+        here = self._viewport() or (0, 0)
+        return vp[0], vp[1], size[0], size[1], here[0], here[1]
+
+    @staticmethod
+    def _cell(vps: tuple, x: int, y: int) -> int:
+        """The viewport index of a point on the large desktop."""
+        cols, rows, w, h = vps[:4]
+        return min(rows - 1, max(0, y // h)) * cols + min(cols - 1, max(0, x // w))
+
+    def current_desktop(self) -> Optional[int]:
+        vps = self._viewports()
+        if vps is not None:
+            return self._cell(vps, vps[4], vps[5])
+        return self._current_raw()
+
     def desktop_count(self) -> Optional[int]:
-        vals = self._cardinals(self.root, "_NET_NUMBER_OF_DESKTOPS")
-        return vals[0] if vals else None
+        vps = self._viewports()
+        return vps[0] * vps[1] if vps is not None else self._desktops_raw()
 
     def desktop_info(self):
         """Everything --workspaces shows: count, current, names, grid, viewports."""
         from ..workspaces import Desktops
 
-        count = self.desktop_count() or 0
+        count = self._desktops_raw() or 0
         names_prop = self.root.get_full_property(self._atom("_NET_DESKTOP_NAMES"), self._X.AnyPropertyType)
         names: list[str] = []
         if names_prop is not None:
@@ -132,7 +184,7 @@ class X11Backend:
                 raw = raw.encode()
             names = [n.decode(errors="replace") for n in bytes(raw).split(b"\0")]
         geo = self.d.screen()
-        return Desktops(count, self.current_desktop(), names,
+        return Desktops(count, self._current_raw(), names,
                         self._cardinals(self.root, "_NET_DESKTOP_LAYOUT"),
                         self._cardinals(self.root, "_NET_DESKTOP_GEOMETRY"),
                         (geo.width_in_pixels, geo.height_in_pixels), self._viewport())
@@ -141,17 +193,39 @@ class X11Backend:
         vals = self._cardinals(self.root, "_NET_DESKTOP_VIEWPORT")
         if not vals or len(vals) < 2:
             return None
-        i = 2 * (self.current_desktop() or 0)
+        i = 2 * (self._current_raw() or 0)
         return (vals[i], vals[i + 1]) if len(vals) >= i + 2 else (vals[0], vals[1])
 
+    def _window_viewport(self, win, vps: tuple) -> int:
+        """The viewport a window's centre is in (window positions are relative to the current one)."""
+        geo = win.get_geometry()
+        pos = self.root.translate_coords(win, 0, 0)
+        return self._cell(vps, vps[4] + pos.x + geo.width // 2, vps[5] + pos.y + geo.height // 2)
+
+    def workspace_offset(self, desktop: int) -> tuple[int, int]:
+        """How far workspace `desktop` is from the current one, in root coordinates.
+
+        (0, 0) for EWMH desktops, which all use the same coordinates.
+        """
+        vps = self._viewports()
+        if vps is None:
+            return 0, 0
+        cols, rows, w, h, x, y = vps
+        here = self._cell(vps, x, y)
+        return (desktop % cols - here % cols) * w, (desktop // cols - here // cols) * h
+
     def move_to_desktop(self, window_id: int, desktop: int) -> None:
+        """Move a window to an EWMH desktop. With viewports this does nothing:
+        the window is placed at the viewport's offset instead."""
         from Xlib import error
 
+        if self._viewports() is not None:
+            return
         try:
             self._send(self._window(window_id), "_NET_WM_DESKTOP", [desktop, 1, 0, 0, 0])
         except error.XError as exc:
-            raise BackendError(f"window {window_id:#x} could not be moved to workspace "
-                               f"{desktop + 1}: {exc}") from exc
+            raise BackendError(f"window {window_id:#x} could not be moved to another "
+                               f"workspace: {exc}") from exc
 
     def close(self, window_id: int) -> None:
         self._send(self._window(window_id), "_NET_CLOSE_WINDOW",

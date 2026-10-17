@@ -61,6 +61,12 @@ TILEPANE_LIVE=1 TILEPANE_MONITOR=0 PYTHONPATH=src:. /tmp/venv/bin/python -m unit
 ```
 
 Openbox has 4 workspaces (EWMH), which is enough to test workspace handling.
+A 2 x 2 grid: `xprop -root -f _NET_DESKTOP_LAYOUT 32c -set _NET_DESKTOP_LAYOUT 0,2,2,0`.
+Compiz viewports can be simulated without a window manager: start `Xvfb -noreset`
+(otherwise root properties vanish when the last client disconnects) and set
+`_NET_NUMBER_OF_DESKTOPS` 1, `_NET_DESKTOP_GEOMETRY` to a multiple of the screen
+and `_NET_DESKTOP_VIEWPORT` with xprop; without a window manager nothing moves
+windows, so this checks the numbering and offsets only.
 gnome-terminal and Cinnamon itself cannot be tested this way.
 
 Careful: `pkill -f PATTERN` also matches the shell running the command when the

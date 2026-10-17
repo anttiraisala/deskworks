@@ -118,7 +118,8 @@ class ParseTest(unittest.TestCase):
         self.assertIsNone(parse(["a.json"]).workspace)
         self.assertEqual(parse(["a.json", "--workspace", "2"]).workspace, "2")
         self.assertEqual(parse(["--close", "all", "--workspace", "all"]).workspace, "all")
-        for argv in (["a.json", "--workspace", "0"], ["a.json", "--workspace", "x"],
+        self.assertEqual(parse(["a.json", "--workspace", "0"]).workspace, "0")
+        for argv in (["a.json", "--workspace", "-1"], ["a.json", "--workspace", "x"],
                      ["a.json", "--workspace", "all"], ["--toggle", "a.json", "--workspace", "all"]):
             with self.subTest(argv=argv), self.assertRaises(UsageError):
                 parse(argv)

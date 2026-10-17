@@ -339,7 +339,7 @@ class CliWorkspaceTest(unittest.TestCase):
         self.on(1)
         code, out, err = self.run_cli(self.path)
         self.assertEqual(code, 0, err)
-        self.assertIn("(workspace 2): 2 opened, 0 re-placed", out)
+        self.assertIn("(workspace 1): 2 opened, 0 re-placed", out)
         self.assertEqual(self.backend.closed, [])
         self.assertEqual(len(self.backend._open), 4)
 
@@ -348,7 +348,7 @@ class CliWorkspaceTest(unittest.TestCase):
         self.on(1)
         self.run_cli(self.path)
         code, out, _ = self.run_cli("--close", "all")
-        self.assertIn("closed 2 window(s) (workspace 2)", out)
+        self.assertIn("closed 2 window(s) (workspace 1)", out)
         self.assertEqual(len(self.backend._open), 2)
         self.on(0)
         code, out, _ = self.run_cli("--close", self.path, "two")
@@ -360,8 +360,8 @@ class CliWorkspaceTest(unittest.TestCase):
         self.on(1)
         self.run_cli(self.path)
         self.on(2)
-        _, out, _ = self.run_cli("--close", "all", "--workspace", "1")
-        self.assertIn("closed 2 window(s) (workspace 1)", out)
+        _, out, _ = self.run_cli("--close", "all", "--workspace", "0")
+        self.assertIn("closed 2 window(s) (workspace 0)", out)
         self.run_cli(self.path)
         _, out, _ = self.run_cli("--close", "all", "--workspace", "all")
         self.assertIn("closed 4 window(s)", out)
@@ -373,13 +373,13 @@ class CliWorkspaceTest(unittest.TestCase):
         _, out, _ = self.run_cli("--toggle", self.path)
         self.assertIn("2 opened", out)
         _, out, _ = self.run_cli("--toggle", self.path)
-        self.assertIn("(workspace 2): closed 2", out)
+        self.assertIn("(workspace 1): closed 2", out)
         self.assertEqual(len(self.backend._open), 2)
 
     def test_open_on_a_given_workspace(self):
-        code, out, err = self.run_cli(self.path, "--workspace", "3")
+        code, out, err = self.run_cli(self.path, "--workspace", "2")
         self.assertEqual(code, 0, err)
-        self.assertIn("(workspace 3)", out)
+        self.assertIn("(workspace 2)", out)
         self.assertEqual(set(self.backend.desktops.values()), {2})
 
     def test_demo_replaces_only_on_the_same_workspace(self):
@@ -417,56 +417,82 @@ class CliWorkspaceTest(unittest.TestCase):
         return path
 
     def test_layout_workspace_opens_there(self):
-        path = self.write_layout(workspace=3)
+        path = self.write_layout(workspace=2)
         code, out, err = self.run_cli(path)
         self.assertEqual(code, 0, err)
-        self.assertIn("(workspace 3): 2 opened", out)
+        self.assertIn("(workspace 2): 2 opened", out)
         self.assertEqual(set(self.backend.desktops.values()), {2})
 
     def test_command_line_workspace_overrides_the_layout(self):
-        path = self.write_layout(workspace=3)
-        code, out, err = self.run_cli(path, "--workspace", "2")
-        self.assertIn("(workspace 2): 2 opened", out)
+        path = self.write_layout(workspace=2)
+        code, out, err = self.run_cli(path, "--workspace", "1")
+        self.assertIn("(workspace 1): 2 opened", out)
         self.assertEqual(set(self.backend.desktops.values()), {1})
         self.on(1)
         _, out, _ = self.run_cli(path, "--workspace", "current")
-        self.assertIn("(workspace 2): 0 opened, 2 re-placed", out)
+        self.assertIn("(workspace 1): 0 opened, 2 re-placed", out)
 
     def test_defaults_workspace_applies_to_every_layout(self):
         path = os.path.join(self.tmp.name, "d.json")
         with open(path, "w") as fh:
-            json.dump({"defaults": {"workspace": 4}, "layouts": [LAYOUT]}, fh)
+            json.dump({"defaults": {"workspace": 3}, "layouts": [LAYOUT]}, fh)
         self.run_cli(path)
         self.assertEqual(set(self.backend.desktops.values()), {3})
 
     def test_close_and_toggle_use_the_layout_workspace(self):
-        path = self.write_layout(workspace=3)
+        path = self.write_layout(workspace=2)
         self.run_cli(path)
         self.on(1)
         code, out, _ = self.run_cli("--close", path)
-        self.assertIn("(workspace 3): closed 2 window(s)", out)
+        self.assertIn("(workspace 2): closed 2 window(s)", out)
         self.assertEqual(self.backend._open, set())
         _, out, _ = self.run_cli("--toggle", path)
-        self.assertIn("(workspace 3): 2 opened", out)
+        self.assertIn("(workspace 2): 2 opened", out)
         _, out, _ = self.run_cli("--toggle", path)
-        self.assertIn("(workspace 3): closed 2", out)
+        self.assertIn("(workspace 2): closed 2", out)
 
     def test_missing_layout_workspace_warns_and_uses_current(self):
         path = self.write_layout(workspace=9)
         self.on(1)
         code, out, err = self.run_cli(path)
         self.assertEqual(code, 0, err)
-        self.assertIn("workspace 9 does not exist (there are 4)", err)
-        self.assertIn("(workspace 2): 2 opened", out)
+        self.assertIn("workspace 9 does not exist (there are 4, 0 to 3)", err)
+        self.assertIn("(workspace 1): 2 opened", out)
 
     def test_workspace_errors(self):
-        code, _, err = self.run_cli(self.path, "--workspace", "9")
+        code, _, err = self.run_cli(self.path, "--workspace", "4")
         self.assertEqual(code, 1)
-        self.assertIn("only 4 workspaces", err)
+        self.assertIn("only 4 workspaces (0 to 3", err)
         self.backend.desktop = None
         code, _, err = self.run_cli(self.path, "--workspace", "2")
         self.assertEqual(code, 1)
         self.assertIn("does not report workspaces", err)
+
+
+    def test_numbers_follow_the_grid_from_the_bottom_left(self):
+        # 2 x 2 grid published by the pager, numbered from the top left by the
+        # window manager: tilepane's 0 is the bottom left one, desktop index 2.
+        self.backend.desktop_layout = [0, 2, 2, 0]
+        code, out, err = self.run_cli(self.path, "--workspace", "0")
+        self.assertEqual(code, 0, err)
+        self.assertIn("(workspace 0)", out)
+        self.assertEqual(set(self.backend.desktops.values()), {2})
+        self.on(1)          # desktop index 1 is top right: tilepane's 3
+        _, out, _ = self.run_cli(self.path)
+        self.assertIn("(workspace 3): 2 opened", out)
+
+    def test_viewports_place_windows_at_their_offset(self):
+        # Compiz: another workspace is a viewport beside this one, so windows
+        # meant for it are placed at its offset (and re-placed there).
+        self.backend.viewport_size = (1000, 800)
+        self.run_cli(self.path, "--workspace", "2")
+        xs = sorted(target.x for _, target, _ in self.backend.placed)
+        self.assertEqual(len(xs), 2)
+        self.assertTrue(all(x >= 2000 for x in xs), xs)
+        self.backend.placed.clear()
+        _, out, _ = self.run_cli(self.path, "--workspace", "2")
+        self.assertIn("0 opened, 2 re-placed", out)
+        self.assertEqual(sorted(t.x for _, t, _ in self.backend.placed), xs)
 
 
 class ExitShellTest(unittest.TestCase):

@@ -29,16 +29,17 @@ Open terminal windows at precisely defined screen positions.
   tilepane --explain KEY                 describe a configuration key
   tilepane --uninstall [--purge]         remove tilepane (--purge: and your layouts)
   tilepane --monitors                    list monitors (numbers, names, sizes)
-  tilepane --workspaces                  show the workspaces as the window manager arranges them
+  tilepane --workspaces                  show the workspaces and their numbers
   tilepane --doctor                      print environment info
 
 options:
   --json FILE, --config FILE   start a task with this layout file
   --layout NAME                select a layout in the current task
   --monitor SPEC               number, connector, alias, primary, all; comma-separated
-  --workspace SPEC             a workspace number (1 = first), current, or with
-                               --close: all. Overrides a layout's "workspace";
-                               without either, the current workspace is used
+  --workspace SPEC             a workspace number (0 = bottom left, along the rows,
+                               rows upward), current, or with --close: all.
+                               Overrides a layout's "workspace"; without either,
+                               the current workspace is used
   --dry-run                    compute and print, open nothing
   --eval-when                  with --dry-run: evaluate 'when' conditions
   --prune                      when re-opening, close windows whose pane no longer exists
@@ -196,9 +197,9 @@ def parse(argv: list[str]) -> Invocation:
             except DemoError as exc:
                 raise UsageError(str(exc)) from None
         elif opt == "--workspace":
-            if value not in ("current", "all") and not (value.isdigit() and int(value) >= 1):
+            if value not in ("current", "all") and not value.isdigit():
                 raise UsageError(f"--workspace takes current, all or a workspace number "
-                                 f"(1 = first), got '{value}'")
+                                 f"(0 = bottom left; see tilepane --workspaces), got '{value}'")
             inv.workspace = value
         elif opt == "--seed":
             inv.seed = value

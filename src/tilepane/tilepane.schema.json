@@ -211,9 +211,9 @@
       "default": "work"
     },
     "key-workspace": {
-      "description": "The workspace (virtual desktop) the layout opens on, 1 for the first one. Without it the layout opens on the current workspace. --workspace on the command line overrides it. A number larger than the number of workspaces opens on the current one, with a warning. Set on the layout or in defaults.",
+      "description": "The workspace (virtual desktop) the layout opens on. Workspaces are numbered from 0 in the bottom left corner, along each row, then the rows upward (one row: 0 is the first); tilepane --workspaces shows the numbers. Without it the layout opens on the current workspace. --workspace on the command line overrides it. A number that does not exist on this machine opens on the current workspace, with a warning. Set on the layout or in defaults.",
       "type": "integer",
-      "minimum": 1,
+      "minimum": 0,
       "examples": [4]
     },
     "key-at_basis": {

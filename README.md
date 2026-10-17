@@ -146,12 +146,21 @@ Without tilepane installed, open `src/tilepane/editor/editor.html` straight in t
 
 ## Workspaces
 
-tilepane keeps each workspace separate. Open a layout on workspace 1, switch to workspace 2 and open it again: workspace 2 gets its own windows, and the ones on workspace 1 stay where they are.
+tilepane keeps each workspace separate. Open a layout on workspace 0, switch to workspace 1 and open it again: workspace 1 gets its own windows, and the ones on workspace 0 stay where they are.
+
+Workspaces are numbered from 0 in the bottom left corner, along the row to the right, then the next row up. On a 2 x 2 grid:
+
+```
+2 3
+0 1
+```
+
+With all workspaces in one row, 0 is the first (leftmost). `tilepane --workspaces` draws your own grid with its numbers. This works with ordinary workspaces (Cinnamon, GNOME, Xfce, KDE, Openbox) and with Compiz/Unity, whose workspaces are parts of one large desktop.
 
 ```
 tilepane examples/meters.json                  # opens on the current workspace
 tilepane --workspaces                          # shows your workspaces and their numbers
-tilepane examples/meters.json --workspace 3    # opens on workspace 3 (1 = first)
+tilepane examples/meters.json --workspace 3    # opens on workspace 3
 tilepane --close all                           # closes tilepane's windows on this workspace only
 tilepane --close all --workspace 2             # ... on workspace 2
 tilepane --close all --workspace all           # ... on every workspace
@@ -160,7 +169,7 @@ tilepane --close all --workspace all           # ... on every workspace
 A layout can also name its own workspace, so it always opens there:
 
 ```json
-{ "name": "meters", "workspace": 4, "split": { ... } }
+{ "name": "meters", "workspace": 3, "split": { ... } }
 ```
 
 `--workspace` on the command line overrides it. In the editor, pick it from the **Workspace** list at the top. `--toggle` and `--demo` also work per workspace. You can close any window normally with its close button; tilepane notices it the next time it runs, and opening the layout again brings back just that pane. A window you move to another workspace by hand counts as part of that workspace from then on.

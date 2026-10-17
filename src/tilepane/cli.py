@@ -104,9 +104,9 @@ class _Runner:
         self._monitors = detected
         self._files: dict[str, object] = {}
         self.failed = 0
-        # Workspaces, read once a backend is up: the current one and how many.
+        # Workspaces, read once a backend is up: the current one and their numbering.
         self._current_ws: Optional[int] = None
-        self._ws_count: Optional[int] = None
+        self._numbering = None           # workspaces.Numbering, once a backend is connected
 
     def monitors(self) -> list[monitors.Monitor]:
         if self._monitors is None:
@@ -227,40 +227,46 @@ class _Runner:
 
     def _resolve_workspace(self, backend) -> bool:
         """Read the workspaces and check a --workspace number against them."""
+        from .workspaces import Numbering
+
         self._current_ws = backend.current_desktop()
-        self._ws_count = backend.desktop_count()
+        self._numbering = Numbering.of(backend.desktop_info() if self._current_ws is not None else None)
         spec = self.inv.workspace
         if spec is None or spec in ("current", "all"):
             return True
         if self._current_ws is None:
             self.error(f"--workspace {spec}: the window manager does not report workspaces")
             return False
-        if self._ws_count is not None and int(spec) > self._ws_count:
-            self.error(f"--workspace {spec}: there are only {self._ws_count} workspaces")
+        if self._numbering.index(int(spec)) is None:
+            self.error(f"--workspace {spec}: there are only {self._numbering.count} workspaces "
+                       f"(0 to {self._numbering.count - 1}; see tilepane --workspaces)")
             return False
         return True
 
     def workspace_for(self, layout_ws: Optional[int] = None, where: str = "") -> Optional[int]:
-        """The workspace (0-based; None: every one, or none known) for a layout.
+        """The workspace index (None: every one, or none known) for a layout.
 
         --workspace wins; then the layout's own "workspace"; then the current one.
+        Both are numbers as people use them (0 bottom left); see workspaces.py.
         """
         spec = self.inv.workspace
         if spec == "all":
             return None
         if spec is not None:
-            return self._current_ws if spec == "current" else int(spec) - 1
+            return self._current_ws if spec == "current" else self._numbering.index(int(spec))
         if layout_ws is None:
             return self._current_ws
         if self._current_ws is None:
             print(f"warning: {where}workspace {layout_ws}: the window manager does not report "
                   "workspaces; ignored", file=self.err)
             return None
-        if self._ws_count is not None and layout_ws > self._ws_count:
+        index = self._numbering.index(layout_ws)
+        if index is None:
             print(f"warning: {where}workspace {layout_ws} does not exist (there are "
-                  f"{self._ws_count}); using the current one", file=self.err)
+                  f"{self._numbering.count}, 0 to {self._numbering.count - 1}); using the current one",
+                  file=self.err)
             return self._current_ws
-        return layout_ws - 1
+        return index
 
     def _unit_ws(self, unit: "_Unit") -> Optional[int]:
         return self.workspace_for(unit.resolved.get("workspace"), f'layout "{unit.name}": ')
@@ -274,10 +280,11 @@ class _Runner:
             self.failed += 1
         return n
 
-    @staticmethod
-    def _where(ws: Optional[int]) -> str:
+    def _where(self, ws: Optional[int]) -> str:
         """' (workspace N)' for messages, when workspaces are in play."""
-        return f" (workspace {ws + 1})" if ws is not None else ""
+        if ws is None or self._numbering is None:
+            return ""
+        return f" (workspace {self._numbering.number(ws)})"
 
     def _report_unit(self, unit: _Unit, rep: manager.UnitReport, ws: Optional[int]) -> None:
         total = len(rep.results)

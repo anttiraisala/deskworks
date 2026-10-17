@@ -6,20 +6,23 @@ matched to panes by leaf id and moved to the computed rectangles, missing panes
 are opened, and windows whose pane is gone are closed only with `prune`.
 
 Workspaces keep instances apart: a layout opened on workspace 1 and again on
-workspace 2 has two sets of windows. `workspace` arguments are 0-based EWMH
-desktop numbers; None matches every workspace (and is what a window manager
+workspace 2 has two sets of windows. `workspace` arguments are workspace
+indexes in the window manager's order (EWMH desktops, or Compiz viewports;
+see workspaces.py); None matches every workspace (and is what a window manager
 without workspaces gives). A window on all workspaces matches any of them.
+A viewport lies at an offset from the current one, so windows meant for it are
+placed at that offset.
 """
 
 from __future__ import annotations
 
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Optional
 
 from .backends import Backend, BackendError, Placement
-from .geometry import LeafRect
+from .geometry import LeafRect, Rect
 from .opener import Opener, PaneResult
 from .state import Record, StateStore
 from .terminals import WINDOW_CLASS
@@ -42,6 +45,10 @@ class UnitReport:
     @property
     def failed(self) -> list[PaneResult]:
         return [r for r in self.results if not r.ok]
+
+
+def _shift(r: Rect, dx: int, dy: int) -> Rect:
+    return Rect(r.x + dx, r.y + dy, r.width, r.height)
 
 
 class Manager:
@@ -72,6 +79,7 @@ class Manager:
         report = UnitReport()
         # New windows appear on the current workspace; move them when another was asked for.
         move = workspace is not None and self.backend.current_desktop() != workspace
+        dx, dy = self.backend.workspace_offset(workspace) if move else (0, 0)
         with self.store.transaction() as records:
             self._drop_dead(records)
             mine = {r.leaf: r for r in records if r.key == key and self._on(r, workspace)}
@@ -81,6 +89,8 @@ class Manager:
                 leaf = lr.leaf
                 if leaf.get("empty"):
                     continue
+                if dx or dy:
+                    lr = replace(lr, rect=_shift(lr.rect, dx, dy), outer=_shift(lr.outer, dx, dy))
                 leaf_id = leaf.get("id", lr.id)
                 existing = mine.get(leaf_id)
                 if existing is not None:

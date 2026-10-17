@@ -134,6 +134,8 @@ await page.selectOption("#workspace", "4");
 d = await doc();
 expect(d.workspace === 4 && Object.keys(d).indexOf("workspace") < Object.keys(d).indexOf("split"), `workspace saved in the layout (got ${JSON.stringify(d)})`);
 expect((await page.inputValue('input[data-key="workspace"]')) === "4", "layout panel shows the workspace");
+await page.selectOption("#workspace", "0");
+expect((await doc()).workspace === 0, "workspace 0 (bottom left) is a number, not 'not set'");
 await page.selectOption("#workspace", "");
 expect(!("workspace" in (await doc())), "current removes it");
 step("workspace select");

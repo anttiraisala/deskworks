@@ -172,7 +172,7 @@ _LAYOUT_ONLY: dict[str, Callable[[Any], Optional[str]]] = {
     "split": lambda v: None,  # checked as a node
     "outer_margin": _outer_margin,
     "area": _enum("area"),
-    "workspace": _integer(1),
+    "workspace": _integer(0),
     "at_basis": _enum("at_basis"),
     "description": _text,
 }
@@ -254,7 +254,7 @@ def _validate_defaults(defaults: Any, path: str, pb: _Problems) -> None:
         return
     _check_keys(defaults, DEFAULTS_KEYS, path, pb, "defaults block")
     checks = {**INHERITED, "outer_margin": _outer_margin,
-              "area": _enum("area"), "at_basis": _enum("at_basis"), "workspace": _integer(1)}
+              "area": _enum("area"), "at_basis": _enum("at_basis"), "workspace": _integer(0)}
     _check_values(defaults, checks, path, pb)
 
 

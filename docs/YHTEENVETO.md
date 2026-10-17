@@ -43,7 +43,7 @@ tilepane --uninstall --purge             # poista ohjelma ja ~/.config/tilepane-
 tilepane --dry-run meters.json           # näytä suorakaiteet avaamatta mitään
 tilepane --doctor                        # ympäristön tarkistus
 tilepane --monitors                      # näyttöjen numerot
-tilepane --workspaces                    # työpöydät ruudukkona numeroineen
+tilepane --workspaces                    # työtilat ruudukkona numeroineen
 ```
 
 Pieni esimerkki: htop vasemmalle (60 %), oikea puoli kahtia.
@@ -80,8 +80,11 @@ Pieni esimerkki: htop vasemmalle (60 %), oikea puoli kahtia.
 - **Näytöt** numeroidaan sijainnin mukaan vasemmalta oikealle, alkaen nollasta.
 - **Työtilat** pidetään erillään: sama asettelu voidaan avata eri työtiloihin,
   ja kumpikin saa omat ikkunansa. Layoutille voi tallentaa oman työtilan
-  (`"workspace": 4`), jolloin se avautuu aina sinne; komentorivin
-  `--workspace N` ohittaa sen. `--close` sulkee layoutin omasta työtilasta tai
+  (`"workspace": 3`), jolloin se avautuu aina sinne; komentorivin
+  `--workspace N` ohittaa sen. Työtilat numeroidaan nollasta: 0 on vasen
+  alakulma, numerot kasvavat rivillä oikealle ja jatkuvat seuraavalta riviltä
+  ylempää (2x2: alarivi 0 1, ylärivi 2 3). Sama toimii Compizissa, jossa
+  työtilat ovat yhden ison työpöydän osia. `--close` sulkee layoutin omasta työtilasta tai
   nykyisestä; `--workspace all` sulkee kaikista.
 - **Uudelleenavaus** ei tee kaksoiskappaleita: auki olevat ikkunat siirretään
   paikoilleen ja puuttuvat avataan. Käsin suljettu ikkuna avataan uudelleen.
@@ -98,6 +101,7 @@ Valmiina ja testattuna:
 - geometria, asetusten luku ja tarkistus, `--dry-run`
 - ikkunoiden avaus X11:ssä gnome-terminalilla ja xtermillä, tarkka sijoitus
 - ikkunoiden muistaminen, `--close`, `--toggle`, uudelleenavaus, työtilat
+  (myös Compizin työtilat; niitä ei ole vielä kokeiltu oikealla Compizilla)
 - `snap` (merkkiruudukko tai tarkka pikselikoko), ikkunareunuksen poisto
 - `--demo` ja `--for` (ikkunat sulkeutuvat annetun ajan jälkeen)
 - komentotulkin valinta ruutukohtaisesti
@@ -107,7 +111,8 @@ Valmiina ja testattuna:
   työpöydän valinta, komentorivit
   kopioitavina, yhteiset asetukset siirtyvät automaattisesti puussa ylös
 
-Testattu omistajan koneella (Linux Mint, Cinnamon): työtilat. Kehitysympäristössä
+Testattu omistajan koneella (Linux Mint, Cinnamon): työtilat vanhalla
+numeroinnilla; Ubuntu/Compiz-koneella: `--workspaces` näyttää 2x2-ruudukon. Kehitysympäristössä
 testattu virtuaalinäytöllä (Xvfb, Openbox, xterm): demo, työtilat, editorin
 "Open on screen".
 
@@ -118,9 +123,6 @@ Puuttuu tai kesken:
 - kitty- ja alacritty-terminaalien valmis tuki
 - `mode: cycle` (komennot vuorottelevat samassa ruudussa)
 - editorin merkkiruudukon esikatselu
-- Compiz/Unityn työtilat: `--workspaces` näyttää ne jo ruudukkona, mutta
-  ikkunoita ei vielä osata avata tai sulkea työtilakohtaisesti (Compiz tekee
-  työtilat yhden ison työpöydän osina)
 
 Uusien toimintojen ehdotukset ja suositeltu järjestys ovat SPEC.md:n luvussa 6
 ("Open work and proposals"). Seuraavaksi suositeltu: `--watch` ja lokitiedosto,

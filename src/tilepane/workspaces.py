@@ -1,10 +1,15 @@
-"""--workspaces: how the window manager arranges the workspaces.
+"""Workspace numbers, and `--workspaces`, which shows them.
 
 EWMH lists workspaces (desktops) as a plain sequence. A pager may publish
 their arrangement as a grid in `_NET_DESKTOP_LAYOUT` (orientation, columns,
-rows, starting corner); without it they form one row. This module turns that
-into rows of desktop indexes, top row first, for display. tilepane's
-`--workspace N` and the layout key `workspace` use the sequence, 1 = first.
+rows, starting corner); without it they form one row. Compiz/Unity instead has
+one large desktop shown one screen at a time: its viewports form the grid.
+
+Inside tilepane (backends, manager, state) a workspace is its index in the
+window manager's order: the desktop number, or for viewports the cell counted
+from the top left along the rows. The number a person uses (`--workspace N`,
+the layout key `workspace`, messages, the editor) counts from 0 in the bottom
+left corner, along each row, then the rows upward. `Numbering` converts.
 """
 
 from __future__ import annotations
@@ -74,8 +79,8 @@ def grid(count: int, layout: Optional[list[int]]) -> tuple[list[list[Optional[in
     return cells, how
 
 
-def proposed_numbers(cells: list[list[Optional[int]]]) -> dict[int, int]:
-    """The numbering under discussion: 0 bottom left, along each row, rows upward."""
+def user_numbers(cells: list[list[Optional[int]]]) -> dict[int, int]:
+    """Index -> the number people use: 0 bottom left, along each row, rows upward."""
     out: dict[int, int] = {}
     n = 0
     for row in reversed(cells):
@@ -86,15 +91,59 @@ def proposed_numbers(cells: list[list[Optional[int]]]) -> dict[int, int]:
     return out
 
 
-def render(d: Desktops, verbose: bool = False) -> str:
+def arrangement(d: Desktops) -> tuple[list[list[Optional[int]]], str, Optional[int]]:
+    """Rows (top first) of workspace indexes, a description, and the current index.
+
+    Viewports (Compiz) are numbered from the top left along the rows, the same
+    way the X11 backend numbers them.
+    """
     vp = viewport_grid(d) if d.count <= 1 else None
     if vp is not None:
-        return _render_viewports(d, vp, verbose)
+        cols, rows, cell = vp
+        cells: list[list[Optional[int]]] = [[r * cols + c for c in range(cols)] for r in range(rows)]
+        sw, sh = d.screen
+        how = (f"viewports of one large desktop, {cols} x {rows}, each {sw}x{sh} "
+               f"(all monitors in each)")
+        return cells, how, (cell[1] * cols + cell[0]) if cell is not None else None
     cells, how = grid(d.count, d.layout)
+    return cells, how, d.current
+
+
+@dataclass
+class Numbering:
+    """The workspaces of this machine, by the numbers people use."""
+    count: int
+    current: Optional[int]                 # index of the current workspace
+    to_user: dict[int, int]                # index -> number
+    cells: list[list[Optional[int]]]
+    how: str
+
+    @classmethod
+    def of(cls, d: Optional[Desktops]) -> "Numbering":
+        if d is None:
+            return cls(0, None, {}, [], "no workspaces")
+        cells, how, current = arrangement(d)
+        nums = user_numbers(cells)
+        return cls(len(nums), current, nums, cells, how)
+
+    def index(self, number: int) -> Optional[int]:
+        """The index of workspace `number`, or None when there is no such workspace."""
+        for idx, n in self.to_user.items():
+            if n == number:
+                return idx
+        return None
+
+    def number(self, index: Optional[int]) -> Optional[int]:
+        return None if index is None else self.to_user.get(index, index)
+
+
+def render(d: Desktops, verbose: bool = False) -> str:
+    num = Numbering.of(d)
+    cells = num.cells
     lines = []
-    cur = f" (current: {d.current + 1})" if d.current is not None else ""
-    lines.append(f"{d.count} workspace(s){cur}: {how}")
-    width = max(len(str(d.count)), 1) + 2
+    cur = f" (current: {num.number(num.current)})" if num.current is not None else ""
+    lines.append(f"{num.count} workspace(s){cur}: {num.how}")
+    width = max(len(str(num.count - 1)), 1) + 2
 
     def draw(label) -> None:
         for row in cells:
@@ -104,24 +153,23 @@ def render(d: Desktops, verbose: bool = False) -> str:
                     out.append(" " * width)
                     continue
                 text = str(label(idx))
-                out.append((f"[{text}]" if idx == d.current else f" {text} ").rjust(width))
+                out.append((f"[{text}]" if idx == num.current else f" {text} ").rjust(width))
             lines.append("  " + " ".join(out).rstrip())
 
     lines.append("")
-    lines.append("As --workspace N uses them now (1 = first):")
-    draw(lambda i: i + 1)
-    names = [n for n in d.names[:d.count]]
+    lines.append("Numbers for --workspace N and \"workspace\" (0 bottom left, along the rows, rows upward):")
+    draw(num.number)
+    names = [n for n in d.names[:d.count]] if d.count > 1 else []
     defaults = lambda i: {f"workspace {i + 1}", f"desktop {i + 1}", str(i + 1), ""}
     if any(n.strip().lower() not in defaults(i) for i, n in enumerate(names)):
         lines.append("")
-        lines.append("Names:")
-        for i, n in enumerate(names):
-            lines.append(f"  {i + 1}: {n}")
-    lines.append("")
-    lines.append("Proposed numbering (0 bottom left, along the rows, rows upward):")
-    nums = proposed_numbers(cells)
-    draw(lambda i: nums[i])
+        lines.append("Names given by the window manager:")
+        for i, n in sorted(enumerate(names), key=lambda e: num.number(e[0])):
+            lines.append(f"  {num.number(i)}: {n}")
     if verbose:
+        lines.append("")
+        lines.append("The window manager's own order (1 = first):")
+        draw(lambda i: i + 1)
         lines += _raw(d)
     return "\n".join(lines)
 
@@ -132,33 +180,3 @@ def _raw(d: Desktops) -> list[str]:
             f"_NET_DESKTOP_GEOMETRY: {d.geometry if d.geometry else 'not set'}",
             f"_NET_DESKTOP_VIEWPORT (current): {list(d.viewport) if d.viewport is not None else 'not set'}",
             f"screen: {d.screen[0]}x{d.screen[1]}" if d.screen else "screen: unknown"]
-
-
-def _render_viewports(d: Desktops, vp: tuple, verbose: bool) -> str:
-    """Compiz: one desktop, several screen-sized viewports in a grid."""
-    cols, rows, cell = vp
-    sw, sh = d.screen
-    lines = [f"{cols * rows} workspaces as viewports of one large desktop ({cols} x {rows}, "
-             f"each {sw}x{sh}, all monitors in each)" + (f"; you are in column {cell[0] + 1}, "
-             f"row {cell[1] + 1} from the top" if cell else "")]
-    lines.append("  note: tilepane cannot open on or close per viewport yet; --workspace and the")
-    lines.append("  layout's \"workspace\" treat them all as one workspace")
-
-    def draw(label) -> None:
-        width = len(str(cols * rows)) + 2
-        for r in range(rows):
-            out = []
-            for c in range(cols):
-                text = str(label(c, r))
-                out.append((f"[{text}]" if cell == (c, r) else f" {text} ").rjust(width))
-            lines.append("  " + " ".join(out).rstrip())
-
-    lines.append("")
-    lines.append("In the window manager's order (1 = top left, along the rows):")
-    draw(lambda c, r: r * cols + c + 1)
-    lines.append("")
-    lines.append("Proposed numbering (0 bottom left, along the rows, rows upward):")
-    draw(lambda c, r: (rows - 1 - r) * cols + c)
-    if verbose:
-        lines += _raw(d)
-    return "\n".join(lines)

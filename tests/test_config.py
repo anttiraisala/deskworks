@@ -466,8 +466,9 @@ class WorkspaceKeyTest(unittest.TestCase):
         flat = config.load_text(json.dumps({"name": "f", "split": {}}), "f.json", strict=True)
         self.assertIsNone(config.resolve_layout(flat, flat.layouts[0])["workspace"])
 
-    def test_workspace_must_be_a_positive_whole_number(self):
-        for bad in (0, -1, 1.5, "2", True):
+    def test_workspace_must_be_a_whole_number_from_zero(self):
+        self.assertEqual(errors_of({"name": "w", "workspace": 0, "split": {}}), [])
+        for bad in (-1, 1.5, "2", True):
             with self.subTest(bad=bad):
                 self.assertTrue(any("workspace" in e for e in errors_of({"name": "w", "workspace": bad, "split": {}})))
 

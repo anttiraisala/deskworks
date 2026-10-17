@@ -63,6 +63,13 @@ class FakeBackend:
         return Desktops(self.desktop_count() or 0, self.desktop, getattr(self, "desktop_names", []),
                         getattr(self, "desktop_layout", None))
 
+    def workspace_offset(self, desktop):
+        # viewport_size: pretend the workspaces are viewports of this size in one row.
+        size = getattr(self, "viewport_size", None)
+        if size is None or self.desktop is None:
+            return 0, 0
+        return (desktop - self.desktop) * size[0], 0
+
     def move_to_desktop(self, window_id, desktop):
         self.desktops[window_id] = desktop
 
