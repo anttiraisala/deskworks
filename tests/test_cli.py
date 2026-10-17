@@ -114,6 +114,13 @@ class ParseTest(unittest.TestCase):
             with self.subTest(argv=argv), self.assertRaises(UsageError):
                 parse(argv)
 
+    def test_identify_option(self):
+        self.assertEqual(parse(["--identify"]).action, "identify")
+        self.assertEqual(parse(["--identify", "--workspace", "all"]).workspace, "all")
+        for argv in (["--identify", "a.json"], ["--identify", "--demo"], ["--identify", "--close", "all"]):
+            with self.subTest(argv=argv), self.assertRaises(UsageError):
+                parse(argv)
+
     def test_workspace_option(self):
         self.assertIsNone(parse(["a.json"]).workspace)
         self.assertEqual(parse(["a.json", "--workspace", "2"]).workspace, "2")

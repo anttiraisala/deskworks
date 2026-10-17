@@ -160,6 +160,8 @@ With all workspaces in one row, 0 is the first (leftmost). `tilepane --workspace
 ```
 tilepane examples/meters.json                  # opens on the current workspace
 tilepane --workspaces                          # shows your workspaces and their numbers
+tilepane --identify                            # a window on every monitor of every workspace,
+                                               # saying which workspace and monitor it should be on
 tilepane examples/meters.json --workspace 3    # opens on workspace 3
 tilepane --close all                           # closes tilepane's windows on this workspace only
 tilepane --close all --workspace 2             # ... on workspace 2

@@ -181,3 +181,8 @@ Implemented:
 - On the owner's Compiz (LENOVO), `--demo --workspace 0` opened on the bottom left viewport as expected, but `--workspace 3` (top right) crashed: the viewport above is at y = -2352, and python-xlib packs client message data as unsigned 32-bit values. Values are now sent as two's complement (`card32`), which window managers read back as signed, as EWMH intends for `_NET_MOVERESIZE_WINDOW`.
 - Tested: unit test for the packing; live under Xvfb + Openbox, an xterm placed at (-300, -200) landed exactly there. Not yet tested: the owner's Compiz moving windows to the upper viewports.
 - Tests: 381 (5 skipped without a live X server).
+
+### 2026-10-17: `--identify`
+- On the owner's Compiz, `--demo --workspace 3`, `--workspace 1 --monitor 1` and `--workspace 2 --monitor all` opened windows in every workspace and on most monitors, and the reported coordinates match the expected viewport offsets, but the owner could not tell from the random demos which windows belonged where. At their request, `tilepane --identify` opens one window on every monitor of every workspace, each printing where it should be (workspace number, its column and row in words, monitor number, name and geometry). `--monitor` and `--workspace` narrow it; a new run replaces the previous windows.
+- Tested: unit tests (8 windows for 2 monitors x 4 workspaces on a 2 x 2 grid, replacement, `--dry-run`, the grid position in words, option checks) and live under Xvfb + Openbox with a 2 x 2 grid: 4 windows, workspace 0 on desktop index 2 (bottom left). The window title set by the layout is overwritten by the shell prompt in xterm; the text inside the window is what counts. Not yet tested on the owner's Compiz.
+- Tests: 390 (5 skipped without a live X server).

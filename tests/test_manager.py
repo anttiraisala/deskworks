@@ -481,6 +481,29 @@ class CliWorkspaceTest(unittest.TestCase):
         _, out, _ = self.run_cli(self.path)
         self.assertIn("(workspace 3): 2 opened", out)
 
+    def test_identify_opens_one_window_per_monitor_and_workspace(self):
+        self.backend.desktop_layout = [0, 2, 2, 0]
+        code, out, err = self.run_cli("--identify")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(self.backend._open), 8)
+        self.assertEqual(sorted(self.backend.desktops.values()), [0, 0, 1, 1, 2, 2, 3, 3])
+        self.assertIn('layout "workspace-0-monitor-1" on monitor 1 HDMI-1', out)
+        self.assertIn("(workspace 3)", out)
+        # Again: the earlier windows are replaced, not added to.
+        self.run_cli("--identify", "--workspace", "1", "--monitor", "0")
+        self.assertEqual(len(self.backend._open), 1)
+        _, out, _ = self.run_cli("--identify", "--dry-run")
+        self.assertIn("workspace 2, monitor 0: ", out)
+        self.assertEqual(len(self.backend._open), 1)
+
+    def test_identify_text_says_where_the_window_belongs(self):
+        self.backend.desktop_layout = [0, 2, 2, 0]
+        runner = cli._Runner(cli.parse(["--identify"]), io.StringIO(), io.StringIO(), MONS,
+                             self.backend, None, None, self.store)
+        runner._resolve_workspace(self.backend)
+        self.assertEqual(runner._cell_text(1), "column 2 of 2 from the left, row 2 of 2 from the bottom")
+        self.assertEqual(runner._cell_text(2), "column 1 of 2 from the left, row 1 of 2 from the bottom")
+
     def test_viewports_place_windows_at_their_offset(self):
         # Compiz: another workspace is a viewport beside this one, so windows
         # meant for it are placed at its offset (and re-placed there).

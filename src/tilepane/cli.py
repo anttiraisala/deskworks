@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import shlex
 import sys
 from dataclasses import dataclass
 from typing import Iterator, Optional, TextIO
@@ -16,6 +17,8 @@ from .invocation import HELP, Invocation, Task, UsageError, parse
 
 # State key source for a demo that was not saved to a file.
 DEMO_SOURCE = "<demo>"
+# State key source for the windows of --identify.
+IDENTIFY_SOURCE = "<identify>"
 
 
 def _pane_summary(leaf: dict, when_evaluated: bool) -> str:
@@ -481,6 +484,68 @@ class _Runner:
             backend.disconnect()
         return 1 if self.failed else 0
 
+    def _cell_text(self, ws: Optional[int]) -> str:
+        """Where workspace `ws` is in the grid, in words."""
+        cells = self._numbering.cells if self._numbering else []
+        for r, row in enumerate(cells):
+            if ws in row:
+                c = row.index(ws)
+                if len(cells) == 1:
+                    return f"number {c + 1} from the left"
+                return (f"column {c + 1} of {len(row)} from the left, "
+                        f"row {len(cells) - r} of {len(cells)} from the bottom")
+        return "the only workspace"
+
+    def identify(self) -> int:
+        """One window on every monitor of every workspace, saying where it should be."""
+        try:
+            mons = monitors.resolve_many(self.inv.default_monitor or "all", self.monitors(), {})
+        except monitors.MonitorError as exc:
+            self.error(f"--identify: {exc}")
+            return 1
+        mgr, backend = self._manager()
+        if mgr is None:
+            return 1
+        try:
+            num = self._numbering
+            if self.inv.workspace in (None, "all"):
+                targets = (sorted(num.to_user, key=num.to_user.get) if num.count
+                           else [self._current_ws])
+            else:
+                targets = [self.workspace_for()]
+            if not self.inv.dry_run:
+                # A new --identify replaces the windows of the previous one.
+                self._closed(mgr, mgr.close(source=IDENTIFY_SOURCE))
+            for ws in targets:
+                for mon in mons:
+                    area = self.area(mon, "work")
+                    lines = ["tilepane --identify: this window should be on", ""]
+                    if ws is not None:
+                        lines.append(f"  workspace {num.number(ws)}: {self._cell_text(ws)}")
+                    lines += [f"  monitor {mon.number}: {mon.name} {mon.width}x{mon.height}"
+                              f"+{mon.x}+{mon.y}", "",
+                              "Close them all: tilepane --close all --workspace all"]
+                    title = (f"workspace {num.number(ws)}, " if ws is not None else "") + f"monitor {mon.number}"
+                    name = (f"workspace-{num.number(ws)}-" if ws is not None else "") + f"monitor-{mon.number}"
+                    data = {"name": name, "margin": 120,
+                            "split": {"title": title,
+                                      "run": "printf '%s\\n' " + " ".join(shlex.quote(x) for x in lines)}}
+                    cfg = config.load_text(json.dumps(data), IDENTIFY_SOURCE, strict=True)
+                    resolved = config.resolve_layout(cfg, cfg.layouts[0])
+                    unit = _Unit(cfg, name, mon, resolved, geometry.compute(resolved, area), area)
+                    if self.inv.dry_run:
+                        r = unit.leaves[0].rect
+                        print(f"{title}: {r.x},{r.y} {r.width}x{r.height} on {_monitor_label(mon)}"
+                              f"{self._where(ws)}", file=self.out)
+                        continue
+                    rep = mgr.open_unit((IDENTIFY_SOURCE, name, mon.name), unit.leaves, workspace=ws)
+                    self._report_unit(unit, rep, ws)
+                    if rep.failed:
+                        self.failed += 1
+        finally:
+            backend.disconnect()
+        return 1 if self.failed else 0
+
     def edit(self, open_browser=None) -> int:
         from .editor import server as editor_server
 
@@ -664,6 +729,8 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
         code = runner.toggle_windows()
     elif inv.action == "demo":
         code = runner.demo()
+    elif inv.action == "identify":
+        code = runner.identify()
     elif inv.dry_run:
         return runner.dry_run()
     else:

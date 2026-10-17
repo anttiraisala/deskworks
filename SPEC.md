@@ -33,6 +33,7 @@ tilepane --edit                                # start the browser editor (local
 tilepane --doctor                              # print environment info (session type, monitors, terminal)
 tilepane --monitors                            # list monitors with their numbers, names, sizes and positions
 tilepane --workspaces                          # show the workspaces and their numbers
+tilepane --identify                            # one window per monitor per workspace, saying where it should be
 tilepane --dry-run 3                           # print the computed rectangles without opening anything
 tilepane --explain on_exit                     # print the description of a configuration key
 tilepane --demo                                # random split with fun commands (see section 10)
@@ -209,6 +210,7 @@ If a layout is already open, tilepane reconciles instead of opening duplicates: 
 - New windows are moved to the chosen workspace after they appear. In the editor, a "Workspace" list in the header (and the layout panel) sets the layout's `workspace` (0 marked "bottom left"), or "not set" for none; the server reports how many workspaces the machine has.
 - `tilepane --workspaces` shows the workspaces: how many, the current one, how they are arranged, the grid with tilepane's numbers and the current one in brackets, and the window manager's names when they are not the defaults. `-v` adds the window manager's own order (1-based) and the raw properties.
 - **Compiz/Unity** has one large desktop (`_NET_DESKTOP_GEOMETRY` larger than the screen, at most one EWMH desktop) shown one screen-sized viewport at a time; each viewport holds all monitors. The viewports are the workspaces: their grid is columns x rows of the screen size, the current one comes from `_NET_DESKTOP_VIEWPORT`. Window positions are relative to the current viewport, so a window's workspace is the viewport its centre is in, and windows for another viewport are placed at that viewport's offset (new and re-placed windows alike) instead of being moved with `_NET_WM_DESKTOP`.
+- `tilepane --identify` checks the numbering on a real machine: one window on every monitor (`--monitor` narrows it) of every workspace (`--workspace N` narrows it), each printing the workspace number, its place in the grid in words and the monitor's number, name and geometry. A new `--identify` closes the windows of the previous one; `--close all --workspace all` closes them, `--for` and `--dry-run` work as usual.
 - A window manager that reports no workspaces behaves as one workspace.
 
 Closing asks each window to close (`_NET_CLOSE_WINDOW`), checks that it went, and asks once more. A window that still stays open is reported and kept in the state, so the next `--close` tries it again. tilepane never kills a terminal process: with gnome-terminal one server owns every tilepane window. A window closed by hand (its close button) is noticed the next time tilepane runs: it is dropped from the state, and opening the layout again opens only that pane.

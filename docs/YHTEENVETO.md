@@ -44,6 +44,7 @@ tilepane --dry-run meters.json           # näytä suorakaiteet avaamatta mitä�
 tilepane --doctor                        # ympäristön tarkistus
 tilepane --monitors                      # näyttöjen numerot
 tilepane --workspaces                    # työtilat ruudukkona numeroineen
+tilepane --identify                      # ikkuna jokaiselle monitorille joka työtilaan; kertoo, missä sen pitäisi olla
 ```
 
 Pieni esimerkki: htop vasemmalle (60 %), oikea puoli kahtia.

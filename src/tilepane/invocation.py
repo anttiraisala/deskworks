@@ -24,6 +24,8 @@ Open terminal windows at precisely defined screen positions.
                                          (--close all: everything; --workspace all: everywhere)
   tilepane --toggle 3                    open if closed, close if open
   tilepane --demo [N]                    random layout with N fun commands (3-6 by default)
+  tilepane --identify                    a window on every monitor of every workspace,
+                                         saying where it should be (checks numbering)
   tilepane --edit [FILE]                 edit a layout file in the browser
   tilepane --list [FILE]                 list layouts
   tilepane --explain KEY                 describe a configuration key
@@ -64,7 +66,7 @@ Key reference: docs/CONFIG.md, or tilepane --explain KEY.
 VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--wait-monitors",
                  "--for", "--seed", "--save", "--workspace"}
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
-                "--close", "--toggle", "--prune", "--demo", "--edit", "--no-browser",
+                "--close", "--toggle", "--prune", "--demo", "--identify", "--edit", "--no-browser",
                 "--exit-shell", "-x", "--uninstall", "--purge", "--yes",
                 "--monitors", "--workspaces", "--list", "--version", "--help", "-h"}
 # Options from SPEC.md that exist but are built in a later step.
@@ -85,7 +87,7 @@ class Task:
 
 @dataclass
 class Invocation:
-    action: str = "run"                   # run, help, version, doctor, monitors, list, explain, close, toggle, demo
+    action: str = "run"                   # run, help, version, doctor, monitors, list, explain, close, toggle, demo, identify
     tasks: list[Task] = field(default_factory=list)
     dry_run: bool = False
     eval_when: bool = False
@@ -205,8 +207,8 @@ def parse(argv: list[str]) -> Invocation:
             inv.seed = value
         elif opt == "--save":
             inv.save = value
-        elif opt == "--demo":
-            actions.append("demo")
+        elif opt in ("--demo", "--identify"):
+            actions.append(opt[2:])
         elif opt == "--edit":
             actions.append("edit")
         elif opt == "--uninstall":
@@ -253,6 +255,9 @@ def parse(argv: list[str]) -> Invocation:
             raise UsageError("--demo cannot be combined with --close or --toggle (use --close all)")
     elif inv.seed is not None or inv.save is not None:
         raise UsageError(f"{'--seed' if inv.seed is not None else '--save'} only works with --demo")
+    if "identify" in actions:
+        if inv.tasks or len(set(actions)) > 1:
+            raise UsageError("--identify makes its own windows; it takes no files, layouts or other actions")
     if "uninstall" in actions:
         if inv.tasks or len(set(actions)) > 1:
             raise UsageError("--uninstall takes no files, layouts or other actions")
@@ -268,15 +273,15 @@ def parse(argv: list[str]) -> Invocation:
         if len(inv.tasks) > 1 or (inv.tasks and inv.tasks[0].layouts):
             raise UsageError("--edit takes one file (the editor shows all its layouts)")
     for action in ("help", "version", "doctor", "monitors", "workspaces", "explain", "list", "close", "toggle",
-                   "demo", "edit"):
+                   "demo", "identify", "edit"):
         if action in actions:
             inv.action = action
             break
     else:
         if not argv:
             inv.action = "help"
-    if inv.workspace == "all" and inv.action != "close":
-        raise UsageError("--workspace all only works with --close")
+    if inv.workspace == "all" and inv.action not in ("close", "identify"):
+        raise UsageError("--workspace all only works with --close (and --identify)")
     if inv.action in ("close", "toggle") and not inv.tasks:
         raise UsageError(f"--{inv.action} needs a layout name or a file"
                          + (" (or 'all')" if inv.action == "close" else ""))
