@@ -329,6 +329,51 @@ const heights = await page.evaluate(() => S.geo.leaves.map((l) => [l.leaf.run ||
 expect(heights.find((t) => t[0] === "L1")[1] !== 300, `with Alt the line did not snap (got ${JSON.stringify(heights)})`);
 step("Alt turns the snapping off");
 
+// A command typed into a field is kept when the next click goes straight to a pane, a button or the screen,
+// although the field never lost focus the usual way (the panes cancel the default action of the mouse down).
+await loadDoc({ name: "typed", margin: 8, split: { dir: "columns", at: "50%", a: {}, b: {} } });
+await page.locator(".pane").first().click();
+await page.fill('textarea[data-key="run"]', "htop");
+// Some browsers (Firefox) do not move the focus away from the field on this click, so the field gets no change
+// event; a synthetic mouse down and up does not move the focus in any browser and reproduces that.
+await page.evaluate(() => {
+  const pane = document.querySelectorAll(".pane")[1];
+  const r = pane.getBoundingClientRect();
+  const at = { bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1, button: 0, buttons: 1 };
+  pane.dispatchEvent(new PointerEvent("pointerdown", at));
+  window.dispatchEvent(new PointerEvent("pointerup", { ...at, buttons: 0 }));
+});
+await page.waitForTimeout(50);
+expect(await page.evaluate(() => S.sel.path.join(",")) === "1", "the second pane got selected");
+d = await doc();
+expect(d.split.a.run === "htop", `the typed command stayed in the first pane (got ${JSON.stringify(d.split)})`);
+await page.locator(".pane").first().click();
+await page.fill('textarea[data-key="run"]', "top");
+await page.locator(".pane").nth(1).click();
+expect((await doc()).split.a.run === "top", "the same with a real click");
+await page.locator(".pane").first().click();
+expect((await page.inputValue('textarea[data-key="run"]')) === "top", "selecting the pane again shows the command");
+expect((await page.evaluate(() => document.title)).startsWith("•"), "the file is marked as changed");
+step("typed command survives a click on another pane");
+
+await page.fill('textarea[data-key="run"]', "htop\nwatch date");
+await page.click("text=✂ Cut pane ─");
+d = await doc();
+expect(d.split.a.dir === "rows" && JSON.stringify(d.split.a.a.run) === JSON.stringify(["htop", "watch date"]), `the command was kept and the button worked (got ${JSON.stringify(d.split.a)})`);
+step("typed command survives a click on a button, and the button still works");
+
+await page.locator(".pane").first().click();
+await page.fill('textarea[data-key="run"]', "top");
+const stage2 = await page.locator("#stage").boundingBox();
+await page.mouse.click(stage2.x + 8, stage2.y + 8);
+expect((await doc()).split.a.a.run === "top", "a click outside the monitor keeps the typed command");
+await page.locator(".pane").first().click();
+await page.fill('textarea[data-key="run"]', "uptime");
+await page.keyboard.press("Control+z");   // undo with typed text first commits it, then undoes it
+expect((await doc()).split.a.a.run === "top", "undo after typing goes back to the command before it");
+expect(errors.length === 0, `no page errors after typing and clicking: ${errors.join("; ")}`);
+step("typed command survives a click outside the monitor");
+
 expect(errors.length === 0, `no page errors: ${errors.join("; ")}`);
 await browser.close();
 console.log("editor features: ok");

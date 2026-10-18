@@ -1024,6 +1024,7 @@ function change(fn) {
   render();
 }
 function stepHistory(from, to) {
+  flushFields();
   if (!from.length) return;
   const now = snapshot();
   to.push(now);
@@ -2634,7 +2635,21 @@ function renderFooter() {
   if (S.log) f.append(h("pre", {}, S.log));
 }
 
+// Text typed into a field is committed when the field loses focus (its change event). Clicks on the panes, the
+// monitor and the lines do preventDefault() on pointerdown, so the field never loses focus there and the typed
+// text would be thrown away by the next render. flushFields() makes the field lose focus first, so the text is
+// committed before whatever the click or the key does. The render that the commit asks for is held back (a new
+// DOM under the pointer would swallow the click that is on its way) and done once the click is over.
+function flushFields() {
+  const a = document.activeElement;
+  if (!a || !a.matches || !a.matches("input, textarea") || a.readOnly) return;
+  S.holdRender = true;
+  try { a.blur(); } finally { S.holdRender = false; }
+}
+
 function render() {
+  if (S.holdRender) { S.renderPending = true; return; }
+  S.renderPending = false;
   if (S.layoutIndex >= layouts().length) S.layoutIndex = 0;
   if ((S.sel.kind === "pane" || S.sel.kind === "split") && !pathValid(S.sel.path)) S.sel = { kind: "layout" };
   computeGeometry();
@@ -2740,6 +2755,7 @@ async function api(path, body) {
 }
 
 async function save() {
+  flushFields();
   render();
   if (errorsCount()) { S.status = "not saved: fix the problems first"; render(); return false; }
   const text = docText();
@@ -2814,6 +2830,7 @@ function newFile() {
 }
 
 async function onScreen(action) {
+  flushFields();
   if (action === "open" && S.dirty && !(await save())) return;
   const m = monitor();
   S.status = action === "open" ? "opening windows…" : "closing windows…";
@@ -2832,6 +2849,10 @@ async function onScreen(action) {
 // ---------------------------------------------------------------- start
 
 function wire() {
+  document.addEventListener("pointerdown", flushFields, true);
+  document.addEventListener("pointerup", () => {
+    if (S.renderPending) setTimeout(() => { if (S.renderPending) render(); }, 0);
+  });
   $("#layout").addEventListener("change", (e) => { S.layoutIndex = Number(e.target.value); S.sel = { kind: "layout" }; S.lastGood = null; render(); });
   $("#monitor").addEventListener("change", (e) => previewChange(() => {
     if (e.target.value === "custom") S.useCustom = true;
