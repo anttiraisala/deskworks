@@ -395,6 +395,172 @@ expect((await doc()).split.a.a.run === "top", "undo after typing goes back to th
 expect(errors.length === 0, `no page errors after typing and clicking: ${errors.join("; ")}`);
 step("typed command survives a click outside the monitor");
 
+// Shift-drag of a line leaves the old line and makes a new one; between them is a new empty pane.
+const lineBox = (selector, nth = 0) => page.evaluate(([sel, n]) => {
+  const r = document.querySelectorAll(sel)[n].getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2];
+}, [selector, nth]);
+const outers = () => page.evaluate(() => S.geo.leaves.map((l) => [l.leaf.run || "", l.outer.x, l.outer.width, l.outer.y, l.outer.height]));
+const twoColumns = { name: "two", margin: 8, split: { dir: "columns", at: "50%", a: { run: "L" }, b: { run: "R" } } };
+await loadDoc(twoColumns);
+const origin = await outers();
+const lx = origin.find((o) => o[0] === "L")[2];
+let ln = await lineBox(".handle.v");
+await page.keyboard.down("Shift");
+await page.mouse.move(ln[0], ln[1]);
+await page.mouse.down();
+await page.mouse.move(ln[0] + 150, ln[1], { steps: 6 });
+expect(await page.locator(".copy-strip").count() === 1, "a strip shows the new pane while dragging");
+expect((await outers()).find((o) => o[0] === "L")[2] === lx, "the old line stays while Shift is held");
+expect(/New empty pane/.test(await page.locator(".size-tip").last().textContent()), "the tooltip says what happens");
+await page.mouse.up();
+await page.keyboard.up("Shift");
+d = await doc();
+expect(Array.isArray(d.split.children) && d.split.children.length === 3 && d.split.children[0].run === "L" && JSON.stringify(d.split.children[1]) === "{}" && d.split.children[2].run === "R", `L, a new empty pane and R (got ${JSON.stringify(d.split)})`);
+const shifted = await outers();
+const L1 = shifted.find((o) => o[0] === "L"), R1 = shifted.find((o) => o[0] === "R"), N1 = shifted.find((o) => o[0] === "");
+expect(Math.abs(L1[2] - lx) <= 2, `L keeps its size (${L1[2]} vs ${lx})`);
+expect(N1 && N1[2] > 100 && Math.abs(N1[1] - (L1[1] + L1[2])) <= 2 && Math.abs(R1[1] - (N1[1] + N1[2])) <= 2, `the new pane is between the lines (${JSON.stringify(shifted)})`);
+expect((await page.evaluate(() => S.sel.path.join(","))) === "1", "the new pane is selected");
+expect(!(await page.evaluate(() => document.querySelectorAll(".copy-strip").length)), "the preview is gone");
+await page.click("#undo");
+expect(JSON.stringify(await doc()) === JSON.stringify(twoColumns), "one undo takes the new line away");
+step("shift-drag: a new line and an empty pane between the lines");
+
+// Shift pressed in the middle of a drag: the new line goes where the old one was.
+await loadDoc(twoColumns);
+ln = await lineBox(".handle.v");
+await page.mouse.move(ln[0], ln[1]);
+await page.mouse.down();
+await page.mouse.move(ln[0] + 100, ln[1], { steps: 5 });
+expect((await outers()).find((o) => o[0] === "L")[2] > lx + 50, "the line follows the mouse without Shift");
+await page.keyboard.down("Shift");
+expect((await outers()).find((o) => o[0] === "L")[2] === lx, "Shift at once brings the old line back");
+await page.mouse.move(ln[0] + 140, ln[1], { steps: 3 });
+await page.mouse.up();
+await page.keyboard.up("Shift");
+d = await doc();
+expect(d.split.children && d.split.children.length === 3, `a new pane was made (got ${JSON.stringify(d.split)})`);
+step("Shift in the middle of a drag");
+
+// Shift let go before the mouse button: the line is moved as usual.
+await loadDoc(twoColumns);
+ln = await lineBox(".handle.v");
+await page.mouse.move(ln[0], ln[1]);
+await page.mouse.down();
+await page.keyboard.down("Shift");
+await page.mouse.move(ln[0] + 120, ln[1], { steps: 5 });
+await page.keyboard.up("Shift");
+await page.mouse.up();
+d = await doc();
+expect(!d.split.children && d.split.at !== "50%", `without Shift at the end the line just moved (got ${JSON.stringify(d.split)})`);
+step("Shift let go before the drop moves the line");
+
+// Dropped too close to the old line, or Esc: nothing is made and nothing changes.
+await loadDoc(twoColumns);
+let undoBefore = await page.evaluate(() => S.undo.length);
+ln = await lineBox(".handle.v");
+await page.keyboard.down("Shift");
+await page.mouse.move(ln[0], ln[1]);
+await page.mouse.down();
+await page.mouse.move(ln[0] + 6, ln[1], { steps: 3 });
+expect(/Too close/.test(await page.locator(".size-tip").last().textContent()), "the tooltip warns that it is too close");
+await page.mouse.up();
+await page.keyboard.up("Shift");
+expect(JSON.stringify(await doc()) === JSON.stringify(twoColumns) && (await page.evaluate(() => S.undo.length)) === undoBefore, "too close: no change, no undo step");
+expect(/too small/.test(await page.evaluate(() => S.status)), "the footer says why");
+ln = await lineBox(".handle.v");
+await page.keyboard.down("Shift");
+await page.mouse.move(ln[0], ln[1]);
+await page.mouse.down();
+await page.mouse.move(ln[0] + 150, ln[1], { steps: 4 });
+await page.keyboard.press("Escape");
+await page.mouse.up();
+await page.keyboard.up("Shift");
+expect(JSON.stringify(await doc()) === JSON.stringify(twoColumns) && !(await page.isVisible(".copy-strip")), "Esc cancels the drag");
+step("too close and Esc change nothing");
+
+// Shift-drag of a line in an N-way split and with pixel sizes.
+await loadDoc({ name: "n", margin: 8, split: { dir: "rows", children: [{ run: "a" }, { run: "b" }, { run: "c" }], sizes: ["200px", "1frac", "2frac"] } });
+ln = await lineBox(".handle.h", 1);
+await page.keyboard.down("Shift");
+await page.mouse.move(ln[0], ln[1]);
+await page.mouse.down();
+await page.mouse.move(ln[0], ln[1] + 80, { steps: 5 });
+await page.mouse.up();
+await page.keyboard.up("Shift");
+d = await doc();
+expect(d.split.children.length === 4 && d.split.children[0].run === "a" && d.split.children[1].run === "b" && JSON.stringify(d.split.children[2]) === "{}" && d.split.children[3].run === "c", `a pane was added between b and c (got ${JSON.stringify(d.split)})`);
+const rows = await outers();
+const sum = rows.reduce((acc, o) => acc + o[4], 0);
+expect(Math.abs(sum - (await page.evaluate(() => areaFor(lay()).height))) <= 3, "the panes still fill the monitor");
+step("shift-drag in an N-way split");
+
+// From the edge of the work area: a new empty pane in front of the pane that was grabbed, only that pane.
+const leftColumn = { name: "e", margin: 8, split: { dir: "columns", at: "50%",
+  a: { dir: "rows", at: "50%", a: { run: "top" }, b: { run: "bottom" } }, b: { run: "R" } } };
+await loadDoc(leftColumn);
+const scr = await page.locator("#screen").boundingBox();
+const lowerBox = await page.locator(".pane").nth(1).boundingBox();
+await page.keyboard.down("Shift");
+expect(await page.locator(".edge-zone").first().isVisible(), "the edge zones show while Shift is held");
+await page.mouse.move(scr.x + 8, lowerBox.y + lowerBox.height / 2);
+await page.mouse.down();
+await page.mouse.move(scr.x + 130, lowerBox.y + lowerBox.height / 2, { steps: 6 });
+expect(await page.locator(".copy-strip").count() === 1, "a strip shows the new pane at the edge");
+await page.mouse.up();
+await page.keyboard.up("Shift");
+d = await doc();
+expect(d.split.a.a.run === "top" && d.split.a.b.dir === "columns" && JSON.stringify(d.split.a.b.a) === "{}" && d.split.a.b.b.run === "bottom" && /^\d+(\.\d+)?%$/.test(d.split.a.b.at),
+  `only the grabbed pane got an empty pane in front of it (got ${JSON.stringify(d.split.a)})`);
+const e2 = await outers();
+const paneTop = e2.find((o) => o[0] === "top"), paneBottom = e2.find((o) => o[0] === "bottom");
+expect(paneTop[1] < paneBottom[1] && paneBottom[2] < paneTop[2], "the top pane still reaches the edge, the bottom one starts further in");
+step(`edge: ${JSON.stringify(d.split.a.b)}`);
+
+// The other edges.
+for (const [edge, sx, sy, dx, dy, expectDir, firstEmpty] of [
+  ["right", 1, 0.5, -130, 0, "columns", false], ["top", 0.5, 0, 0, 80, "rows", true], ["bottom", 0.5, 1, 0, -80, "rows", false]]) {
+  await loadDoc({ name: "e", margin: 8, split: { run: "only" } });
+  const b = await page.locator("#screen").boundingBox();
+  const px = b.x + (sx === 1 ? b.width - 8 : b.width * sx), py = b.y + (sy === 1 ? b.height - 8 : sy === 0 ? 8 : b.height * sy);
+  await page.keyboard.down("Shift");
+  await page.mouse.move(px, py);
+  await page.mouse.down();
+  await page.mouse.move(px + dx, py + dy, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  d = await doc();
+  const ok = d.split.dir === expectDir && (firstEmpty ? JSON.stringify(d.split.a) === "{}" && d.split.b.run === "only" : JSON.stringify(d.split.b) === "{}" && d.split.a.run === "only");
+  expect(ok, `${edge} edge (got ${JSON.stringify(d.split)})`);
+}
+step("edge panes at the right, top and bottom");
+
+// Too narrow at the edge: nothing is made. Without Shift the same drag does nothing to the layout.
+await loadDoc({ name: "e", margin: 8, split: { run: "only" } });
+const b2 = await page.locator("#screen").boundingBox();
+await page.keyboard.down("Shift");
+await page.mouse.move(b2.x + 8, b2.y + b2.height / 2);
+await page.mouse.down();
+await page.mouse.move(b2.x + 9, b2.y + b2.height / 2, { steps: 3 });
+await page.mouse.up();
+await page.keyboard.up("Shift");
+expect(JSON.stringify(await doc()) === JSON.stringify({ name: "e", margin: 8, split: { run: "only" } }), "too narrow: nothing is made");
+step("too narrow at the edge");
+
+// The monitor handles keep their Shift: it keeps the shape of the preview.
+const ratio0 = await page.evaluate(() => monitor().width / monitor().height);
+const corner2 = await page.locator(".mon-handle.se").boundingBox();
+await page.keyboard.down("Shift");
+await page.mouse.move(corner2.x + 7, corner2.y + 7);
+await page.mouse.down();
+await page.mouse.move(corner2.x - 90, corner2.y - 10, { steps: 5 });
+await page.mouse.up();
+await page.keyboard.up("Shift");
+const ratio1 = await page.evaluate(() => monitor().width / monitor().height);
+expect(Math.abs(ratio1 - ratio0) / ratio0 < 0.03, `Shift still keeps the shape of the monitor (${ratio0} -> ${ratio1})`);
+step("Shift on the monitor handle still keeps the shape");
+
 expect(errors.length === 0, `no page errors: ${errors.join("; ")}`);
 await browser.close();
 console.log("editor features: ok");

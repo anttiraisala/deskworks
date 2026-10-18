@@ -91,6 +91,10 @@ main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
 .seg button { border: 0; border-radius: 0; padding: 2px 10px; font-size: 12px; }
 .seg button.on, .unit-row .seg button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .cut-overlay { position: absolute; inset: 0; z-index: 250; cursor: crosshair; }
+.edge-zone { position: absolute; z-index: 150; display: none; pointer-events: none; background: var(--handle-hover); opacity: 0.3; }
+body.shift .edge-zone { display: block; }
+.copy-strip { position: absolute; z-index: 240; pointer-events: none; background: var(--handle-hover); opacity: 0.35; border: 1px dashed var(--ink); box-sizing: border-box; }
+.copy-strip.bad { background: var(--error); opacity: 0.25; }
 .cut-line { position: absolute; pointer-events: none; border: 0 dashed var(--handle-hover); }
 .cut-line.h { left: 0; right: 0; height: 0; border-top-width: 2px; }
 .cut-line.v { top: 0; bottom: 0; width: 0; border-left-width: 2px; }
@@ -795,6 +799,7 @@ const SPLIT_STRUCTURE = ["dir", "a", "b", "at", "children", "sizes"];
 const NO_WINDOW_KEYS = new Set(["id", "description", "when", "empty"]);
 const FILE_KEYS = new Set(["$schema", "version", "defaults", "monitors", "layouts"]);
 const SNAP_PX = 10;   // how close (screen px) a dragged line must come to another line to snap to it
+const EDGE_PX = 12;   // how far inside the edge of the work area (screen px) a Shift-drag starts a new pane
 const MIN_PANE = 30; // smallest window (px) a drag may leave
 
 const PRESETS = [
@@ -2183,7 +2188,7 @@ function splitInspector(path) {
         h("button", { class: style === "-%" ? "on" : "", onclick: () => set("-%") }, "% from end"),
         h("button", { class: style === "px" || style === "num" ? "on" : "", onclick: () => set("px") }, "px from start"),
         h("button", { class: style === "-px" ? "on" : "", onclick: () => set("-px") }, "px from end")));
-      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point; it snaps to nearby lines (hold Alt to turn that off). The value keeps its unit; the buttons switch it without moving the line. Delete removes the line and merges the two panes."));
+      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point; it snaps to nearby lines (hold Alt to turn that off); hold Shift while dragging to leave the line where it is and make a new one. The value keeps its unit; the buttons switch it without moving the line. Delete removes the line and merges the two panes."));
     }
   } else {
     parts.push(field(node, "sizes", { target: opts.target, problem: opts.problemFor("sizes") }));
@@ -2207,7 +2212,7 @@ function layoutInspector() {
   const parts = [
     h("h2", {}, `Layout: ${layoutName(l, S.layoutIndex)}`),
     h("div", { class: "sub" }, `${monitor().name}${monitor().preset ? "" : ` · ${monitor().width}×${monitor().height}`}`),
-    h("div", { class: "hint" }, "Click a pane to edit it or cut it in half (Cut pane). Drag the lines between panes to resize them, a pane onto another to swap them, and the monitor's edges to try another size. Ctrl+Z undoes any of them, also a size change; Ctrl+Y redoes."),
+    h("div", { class: "hint" }, "Click a pane to edit it or cut it in half (Cut pane). Drag the lines between panes to resize them (Shift-drag a line, or an edge of the monitor, makes a new empty pane), a pane onto another to swap them, and the monitor's edges to try another size. Ctrl+Z undoes any of them, also a size change; Ctrl+Y redoes."),
   ];
   // With nothing selected "Cut pane" works on the whole screen while it is one single pane (an empty editor):
   // that pane is the first rectangle and it is cut in half. With several panes one must be selected first.
@@ -2291,7 +2296,7 @@ function renderScreen() {
         ? { left: (b - m.x) * scale - thick / 2, top: (s.rect.y - m.y) * scale + inset, width: thick, height: Math.max(thick, s.rect.height * scale - 2 * inset) }
         : { left: (s.rect.x - m.x) * scale + inset, top: (b - m.y) * scale - thick / 2, width: Math.max(thick, s.rect.width * scale - 2 * inset), height: thick };
       const selected = S.sel.kind === "split" && idOf(S.sel.path) === s.id;
-      const el = h("div", { class: `handle ${s.vertical ? "v" : "h"}${selected ? " selected" : ""}`, title: "Drag to resize; click to edit the split",
+      const el = h("div", { class: `handle ${s.vertical ? "v" : "h"}${selected ? " selected" : ""}`, title: "Drag to resize; click to edit the split; hold Shift while dragging to leave this line and make a new one",
         style: { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, zIndex: String(100 - s.path.length) } });
       el.dataset.split = s.id;
       el.dataset.boundary = String(i);
@@ -2325,6 +2330,17 @@ function renderScreen() {
     }
   }
   if (S.cut) screen.append(cutOverlay());
+  {
+    // The places where a Shift-drag starts a new pane, shown while Shift is held.
+    const { scale, m } = S.view;
+    const ar = areaFor(lay());
+    const z = EDGE_PX / scale;
+    for (const [x, y, w, hh] of [[ar.x, ar.y, z, ar.height], [ar.x + ar.width - z, ar.y, z, ar.height],
+      [ar.x, ar.y, ar.width, z], [ar.x, ar.y + ar.height - z, ar.width, z]]) {
+      screen.append(h("div", { class: "edge-zone", style: { left: `${(x - m.x) * scale}px`, top: `${(y - m.y) * scale}px`,
+        width: `${w * scale}px`, height: `${hh * scale}px` } }));
+    }
+  }
   for (const side of ["n", "s", "e", "w", "ne", "nw", "se", "sw"]) {
     const el = h("div", { class: `mon-handle ${side}`, title: "Drag to change the preview's monitor size (Shift keeps the shape, Alt gives exact pixels)" });
     el.addEventListener("pointerdown", (e) => startMonitorResize(e, side));
@@ -2511,11 +2527,77 @@ function startMonitorResize(e, side) {
   window.addEventListener("pointerup", onUp);
 }
 
+// Shift-drag of a line: the old line stays and a new, parallel one is made where the line is dropped; between
+// them is a new empty pane. `p0` is where the old line is, `p1` where the new one goes (monitor px). The split
+// becomes an N-way split if it was a two-part one. Returns the path of the new pane.
+function insertLine(split, i, p0, p1) {
+  let node = nodeAt(split.path, true);
+  if (!has(node, "children")) { node = toNway(node); replaceAt(split.path, node); }
+  const b = split.bounds;
+  const total = b[i + 2] - b[i];
+  const right = p1 > p0;
+  const sI = (right ? p0 : p1) - b[i];
+  const sN = Math.abs(p1 - p0);
+  const sJ = b[i + 2] - (right ? p1 : p0);
+  const sizes = sizesOf(node);
+  const oldI = sizes[i], oldJ = sizes[i + 1];
+  const si = looseSize(oldI), sj = looseSize(oldJ);
+  let fresh;
+  if (si.kind === "frac" && sj.kind === "frac") {
+    const f = si.value + sj.value;
+    sizes[i] = `${fmt((f * sI) / total, 4)}frac`;
+    fresh = `${fmt((f * sN) / total, 4)}frac`;
+    sizes[i + 1] = `${fmt((f * sJ) / total, 4)}frac`;
+  } else {
+    if (si.kind !== "frac") sizes[i] = sizeValue(split, i, sI, oldI, true);
+    if (sj.kind !== "frac") sizes[i + 1] = sizeValue(split, i + 1, sJ, oldJ, true);
+    // The new pane is sized like the pane that gave it room; a flexible one gives pixels.
+    const ref = right ? sj : si;
+    fresh = ref.kind === "frac" ? `${Math.round(sN)}px` : sizeValue(split, right ? i + 1 : i, sN, right ? oldJ : oldI, true);
+  }
+  node.children.splice(i + 1, 0, {});
+  sizes.splice(i + 1, 0, fresh);
+  setKey(node, "sizes", sizes);
+  return split.path.concat([i + 1]);
+}
+
+// A new empty pane along the edge of the work area, in front of the one pane `leaf` that touches it: `edge`
+// is "left", "right", "top" or "bottom", `w` the width of the new pane in monitor px.
+function addEdgePane(leaf, edge, w) {
+  const vertical = edge === "left" || edge === "right";
+  const first = edge === "left" || edge === "top";
+  const ext = vertical ? leaf.outer.width : leaf.outer.height;
+  const node = nodeAt(leaf.path, true);
+  const pct = fmt((w / ext) * 100, 3);
+  const at = first ? `${pct}%` : `-${pct}%`;
+  const dir = vertical ? "columns" : "rows";
+  replaceAt(leaf.path, first ? { dir, at, a: {}, b: node } : { dir, at, a: node, b: {} });
+  return leaf.path.concat([first ? 0 : 1]);
+}
+
+function removeCopyPreview() {
+  document.querySelectorAll(".copy-strip, #copy-guide").forEach((x) => x.remove());
+}
+
+// The strip between the old line and the new one (or the edge and the new line), drawn on the monitor.
+function drawStrip(vertical, a, b, cross0, cross1, ok) {
+  const { scale, m } = S.view;
+  const o = vertical ? m.x : m.y, oc = vertical ? m.y : m.x;
+  const lo = Math.min(a, b), len = Math.abs(b - a);
+  const box = vertical
+    ? { left: `${(lo - o) * scale}px`, top: `${(cross0 - oc) * scale}px`, width: `${len * scale}px`, height: `${(cross1 - cross0) * scale}px` }
+    : { top: `${(lo - o) * scale}px`, left: `${(cross0 - oc) * scale}px`, height: `${len * scale}px`, width: `${(cross1 - cross0) * scale}px` };
+  $("#screen").append(h("div", { class: `copy-strip${ok ? "" : " bad"}`, style: box }));
+}
+
 function startDrag(e, split, i) {
   e.preventDefault();
   e.stopPropagation();
   const before = snapshot();
-  let moved = false;
+  let moved = false;       // the pointer has moved far enough to count as a drag
+  let live = false;        // the document holds the line moved to the pointer
+  let copy = null;         // while Shift is held: the new line that would be made { coord, ok }
+  let last = null;         // the last pointer position
   const startX = e.clientX, startY = e.clientY;
   const screenRect = $("#screen").getBoundingClientRect();
   const { scale, m } = S.view;
@@ -2524,6 +2606,7 @@ function startDrag(e, split, i) {
   // then be merged. Holding Alt turns the snapping off.
   const own = split.bounds[i + 1];
   const lo = split.bounds[i], hi = split.bounds[i + 2];
+  const min = split.margin + MIN_PANE;
   // The lines of other splits count even when one of them is exactly where this line starts (that is how
   // two lines that were lined up before are snapped together again after the line was moved away). Inside the
   // dragged split itself the line's own start position does not count: that is the line.
@@ -2532,7 +2615,9 @@ function startDrag(e, split, i) {
     ? [l.outer.x, l.outer.x + l.outer.width] : [l.outer.y, l.outer.y + l.outer.height])
     .filter((v) => v > lo && v < hi && !(inside(l) && v === own))))];
   const cursorTip = h("div", { class: "size-tip", style: { position: "fixed" } });
+  const pristine = () => { S.doc = JSON.parse(before).doc; };
   const onMove = (ev) => {
+    last = ev;
     if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 3) return;
     moved = true;
     let coord = split.vertical ? (ev.clientX - screenRect.left) / scale + m.x : (ev.clientY - screenRect.top) / scale + m.y;
@@ -2541,18 +2626,41 @@ function startDrag(e, split, i) {
       const near = edges.map((v) => [Math.abs(v - coord), v]).sort((p, q) => p[0] - q[0])[0];
       if (near[0] * scale < SNAP_PX) { snapped = near[1]; coord = snapped; }
     }
-    if (edges.length) {
-      cursorTip.textContent = ev.altKey ? "Snapping is off"
-        : snapped !== null ? "Lined up with another line · hold Alt to turn snapping off" : "Hold Alt to turn snapping off";
+    let tipText = null;
+    removeCopyPreview();
+    if (ev.shiftKey) {
+      // The old line stays; the new one only exists as a preview until the mouse button goes up.
+      if (live) { pristine(); live = false; }
+      coord = Math.round(coord);
+      const width = Math.abs(coord - own);
+      const room = coord > own ? hi - coord : coord - lo;
+      copy = { coord, ok: width >= min && room >= min };
+      computeGeometry();
+      renderScreen();
+      const r = split.rect;
+      drawStrip(split.vertical, own, coord, split.vertical ? r.y : r.x, split.vertical ? r.y + r.height : r.x + r.width, copy.ok);
+      tipText = copy.ok ? `New empty pane ${width} px wide · release to make it, Esc cancels`
+        : "Too close: nothing is made when you release";
+    } else {
+      copy = null;
+      moveBoundary(split, i, coord, snapped !== null);
+      live = true;
+      computeGeometry();
+      renderScreen();
+      const el = document.querySelector(`[data-split="${split.id}"][data-boundary="${i + 1}"]`);
+      if (el) el.classList.add("dragging");
+      if (edges.length) {
+        tipText = ev.altKey ? "Snapping is off"
+          : snapped !== null ? "Lined up with another line · hold Alt to turn snapping off" : "Hold Alt to turn snapping off";
+        tipText += " · hold Shift to leave this line and make a new one";
+      }
+    }
+    if (tipText) {
+      cursorTip.textContent = tipText;
       cursorTip.style.left = `${ev.clientX + 16}px`;
       cursorTip.style.top = `${ev.clientY + 16}px`;
       if (!cursorTip.isConnected) document.body.append(cursorTip);
     }
-    moveBoundary(split, i, coord, snapped !== null);
-    computeGeometry();
-    renderScreen();
-    const el = document.querySelector(`[data-split="${split.id}"][data-boundary="${i + 1}"]`);
-    if (el) el.classList.add("dragging");
     if (snapped !== null) {
       const pos = (snapped - (split.vertical ? m.x : m.y)) * scale;
       const guide = h("div", { class: `cut-line ${split.vertical ? "v" : "h"}`, id: "snap-guide",
@@ -2562,13 +2670,50 @@ function startDrag(e, split, i) {
       $("#screen").append(guide, tip);
     }
   };
-  const onUp = () => {
+  const stop = () => {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("keydown", onKey);
+    window.removeEventListener("keyup", onKey);
     cursorTip.remove();
+    removeCopyPreview();
+  };
+  // Pressing or releasing Shift or Alt changes the drag at once, without moving the mouse.
+  const onKey = (k) => {
+    if (k.key === "Escape") {
+      stop();
+      pristine();
+      S.sel = { kind: "split", path: split.path, boundary: i };
+      S.status = "cancelled";
+      render();
+    } else if ((k.key === "Shift" || k.key === "Alt") && last) {
+      onMove({ clientX: last.clientX, clientY: last.clientY, shiftKey: k.shiftKey, altKey: k.altKey });
+    }
+  };
+  const onUp = (ev) => {
+    stop();
+    if (copy && !ev.shiftKey && !live) {
+      // Shift was let go without moving the mouse: the line goes where the pointer is, as usual.
+      moveBoundary(split, i, copy.coord, false);
+      live = true;
+    }
+    if (copy && ev.shiftKey) {
+      pristine();
+      if (copy.ok) {
+        const pane = insertLine(split, i, own, copy.coord);
+        normalize(lay());
+        recordHistory(before);
+        S.dirty = true;
+        S.sel = { kind: "pane", path: pane };
+      } else {
+        S.sel = { kind: "split", path: split.path, boundary: i };
+        S.status = "no new line: the new pane would be too small";
+      }
+      render();
+      return;
+    }
     if (moved && snapshot() !== before) {
-      S.undo.push(before);
-      S.redo = [];
+      recordHistory(before);
       S.dirty = true;
     }
     S.sel = { kind: "split", path: split.path, boundary: i };
@@ -2576,6 +2721,97 @@ function startDrag(e, split, i) {
   };
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
+  window.addEventListener("keydown", onKey);
+  window.addEventListener("keyup", onKey);
+}
+
+// Where the pointer is, in monitor px, and which pane edge it is at: within EDGE_PX screen px inside the edge of
+// the work area (the margin and the first pixels of the pane there), on a pane that touches that edge.
+function edgeHit(e) {
+  if (!S.geo.leaves.length) return null;
+  const { scale, m } = S.view;
+  const r = $("#screen").getBoundingClientRect();
+  const x = (e.clientX - r.left) / scale + m.x, y = (e.clientY - r.top) / scale + m.y;
+  const a = areaFor(lay());
+  const zone = EDGE_PX / scale;
+  const dist = { left: x - a.x, right: a.x + a.width - x, top: y - a.y, bottom: a.y + a.height - y };
+  const box = {
+    left: Math.min(...S.geo.leaves.map((l) => l.outer.x)), top: Math.min(...S.geo.leaves.map((l) => l.outer.y)),
+    right: Math.max(...S.geo.leaves.map((l) => l.outer.x + l.outer.width)),
+    bottom: Math.max(...S.geo.leaves.map((l) => l.outer.y + l.outer.height)),
+  };
+  let best = null;
+  for (const [edge, d] of Object.entries(dist)) if (d >= 0 && d <= zone && (!best || d < best.d)) best = { edge, d };
+  if (!best) return null;
+  const vertical = best.edge === "left" || best.edge === "right";
+  const at = { left: (l) => l.outer.x, right: (l) => l.outer.x + l.outer.width, top: (l) => l.outer.y, bottom: (l) => l.outer.y + l.outer.height }[best.edge];
+  const touching = S.geo.leaves.filter((l) => at(l) === box[best.edge]);
+  const along = vertical ? y : x;
+  const span = (l) => (vertical ? [l.outer.y, l.outer.y + l.outer.height] : [l.outer.x, l.outer.x + l.outer.width]);
+  const leaf = touching.find((l) => along >= span(l)[0] && along < span(l)[1])
+    || touching.slice().sort((p, q) => Math.abs((span(p)[0] + span(p)[1]) / 2 - along) - Math.abs((span(q)[0] + span(q)[1]) / 2 - along))[0];
+  return leaf ? { edge: best.edge, leaf, edgeAt: box[best.edge] } : null;
+}
+
+// Shift-drag from the edge of the work area: a new empty pane between the edge and the line that is dropped,
+// in front of the one pane that was grabbed; the other panes at that edge stay as they are.
+function startEdgePane(e, hit) {
+  e.preventDefault();
+  e.stopPropagation();
+  const { edge, leaf, edgeAt } = hit;
+  const vertical = edge === "left" || edge === "right";
+  const first = edge === "left" || edge === "top";
+  const before = snapshot();
+  const { scale, m } = S.view;
+  const screenRect = $("#screen").getBoundingClientRect();
+  const min = (pickLayoutKey(lay(), "margin", 8) || 0) + MIN_PANE;
+  const ext = vertical ? leaf.outer.width : leaf.outer.height;
+  const cross = vertical ? [leaf.outer.y, leaf.outer.y + leaf.outer.height] : [leaf.outer.x, leaf.outer.x + leaf.outer.width];
+  const others = [...new Set(S.geo.leaves.flatMap((l) => (vertical ? [l.outer.x, l.outer.x + l.outer.width] : [l.outer.y, l.outer.y + l.outer.height])))]
+    .filter((v) => (first ? v > edgeAt : v < edgeAt) && Math.abs(v - edgeAt) < ext);
+  const cursorTip = h("div", { class: "size-tip", style: { position: "fixed" } });
+  let state = null;
+  const onMove = (ev) => {
+    let c = vertical ? (ev.clientX - screenRect.left) / scale + m.x : (ev.clientY - screenRect.top) / scale + m.y;
+    if (!ev.altKey && others.length) {
+      const near = others.map((v) => [Math.abs(v - c), v]).sort((p, q) => p[0] - q[0])[0];
+      if (near[0] * scale < SNAP_PX) c = near[1];
+    }
+    c = Math.round(c);
+    const w = first ? c - edgeAt : edgeAt - c;
+    state = { c, w, ok: w >= min && ext - w >= min };
+    removeCopyPreview();
+    drawStrip(vertical, edgeAt, c, cross[0], cross[1], state.ok);
+    cursorTip.textContent = state.ok ? `New empty pane ${w} px wide at the ${edge} edge · release to make it, Esc cancels`
+      : (w < min ? "Too narrow: nothing is made when you release" : "Too wide: nothing is made when you release");
+    cursorTip.style.left = `${ev.clientX + 16}px`;
+    cursorTip.style.top = `${ev.clientY + 16}px`;
+    if (!cursorTip.isConnected) document.body.append(cursorTip);
+  };
+  const stop = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("keydown", onKey);
+    cursorTip.remove();
+    removeCopyPreview();
+  };
+  const onKey = (k) => { if (k.key === "Escape") { stop(); S.status = "cancelled"; render(); } };
+  const onUp = () => {
+    stop();
+    if (state && state.ok) {
+      const pane = addEdgePane(leaf, edge, state.w);
+      normalize(lay());
+      recordHistory(before);
+      S.dirty = true;
+      S.sel = { kind: "pane", path: pane };
+    } else if (state) {
+      S.status = "no new pane: it would be too small";
+    }
+    render();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("keydown", onKey);
 }
 
 // ---------------------------------------------------------------- header and footer
@@ -2854,6 +3090,16 @@ async function onScreen(action) {
 
 function wire() {
   document.addEventListener("pointerdown", flushFields, true);
+  // Shift shows where a drag from the edge starts a new pane, and starts it.
+  const shiftClass = (k) => document.body.classList.toggle("shift", !!k.shiftKey);
+  window.addEventListener("keydown", shiftClass);
+  window.addEventListener("keyup", shiftClass);
+  window.addEventListener("blur", () => document.body.classList.remove("shift"));
+  $("#screen").addEventListener("pointerdown", (e) => {
+    if (!e.shiftKey || e.button !== 0 || S.cut || e.target.closest(".mon-handle, .handle, .merge-btn")) return;
+    const hit = edgeHit(e);
+    if (hit) startEdgePane(e, hit);
+  }, true);
   document.addEventListener("pointerup", () => {
     if (S.renderPending) setTimeout(() => { if (S.renderPending) render(); }, 0);
   });
