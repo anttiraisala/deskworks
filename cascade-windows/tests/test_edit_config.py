@@ -1,4 +1,14 @@
+import contextlib
+import io
+import os
+import tempfile
 import unittest
+from unittest import mock
+
+from cascade_windows import cli
+from cascade_windows.settings import (
+    Settings, SettingsError, configured_editor, default_settings_dict, settings_from_dict, settings_to_dict,
+)
 
 from cascade_windows.cli import chosen_editor_command, editor_command, run_chosen_editor
 
@@ -54,6 +64,64 @@ class ChosenEditorTest(unittest.TestCase):
         self.assertEqual(run_chosen_editor("true", PATH), 0)
         self.assertEqual(run_chosen_editor("false", PATH), 1)
         self.assertEqual(run_chosen_editor("no-such-editor-xyz", PATH), 1)
+
+
+class EditorSettingTest(unittest.TestCase):
+    def test_the_default_is_no_editor_and_it_is_written_to_the_default_file(self):
+        self.assertEqual(Settings().editor, "")
+        self.assertEqual(default_settings_dict()["editor"], "")
+
+    def test_the_value_is_read_trimmed_and_written_back(self):
+        settings = settings_from_dict({"editor": "  code --wait "})
+        self.assertEqual(settings.editor, "code --wait")
+        self.assertEqual(settings_to_dict(settings)["editor"], "code --wait")
+
+    def test_it_must_be_text(self):
+        for value in (3, True, ["gedit"], None):
+            with self.assertRaises(SettingsError):
+                settings_from_dict({"editor": value})
+
+    def write(self, text):
+        folder = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(folder, True))
+        path = os.path.join(folder, "config.json")
+        with open(path, "w") as handle:
+            handle.write(text)
+        return path
+
+    def test_configured_editor_reads_the_file(self):
+        self.assertEqual(configured_editor(self.write('{"editor": "xed"}')), "xed")
+        self.assertEqual(configured_editor(self.write("{}")), "")
+        self.assertEqual(configured_editor(os.path.join(tempfile.gettempdir(), "no-such-cascade-config.json")), "")
+
+    def test_configured_editor_still_works_when_other_settings_are_broken(self):
+        # --edit-config is how a broken file gets fixed, so one bad value must not hide the editor.
+        self.assertEqual(configured_editor(self.write('{"editor": "nano", "margin": {"top": -5}}')), "nano")
+        self.assertEqual(configured_editor(self.write("{ not json")), "")
+
+    def run_edit(self, config_text, *args):
+        path = self.write(config_text)
+        with mock.patch.object(cli, "run_chosen_editor", return_value=0) as chosen, \
+                mock.patch.object(cli.subprocess, "Popen") as popen, \
+                mock.patch.object(cli, "editor_command", return_value=["default-editor", path]), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = cli.main(["--config", path, "--edit-config"] + list(args))
+        return code, chosen, popen, path
+
+    def test_the_setting_chooses_the_editor(self):
+        code, chosen, popen, path = self.run_edit('{"editor": "xed"}')
+        self.assertEqual(code, 0)
+        chosen.assert_called_once_with("xed", path)
+        popen.assert_not_called()
+
+    def test_the_command_line_option_wins_over_the_setting(self):
+        _code, chosen, _popen, path = self.run_edit('{"editor": "xed"}', "--editor", "nano")
+        chosen.assert_called_once_with("nano", path)
+
+    def test_without_either_the_default_text_editor_is_used(self):
+        _code, chosen, popen, path = self.run_edit("{}")
+        chosen.assert_not_called()
+        popen.assert_called_once_with(["default-editor", path])
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ from .cascade import (
 )
 from .settings import (
     SettingsError,
+    configured_editor,
     config_path,
     load_settings,
     remove_legacy_default_config,
@@ -181,7 +182,7 @@ def chosen_editor_command(editor: str, path: str, which: Callable[[str], Optiona
     if not words:
         raise ValueError("--editor needs the name of an editor")
     if which(words[0]) is None:
-        raise ValueError("the editor %r was not found; give its name or full path with --editor" % words[0])
+        raise ValueError("the editor %r was not found; give its name or full path with --editor or the 'editor' setting" % words[0])
     return words + [path]
 
 
@@ -217,8 +218,9 @@ def _run(args: argparse.Namespace) -> int:
         return 2
     if args.edit_config:
         write_default_config(path)
-        if args.editor:
-            return run_chosen_editor(args.editor, path)
+        editor = args.editor or configured_editor(path)
+        if editor:
+            return run_chosen_editor(editor, path)
         command = editor_command(path)
         if command is None:
             print(path)

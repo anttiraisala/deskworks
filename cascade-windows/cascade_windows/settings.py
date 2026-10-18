@@ -44,6 +44,7 @@ class Settings:
     restore_maximized: bool = True
     workarea_dock_windows: bool = True
     notify_excluded: bool = True
+    editor: str = ""
     exclude: Tuple[ExcludeRule, ...] = ()
 
 
@@ -74,6 +75,9 @@ _BOOL_KEYS: Dict[Tuple[str, ...], str] = {
     ("workarea", "dock_windows"): "workarea_dock_windows",
     ("notify", "excluded"): "notify_excluded",
 }
+
+# Configuration path -> attribute, for settings that hold free text
+_STRING_KEYS: Dict[Tuple[str, ...], str] = {("editor",): "editor"}
 
 # Configuration path -> attribute, for the list of exclusion rules
 _RULE_KEYS: Dict[Tuple[str, ...], str] = {("exclude",): "exclude"}
@@ -106,7 +110,7 @@ def _dotted(path: Tuple[str, ...]) -> str:
 
 def _walk(data: dict, prefix: Tuple[str, ...], warn: Callable[[str], None]):
     """Yield (path, value) for every leaf, warning about unknown keys."""
-    known_leaves = set(_INT_KEYS) | set(_BOOL_KEYS) | set(_CHOICE_KEYS) | set(_RULE_KEYS)
+    known_leaves = set(_INT_KEYS) | set(_BOOL_KEYS) | set(_CHOICE_KEYS) | set(_RULE_KEYS) | set(_STRING_KEYS)
     known_prefixes = {path[:i] for path in known_leaves for i in range(1, len(path))}
     for key, value in data.items():
         path = prefix + (str(key),)
@@ -148,6 +152,10 @@ def settings_from_dict(data: dict, warn: Optional[Callable[[str], None]] = None)
             if not isinstance(value, bool):
                 raise SettingsError("'%s' must be true or false" % _dotted(path))
             setattr(settings, _BOOL_KEYS[path], value)
+        elif path in _STRING_KEYS:
+            if not isinstance(value, str):
+                raise SettingsError("'%s' must be text" % _dotted(path))
+            setattr(settings, _STRING_KEYS[path], value.strip())
         elif path in _RULE_KEYS:
             try:
                 rules = parse_rules(value, _is_comment_key)
@@ -174,6 +182,8 @@ def settings_to_dict(settings: Settings) -> dict:
         table[path] = attr
     for path, (attr, _choices) in _CHOICE_KEYS.items():
         table[path] = attr
+    for path, attr in _STRING_KEYS.items():
+        table[path] = attr
     for path, attr in _RULE_KEYS.items():
         table[path] = attr
     # Keep a stable, readable order that matches docs/CONFIGURATION.md.
@@ -190,6 +200,7 @@ def settings_to_dict(settings: Settings) -> dict:
         ("restore_maximized",),
         ("workarea",),
         ("notify",),
+        ("editor",),
         ("exclude",),
     ]
     for head in order:
@@ -267,6 +278,11 @@ _COMMENT_AFTER = {
     ("restore_maximized",): (
         "true: a maximized window is restored to its normal size and then cascaded like the others. "
         "false: maximized windows are left alone."
+    ),
+    ("editor",): (
+        "The editor that 'cascade-windows --edit-config' opens this file with, for example \"gedit\", "
+        "\"xed\", \"nano\" or \"code --wait\". Empty: the desktop's default text editor. The option "
+        "--editor on the command line overrides this setting."
     ),
     ("exclude",): (
         "Monitors and workspaces that the cascade leaves alone: windows there are not moved. A list of "
@@ -347,6 +363,7 @@ def remove_legacy_default_config(path: Optional[str] = None) -> bool:
     data.setdefault("workarea", {"dock_windows": True})  # files from before this section existed
     data.setdefault("notify", {"excluded": True})  # files from before exclusions existed
     data.setdefault("exclude", [])
+    data.setdefault("editor", "")  # files from before this setting existed
     if isinstance(data.get("skip"), dict) and data["skip"].get("dialogs") is False:
         del data["skip"]["dialogs"]  # files from before this setting existed
     if data not in _legacy_default_dicts():
@@ -373,6 +390,25 @@ def load_settings(
     except OSError as error:
         raise SettingsError("Cannot read %s: %s" % (path, error))
     return settings_from_dict(data, warn)
+
+
+def configured_editor(path: Optional[str] = None) -> str:
+    """The ``editor`` setting of the configuration file, or "" when it is not set.
+
+    ``--edit-config`` is how a broken file gets fixed, so a file that cannot be loaded as settings still gives
+    its ``editor`` value when that can be read as plain JSON.
+    """
+    path = path or config_path()
+    try:
+        return load_settings(path).editor
+    except SettingsError:
+        pass
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            value = json.load(handle).get("editor", "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+    return value.strip() if isinstance(value, str) else ""
 
 
 def reset_config(path: Optional[str] = None) -> str:
@@ -408,5 +444,6 @@ assert {f.name for f in fields(Settings)} == (
     {attr for attr, _l, _h in _INT_KEYS.values()}
     | set(_BOOL_KEYS.values())
     | set(_RULE_KEYS.values())
+    | set(_STRING_KEYS.values())
     | {attr for attr, _c in _CHOICE_KEYS.values()}
 ), "every Settings field must be reachable from the configuration file"

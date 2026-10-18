@@ -29,6 +29,7 @@ Unknown keys are ignored with a warning. Invalid values make the command stop wi
   "restore_maximized": true,
   "workarea": { "dock_windows": true },
   "notify": { "excluded": true },
+  "editor": "",
   "exclude": []
 }
 ```
@@ -50,6 +51,7 @@ Unknown keys are ignored with a warning. Invalid values make the command stop wi
 | `skip.dialogs` | Do not touch dialog windows. When `false` (the default) dialogs are cascaded too: they keep their own size and their top-right corner goes to the top-right corner of their cascade position. |
 | `workarea.dock_windows` | Treat panels and launchers that do not reserve screen space in the standard way (for example the Unity 7 launcher and top panel) as obstacles, using their position and size. Turn off if an overlay is wrongly taken for a panel. |
 | `restore_maximized` | Restore maximized windows to normal size before cascading. When `false` they are left alone. |
+| `editor` | The editor that `cascade-windows --edit-config` opens this file with, for example `"gedit"`, `"xed"`, `"nano"` or `"code --wait"`. Empty (the default): the desktop's default text editor. The command line option `--editor` overrides it. |
 | `exclude` | A list of rules for monitors and workspaces that are never cascaded. See below. Empty by default. |
 | `notify.excluded` | Show a short desktop notification when the monitor you started a cascade on is excluded: when nothing happened because of it, and also when a workspace or all-workspaces cascade moved the other windows but left that monitor alone. The message is always printed in the terminal too. |
 

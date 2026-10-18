@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- New setting `editor` in the configuration file: the editor that `--edit-config` opens the file with (for example `"editor": "xed"`). The option `--editor` overrides it; empty means the desktop's default text editor. The setting is read even when other settings in the file are invalid, so a broken file can still be opened for repair.
 - The "This monitor is excluded" notice now also appears for **Cascade Workspace** and **Cascade All Workspaces** when they are started on an excluded monitor. Before, it appeared only for **Cascade Windows**. The cascade itself is unchanged: the other monitors and workspaces are cascaded as before and the excluded monitor is left alone.
 - New option `--editor COMMAND` for `--edit-config`: choose the editor that opens the configuration file (`--edit-config --editor gedit`, `--editor nano`, `--editor "code --wait"`). The command runs in the terminal until the editor is closed, so editors that need a terminal work too.
 - `--edit-config` opens the configuration file with the desktop's default text editor instead of the handler of the JSON type. When that was a sandboxed browser (for example Firefox as a snap) it showed "Access to the file was denied", because the browser cannot read `~/.config`.
