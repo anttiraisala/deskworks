@@ -165,6 +165,7 @@ The editor opens in your browser and shows the layout on a picture of the monito
 - **Drag the monitor's edges or corners** to try the layout on another screen size; the size is shown in pixels. The margin (gap between windows) is set right under the picture.
 - Settings you give every pane (a shell, a working directory, ...) are moved up the tree automatically, so they are written once; splitting a pane passes its settings to both halves.
 - **Commands** (and the top of the layout panel) shows the command lines that open, toggle or close this layout from a terminal, with Copy buttons; the monitor can be written as a number or as its name.
+- **JSON…** opens a box with the layout as JSON: copy it to export. To import, paste JSON over the text (a whole file, one layout, or just a split/pane tree) and choose *Replace this layout*, *Add as new layout* or *Replace whole file*. Mistakes are shown in the box; each import is one undo step.
 - Click outside the monitor picture (or press Esc) to unselect.
 - **Undo / Redo** (Ctrl+Z, Ctrl+Y) for edits of the layout and for the preview too: dragging the monitor's edges to another size, choosing another monitor or custom size in the list, and "Reset size" can all be undone and redone, even in a fresh, empty editor. The preview is not saved in the file, so these steps do not mark it as changed. Several layouts per file (New, Copy, Delete), and the monitor to preview on.
 - Problems are listed at the bottom and marked on the pane; the file cannot be saved until they are fixed.

@@ -392,6 +392,30 @@ await page.locator(".pane").first().click();
 await page.fill('textarea[data-key="run"]', "uptime");
 await page.keyboard.press("Control+z");   // undo with typed text first commits it, then undoes it
 expect((await doc()).split.a.a.run === "top", "undo after typing goes back to the command before it");
+// Copy and paste JSON: export shows the layout, import is one undo step.
+await page.click("#json");
+expect(await page.isVisible("#json-dialog"), "JSON dialog opens");
+const shown = JSON.parse(await page.inputValue("#json-text"));
+expect(shown && typeof shown === "object", "JSON dialog shows valid JSON");
+await page.fill("#json-text", "{ nope");
+await page.click("#json-add");
+expect((await page.textContent("#json-message")).includes("Not valid JSON"), "bad JSON gives an inline error");
+expect(await page.isVisible("#json-dialog"), "dialog stays open after an error");
+const jsonUndoBefore = await page.evaluate(() => S.undo.length);
+await page.fill("#json-text", JSON.stringify({ dir: "columns", at: 30, a: { run: "left" }, b: { run: "right" } }));
+await page.click("#json-add");
+expect(!(await page.isVisible("#json-dialog")), "dialog closes after import");
+const added = await page.evaluate(() => ({ n: S.doc.layouts.length, last: S.doc.layouts[S.layoutIndex] }));
+expect(added.n >= 2 && added.last.split.dir === "columns" && added.last.split.a.run === "left", "a bare tree is added as a new layout");
+expect((await page.evaluate(() => S.undo.length)) === jsonUndoBefore + 1, "import is one undo step");
+await page.evaluate(() => undo());
+expect(await page.evaluate((n) => (S.doc.layouts ? S.doc.layouts.length : 1) === n - 1, added.n), "undo removes the imported layout");
+await page.click("#json");
+await page.fill("#json-text", JSON.stringify({ layouts: [{ name: "x", split: { run: "one" } }] }));
+await page.click("#json-replace-file");
+expect(await page.evaluate(() => S.doc.layouts.length === 1 && S.doc.layouts[0].name === "x"), "replace whole file");
+step("JSON copy and paste");
+
 expect(errors.length === 0, `no page errors after typing and clicking: ${errors.join("; ")}`);
 step("typed command survives a click outside the monitor");
 

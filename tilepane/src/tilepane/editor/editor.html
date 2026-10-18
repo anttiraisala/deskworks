@@ -109,6 +109,9 @@ dialog.tp-dialog { border: 1px solid var(--line); border-radius: 10px; backgroun
 dialog.tp-dialog::backdrop { background: rgba(0,0,0,0.35); }
 dialog.tp-dialog h2 { margin: 0 0 8px; font-size: 16px; }
 dialog.tp-dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+dialog.tp-dialog.wide { width: min(720px, 92vw); }
+dialog.tp-dialog textarea#json-text { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 12px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px; margin-top: 8px; }
+#json-message.bad { color: #c0392b; }
 dialog#commands-dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--ink); width: min(720px, 92vw); padding: 16px 18px; }
 dialog#commands-dialog::backdrop { background: rgba(0,0,0,0.35); }
 dialog#commands-dialog h2 { margin: 0 0 6px; font-size: 16px; }
@@ -187,6 +190,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
     <button id="new-file">New file</button>
     <button id="open-file">Open…</button>
     <button id="commands" title="Command lines that open this layout from a terminal">Commands</button>
+    <button id="json" title="Copy this layout as JSON, or paste JSON to import it">JSON…</button>
     <button id="save" class="primary" data-title="Save (Ctrl+S)">Save</button>
     <button id="open-screen" data-title="Open this layout on the selected monitor">Open on screen</button>
     <button id="close-screen" title="Close the windows of this layout on the selected monitor">Close on screen</button>
@@ -2107,6 +2111,114 @@ function openCommands() {
   if (!dlg.open) dlg.showModal();
 }
 
+// ---------------------------------------------------------------- JSON copy and paste
+
+// What the JSON box shows: this layout, or (with several layouts) the whole file.
+function jsonText(whole) {
+  if (whole || !multi()) return docText();
+  return JSON.stringify(lay(), null, 2) + "\n";
+}
+
+// Read pasted text as a whole file ("layouts"), one layout ("split") or a bare
+// pane/split tree. Returns { kind, doc?, layouts?, error? }.
+function parseImport(text) {
+  let v;
+  try { v = JSON.parse(text); } catch (e) { return { error: `Not valid JSON: ${e.message}` }; }
+  if (!isObj(v)) return { error: "The JSON must be an object (a file, a layout, or a split/pane tree)." };
+  if (has(v, "layouts")) {
+    if (!Array.isArray(v.layouts) || !v.layouts.length || !v.layouts.every(isObj)) return { error: "'layouts' must be a non-empty list of layout objects." };
+    return { kind: "file", doc: v, layouts: v.layouts };
+  }
+  if (has(v, "split")) {
+    if (!isObj(v.split)) return { error: "'split' must be an object." };
+    return { kind: "layout", doc: v, layouts: [v] };
+  }
+  return { kind: "tree", doc: { split: v }, layouts: [{ split: v }] };
+}
+
+function layoutOnly(l) {
+  const out = {};
+  for (const [k, v] of Object.entries(l)) if (!FILE_KEYS.has(k)) out[k] = v;
+  return out;
+}
+
+function importReplaceLayout(p) {
+  change(() => {
+    const incoming = layoutOnly(p.layouts[0]);
+    if (multi()) {
+      const old = S.doc.layouts[S.layoutIndex];
+      if (!has(incoming, "name") && has(old, "name")) incoming.name = old.name;
+      S.doc.layouts[S.layoutIndex] = incoming;
+    } else {
+      for (const k of Object.keys(S.doc)) if (!FILE_KEYS.has(k)) delete S.doc[k];
+      Object.assign(S.doc, incoming);
+    }
+    S.sel = { kind: "layout" };
+  });
+}
+
+function importAddLayouts(p) {
+  change(() => {
+    ensureMulti();
+    const first = S.doc.layouts.length;
+    for (const l of p.layouts) {
+      const copy = layoutOnly(JSON.parse(JSON.stringify(l)));
+      copy.name = uniqueName(has(copy, "name") ? String(copy.name) : "imported");
+      S.doc.layouts.push(copy);
+    }
+    S.layoutIndex = first;
+    S.sel = { kind: "layout" };
+  });
+}
+
+function importReplaceFile(p) {
+  change(() => {
+    S.doc = JSON.parse(JSON.stringify(p.doc));
+    S.layoutIndex = 0;
+    S.sel = { kind: "layout" };
+  });
+}
+
+function openJson() {
+  flushFields();
+  let dlg = $("#json-dialog");
+  if (dlg) dlg.remove();
+  dlg = h("dialog", { id: "json-dialog", class: "tp-dialog wide" });
+  let whole = false;
+  const box = h("textarea", { id: "json-text", spellcheck: "false", rows: "18" });
+  const msg = h("div", { id: "json-message", class: "cmd-note" });
+  const copyBtn = h("button", { id: "json-copy", title: "Copy the text to the clipboard" }, "Copy");
+  const bReplaceLayout = h("button", { id: "json-replace-layout" }, "Replace this layout");
+  const bAdd = h("button", { id: "json-add" }, "Add as new layout");
+  const bReplaceFile = h("button", { id: "json-replace-file" }, "Replace whole file");
+  const fill = () => { box.value = jsonText(whole); msg.textContent = ""; };
+  const run = (fn) => () => {
+    const p = parseImport(box.value);
+    if (p.error) { msg.textContent = p.error; msg.classList.add("bad"); return; }
+    fn(p);
+    dlg.close();
+  };
+  copyBtn.addEventListener("click", () => copyText(box.value, copyBtn));
+  bReplaceLayout.addEventListener("click", run(importReplaceLayout));
+  bAdd.addEventListener("click", run(importAddLayouts));
+  bReplaceFile.addEventListener("click", run(importReplaceFile));
+  const scope = multi() ? h("div", { class: "unit-row" },
+    h("span", { style: { color: "var(--muted)", fontSize: "12px", alignSelf: "center" } }, "Show"),
+    h("span", { class: "seg" },
+      h("button", { id: "json-scope-layout", class: "on", onclick: (e) => { whole = false; fill(); markScope(e.target); } }, "this layout"),
+      h("button", { id: "json-scope-file", onclick: (e) => { whole = true; fill(); markScope(e.target); } }, "whole file"))) : null;
+  function markScope(btn) { for (const b of btn.parentNode.children) b.classList.toggle("on", b === btn); }
+  dlg.append(
+    h("h2", {}, "Copy and paste JSON"),
+    h("div", { class: "desc" }, "Copy the text below to export. To import, replace the text with JSON from elsewhere (a whole file, one layout, or just a split/pane tree) and choose what to do with it. Each import is one undo step."),
+    scope, box, msg,
+    h("div", { class: "actions" }, copyBtn, bReplaceLayout, bAdd, bReplaceFile, h("button", { onclick: () => dlg.close() }, "Close")));
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  fill();
+  dlg.showModal();
+}
+
 // ---------------------------------------------------------------- inspector
 
 function renderInspector() {
@@ -3109,6 +3221,7 @@ function wire() {
     else { S.monitorIndex = Number(e.target.value); S.useCustom = false; }
   }));
   $("#commands").addEventListener("click", openCommands);
+  $("#json").addEventListener("click", openJson);
   $("#cut-h").addEventListener("click", () => setCutMode("h"));
   $("#cut-v").addEventListener("click", () => setCutMode("v"));
   $("#workspace").addEventListener("change", (e) => change(() => {
