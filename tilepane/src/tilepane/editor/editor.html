@@ -96,7 +96,7 @@ main { display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
 .cut-line.v { top: 0; bottom: 0; width: 0; border-left-width: 2px; }
 .pane.cut-target { box-shadow: 0 0 0 2px var(--handle-hover) inset; }
 .pane.cut-skip { box-shadow: 0 0 0 2px var(--error) inset; }
-header button.on { background: var(--handle-hover); border-color: var(--handle-hover); color: #000; }
+header button.on, .actions button.on { background: var(--handle-hover); border-color: var(--handle-hover); color: #000; }
 .merge-btn {
   position: absolute; z-index: 120; width: 22px; height: 22px; padding: 0; border-radius: 50%;
   background: var(--accent); color: var(--accent-ink); border: 2px solid var(--panel); font-size: 13px; line-height: 16px;
@@ -176,7 +176,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
     <button id="delete-layout" title="Delete this layout">Delete</button></span>
   <span class="group"><label for="monitor">Monitor</label><select id="monitor"></select></span>
   <span class="group"><label for="workspace">Workspace</label><select id="workspace" title="The workspace this layout opens on, saved in the layout: 0 is the bottom left one, then along the rows and the rows upward (tilepane --workspaces shows them). 'not set': it opens on whichever workspace is current. --workspace on the command line overrides it."></select></span>
-  <span class="group"><button id="cut-h" title="Cut with a horizontal line across the whole monitor (H)">✂ Cut ─</button><button id="cut-v" title="Cut with a vertical line across the whole monitor (V)">✂ Cut │</button></span>
+  <span class="group"><button id="cut-h" title="Cut screen: cut with a horizontal line across the whole monitor; every pane the line crosses is cut into a top and a bottom part (H)">✂ Cut screen ─</button><button id="cut-v" title="Cut screen: cut with a vertical line across the whole monitor; every pane the line crosses is cut into a left and a right part (V)">✂ Cut screen │</button></span>
   <span class="group"><button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button></span>
   <span class="spacer"></span>
   <span class="group">
@@ -853,6 +853,7 @@ const S = {
   monitorStyle: "number", // how commands name the monitor: "number" or "name"
   workspaces: null,       // how many workspaces the machine has, when the server knows
   cut: null,              // "h" or "v" while a cut line follows the mouse
+  cutPane: null,          // with cut: the id of the one pane being cut ("Cut pane"); null: the whole monitor ("Cut screen")
 };
 
 // Per-viewer conveniences only; the page works without them.
@@ -1110,9 +1111,10 @@ function cutStyleOf(path) {
 
 // The panes a cut at `coord` (monitor px) goes through, and the ones skipped
 // because a piece would be too small.
-function cutTargets(dir, coord) {
+function cutTargets(dir, coord, only = null) {
   const targets = [], skipped = [];
   for (const l of S.geo.leaves) {
+    if (only !== null && l.id !== only) continue;
     const start = dir === "h" ? l.outer.y : l.outer.x;
     const size = dir === "h" ? l.outer.height : l.outer.width;
     if (coord <= start || coord >= start + size) continue;
@@ -1123,8 +1125,9 @@ function cutTargets(dir, coord) {
   return { targets, skipped };
 }
 
-function cutAt(dir, coord) {
-  const { targets, skipped } = cutTargets(dir, coord);
+// `only`: the id of the one pane to cut ("Cut pane"); null cuts every pane the line crosses ("Cut screen").
+function cutAt(dir, coord, only = null) {
+  const { targets, skipped } = cutTargets(dir, coord, only);
   if (!targets.length) {
     S.status = skipped.length ? "no pane cut: the pieces would be too small" : "the line does not go through any pane";
     renderFooter();
@@ -1144,7 +1147,8 @@ function cutAt(dir, coord) {
       }
       replaceAt(l.path, makeSplit(nodeAt(l.path, true), vertical ? "columns" : "rows", at));
     }
-    S.sel = { kind: "layout" };
+    // One pane cut: select the new second piece, as the old Split buttons did.
+    S.sel = only !== null ? { kind: "pane", path: targets[0].path.concat([1]) } : { kind: "layout" };
     S.status = `cut ${targets.length} pane(s)` + (skipped.length ? `; ${skipped.length} skipped (too small)` : "");
   });
 }
@@ -2117,8 +2121,8 @@ function paneInspector(path) {
     h("h2", {}, label ? `Pane: ${label}` : empty ? "Empty pane" : "Pane: shell"),
     h("div", { class: "sub" }, `id ${node.id || id}`, geo ? ` · ${geo.rect.width}×${geo.rect.height} px at ${geo.rect.x - monitor().x},${geo.rect.y - monitor().y}` : ""),
     h("div", { class: "actions" },
-      h("button", { onclick: () => splitPane(path, "columns"), title: "Divide this pane into left and right" }, "Split ⇆ left | right"),
-      h("button", { onclick: () => splitPane(path, "rows"), title: "Divide this pane into top and bottom" }, "Split ⇅ top / bottom"),
+      h("button", { class: S.cut === "h" && S.cutPane === id ? "on" : "", onclick: () => setCutMode("h", id), title: "Cut pane: cut this pane with a horizontal line into a top and a bottom part; click where the line goes (Esc stops)" }, "✂ Cut pane ─"),
+      h("button", { class: S.cut === "v" && S.cutPane === id ? "on" : "", onclick: () => setCutMode("v", id), title: "Cut pane: cut this pane with a vertical line into a left and a right part; click where the line goes (Esc stops)" }, "✂ Cut pane │"),
       path.length ? h("button", { onclick: () => addBeside(path), title: "Add another pane next to this one in the same direction" }, "Add pane next to it") : null,
       !empty ? h("button", { onclick: () => clearPane(path), title: "Remove all settings: no window opens here" }, "Make empty") : null,
       path.length ? h("button", { onclick: () => removePane(path), title: "Remove this pane; its neighbour takes the space (Delete)" }, "Remove pane") : null),
@@ -2199,7 +2203,7 @@ function layoutInspector() {
   const parts = [
     h("h2", {}, `Layout: ${layoutName(l, S.layoutIndex)}`),
     h("div", { class: "sub" }, `${monitor().name}${monitor().preset ? "" : ` · ${monitor().width}×${monitor().height}`}`),
-    h("div", { class: "hint" }, "Click a pane to edit it or split it. Drag the lines between panes to resize them, a pane onto another to swap them, and the monitor's edges to try another size. Ctrl+Z undoes any of them, also a size change; Ctrl+Y redoes."),
+    h("div", { class: "hint" }, "Click a pane to edit it or cut it in two (Cut pane). Drag the lines between panes to resize them, a pane onto another to swap them, and the monitor's edges to try another size. Ctrl+Z undoes any of them, also a size change; Ctrl+Y redoes."),
   ];
   parts.push(h("details", { open: true, id: "command-lines" }, h("summary", {}, "Command line"), commandsBlock(() => renderInspector())));
   parts.push(...fieldList(l, LAYOUT_MAIN, opts));
@@ -2316,8 +2320,11 @@ function renderScreen() {
   renderScreenbar();
 }
 
-function setCutMode(dir) {
-  S.cut = S.cut === dir ? null : dir;
+// `paneId`: cut only that pane ("Cut pane"); null: cut across the whole monitor ("Cut screen").
+function setCutMode(dir, paneId = null) {
+  const same = S.cut === dir && (S.cutPane || null) === paneId;
+  S.cut = same ? null : dir;
+  S.cutPane = same ? null : paneId;
   render();
 }
 
@@ -2326,12 +2333,29 @@ function setCutMode(dir) {
 function cutOverlay() {
   const { scale, m } = S.view;
   const dir = S.cut;
+  const only = S.cutPane || null;
+  const own = only === null ? null : S.geo.leaves.find((l) => l.id === only);
+  if (only !== null && !own) { S.cut = null; S.cutPane = null; return h("div"); }
   const overlay = h("div", { class: "cut-overlay", id: "cut-overlay" });
   const line = h("div", { class: `cut-line ${dir}` });
   const tip = h("div", { class: "size-tip", style: { position: "absolute" } });
   overlay.append(line, tip);
-  const edges = [...new Set(S.geo.leaves.flatMap((l) => (dir === "h" ? [l.outer.y, l.outer.y + l.outer.height] : [l.outer.x, l.outer.x + l.outer.width])))];
+  if (own) {
+    // The line of "Cut pane" only spans the pane it cuts.
+    const o = own.outer;
+    if (dir === "h") { line.style.left = `${(o.x - m.x) * scale}px`; line.style.right = "auto"; line.style.width = `${o.width * scale}px`; }
+    else { line.style.top = `${(o.y - m.y) * scale}px`; line.style.bottom = "auto"; line.style.height = `${o.height * scale}px`; }
+  }
+  const sources = own ? [own] : S.geo.leaves;
+  const edges = [...new Set(sources.flatMap((l) => (dir === "h" ? [l.outer.y, l.outer.y + l.outer.height] : [l.outer.x, l.outer.x + l.outer.width])))];
   let coord = null;
+  const inside = (ev) => {
+    if (!own) return true;
+    const r = overlay.getBoundingClientRect();
+    const x = (ev.clientX - r.left) / scale + m.x, y = (ev.clientY - r.top) / scale + m.y;
+    const o = own.outer;
+    return x >= o.x && x <= o.x + o.width && y >= o.y && y <= o.y + o.height;
+  };
   const at = (ev) => {
     const r = overlay.getBoundingClientRect();
     let c = dir === "h" ? (ev.clientY - r.top) / scale + m.y : (ev.clientX - r.left) / scale + m.x;
@@ -2342,11 +2366,13 @@ function cutOverlay() {
   const mark = () => {
     document.querySelectorAll(".pane.cut-target, .pane.cut-skip").forEach((p) => p.classList.remove("cut-target", "cut-skip"));
     if (coord === null) return;
-    const { targets, skipped } = cutTargets(dir, coord);
+    const { targets, skipped } = cutTargets(dir, coord, only);
     targets.forEach((l) => document.querySelector(`.pane[data-id="${l.id}"]`)?.classList.add("cut-target"));
     skipped.forEach((l) => document.querySelector(`.pane[data-id="${l.id}"]`)?.classList.add("cut-skip"));
   };
   overlay.addEventListener("pointermove", (ev) => {
+    if (!inside(ev)) { coord = null; line.style.visibility = "hidden"; tip.style.visibility = "hidden"; mark(); return; }
+    line.style.visibility = ""; tip.style.visibility = "";
     coord = at(ev);
     const pos = (coord - (dir === "h" ? m.y : m.x)) * scale;
     if (dir === "h") { line.style.top = `${pos - 1}px`; tip.style.top = `${pos + 6}px`; tip.style.left = "8px"; }
@@ -2357,9 +2383,12 @@ function cutOverlay() {
   overlay.addEventListener("pointerleave", () => { coord = null; mark(); });
   overlay.addEventListener("pointerdown", (ev) => {
     ev.stopPropagation();
+    if (!inside(ev)) { S.cut = null; S.cutPane = null; render(); return; }   // a click outside the pane stops "Cut pane"
     const c = at(ev);
-    S.cut = ev.shiftKey ? S.cut : null;
-    cutAt(dir, c);
+    // Shift keeps "Cut screen" going; a pane that was cut has a new id, so "Cut pane" always ends.
+    S.cut = ev.shiftKey && only === null ? S.cut : null;
+    S.cutPane = S.cut ? S.cutPane : null;
+    cutAt(dir, c, only);
     if (S.cut) render();
   });
   return overlay;
@@ -2568,8 +2597,8 @@ function renderHeader() {
       `${i}${i === 0 ? " (bottom left)" : ""}${S.workspaces && i >= S.workspaces ? " (not on this machine)" : ""}`)));
   $("#undo").disabled = !S.undo.length;
   $("#redo").disabled = !S.redo.length;
-  $("#cut-h").classList.toggle("on", S.cut === "h");
-  $("#cut-v").classList.toggle("on", S.cut === "v");
+  $("#cut-h").classList.toggle("on", S.cut === "h" && !S.cutPane);
+  $("#cut-v").classList.toggle("on", S.cut === "v" && !S.cutPane);
   const errors = errorsCount();
   for (const id of ["#save", "#open-screen"]) {
     const b = $(id);
@@ -2853,7 +2882,7 @@ function wire() {
     else if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
     else if ((e.key === "Delete" || e.key === "Backspace") && S.sel.kind === "pane") { e.preventDefault(); removePane(S.sel.path); }
     else if ((e.key === "Delete" || e.key === "Backspace") && S.sel.kind === "split") { e.preventDefault(); deleteLine(S.sel.path, S.sel.boundary); }
-    else if (e.key === "Escape") { S.cut = null; S.sel = { kind: "layout" }; render(); }
+    else if (e.key === "Escape") { S.cut = null; S.cutPane = null; S.sel = { kind: "layout" }; render(); }
     else if (!mod && (e.key === "h" || e.key === "H")) setCutMode("h");
     else if (!mod && (e.key === "v" || e.key === "V")) setCutMode("v");
   });

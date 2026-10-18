@@ -34,13 +34,16 @@ expect(cmd.endsWith(`--monitor ${mon.name}`), `command line by name (got ${cmd})
 await page.click('#command-lines button:has-text("number")');
 step(`command line: ${cmd}`);
 
-// Split the right pane into rows, give the bottom one a command list.
+// Cut the right pane into rows, give the bottom one a command list.
 await page.locator(".pane").nth(1).click();
-await page.click("text=Split ⇅ top / bottom");
+const rightPane = await page.locator(".pane").nth(1).boundingBox();
+await page.click("text=✂ Cut pane ─");
+await page.mouse.move(rightPane.x + rightPane.width / 2, rightPane.y + rightPane.height / 2);
+await page.mouse.click(rightPane.x + rightPane.width / 2, rightPane.y + rightPane.height / 2);
 expect((await page.locator(".pane").count()) === 3, "three panes after split");
 await page.fill('textarea[data-key="run"]', "date\nwhoami\nls");
 await page.locator('textarea[data-key="run"]').blur();
-step("split the right pane and set a command list on the new bottom pane");
+step("cut the right pane and set a command list on the new bottom pane");
 
 // Drag the vertical line between the columns to about 30 %.
 const handle = page.locator(".handle.v").first();

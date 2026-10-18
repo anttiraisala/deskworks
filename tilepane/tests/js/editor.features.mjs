@@ -21,6 +21,13 @@ const step = (msg) => console.log(`- ${msg}`);
 const doc = () => page.evaluate(() => JSON.parse(JSON.stringify(S.doc)));
 const loadDoc = (d) => page.evaluate((text) => load(text, "test.json"), JSON.stringify(d));
 const sel = () => page.evaluate(() => S.sel.kind);
+// "Cut pane": press the button of the selected pane, then click inside the pane (fx, fy are fractions of its size).
+const cutPane = async (button, pane, fx = 0.5, fy = 0.5) => {
+  const box = await pane.boundingBox();
+  await page.click(`text=${button}`);
+  await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy);
+  await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
+};
 
 await page.goto(url);
 await page.waitForSelector(".pane");
@@ -49,11 +56,44 @@ step(`command lines: ${code}`);
 // Splitting moves inheriting settings up; the command stays with the first half.
 await loadDoc({ name: "t", split: { run: "htop", cwd: "/srv", shell: "zsh", title: "top" } });
 await page.locator(".pane").first().click();
-await page.click("text=Split ⇆ left | right");
+await cutPane("✂ Cut pane │", page.locator(".pane").first());
 let d = await doc();
 expect(d.cwd === "/srv" && d.shell === "zsh", `settings moved up (got ${JSON.stringify(d)})`);
 expect(JSON.stringify(d.split.a) === JSON.stringify({ run: "htop", title: "top" }) && JSON.stringify(d.split.b) === "{}", "first half keeps run and title");
-step(`split: ${JSON.stringify(d)}`);
+step(`cut pane: ${JSON.stringify(d)}`);
+
+// "Cut pane" works like "Cut screen": a line follows the mouse and only the selected pane is cut, along the line.
+await loadDoc({ name: "cp", margin: 8, split: { dir: "columns", at: "50%", a: { run: "left" }, b: { run: "right" } } });
+const labels = await page.locator("header button").allTextContents();
+expect(labels.some((t) => t.includes("Cut screen ─")) && labels.some((t) => t.includes("Cut screen │")), `Cut screen buttons (got ${JSON.stringify(labels)})`);
+await page.locator(".pane").first().click();
+const paneButtons = await page.locator(".actions button").allTextContents();
+expect(paneButtons.includes("✂ Cut pane ─") && paneButtons.includes("✂ Cut pane │"), `Cut pane buttons (got ${JSON.stringify(paneButtons)})`);
+expect(!paneButtons.some((t) => t.startsWith("Split ")), "the old Split buttons are gone");
+const leftBox = await page.locator(".pane").first().boundingBox();
+await page.click("text=✂ Cut pane ─");
+expect(await page.isVisible("#cut-overlay"), "Cut pane starts the cut mode");
+await page.mouse.move(leftBox.x + leftBox.width / 2, leftBox.y + leftBox.height / 3);
+const lineBox = await page.locator("#cut-overlay .cut-line").boundingBox();
+expect(Math.abs(lineBox.width - leftBox.width) < 12 && Math.abs(lineBox.x - leftBox.x) < 12 && lineBox.width < leftBox.width * 1.1, `the line spans only the pane (line ${lineBox.width}px, pane ${leftBox.width}px)`);
+await page.mouse.click(leftBox.x + leftBox.width / 2, leftBox.y + leftBox.height / 3);
+d = await doc();
+expect(d.split.a.dir === "rows" && d.split.a.a.run === "left" && JSON.stringify(d.split.b) === JSON.stringify({ run: "right" }), `only the left pane was cut, top and bottom (got ${JSON.stringify(d.split)})`);
+expect(!(await page.isVisible("#cut-overlay")), "the cut mode ends after the cut");
+step("cut pane: only the selected pane, along the line");
+
+// A click outside the pane, or Escape, stops Cut pane without cutting.
+await loadDoc({ name: "cp", margin: 8, split: { dir: "columns", at: "50%", a: { run: "left" }, b: { run: "right" } } });
+await page.locator(".pane").first().click();
+const rightBox = await page.locator(".pane").nth(1).boundingBox();
+const docBeforeCut = JSON.stringify(await doc());
+await page.click("text=✂ Cut pane │");
+await page.mouse.click(rightBox.x + rightBox.width / 2, rightBox.y + rightBox.height / 2);
+expect(!(await page.isVisible("#cut-overlay")) && JSON.stringify(await doc()) === docBeforeCut, "a click outside the pane stops the mode");
+await page.click("text=✂ Cut pane │");
+await page.keyboard.press("Escape");
+expect(!(await page.isVisible("#cut-overlay")) && JSON.stringify(await doc()) === docBeforeCut, "Escape stops the mode");
+step("cut pane can be stopped");
 
 // Common settings rise: give both panes the same terminal.
 await loadDoc({ name: "t", split: { dir: "columns", a: { run: "a", terminal: "xterm" }, b: { run: "b" } } });

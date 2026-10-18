@@ -105,7 +105,7 @@ Done and tested:
 - `--demo` and `--for` (the windows close after the given time)
 - shell choice per pane
 - the browser editor (`--edit`): splitting panes and resizing by dragging,
-  swapping panes by dragging, a cut line across the whole screen, merging
+  swapping panes by dragging, a cut line across the whole screen (Cut screen) or across one pane (Cut pane), merging
   panes (arrows or the split line + Delete), setting the screen size by
   dragging, choosing the desktop, command lines that can be copied, common
   settings move up the tree automatically
