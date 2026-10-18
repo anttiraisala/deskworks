@@ -794,6 +794,7 @@ const DEFS = SCHEMA.definitions;
 const SPLIT_STRUCTURE = ["dir", "a", "b", "at", "children", "sizes"];
 const NO_WINDOW_KEYS = new Set(["id", "description", "when", "empty"]);
 const FILE_KEYS = new Set(["$schema", "version", "defaults", "monitors", "layouts"]);
+const SNAP_PX = 10;   // how close (screen px) a dragged line must come to another line to snap to it
 const MIN_PANE = 30; // smallest window (px) a drag may leave
 
 const PRESETS = [
@@ -2181,7 +2182,7 @@ function splitInspector(path) {
         h("button", { class: style === "-%" ? "on" : "", onclick: () => set("-%") }, "% from end"),
         h("button", { class: style === "px" || style === "num" ? "on" : "", onclick: () => set("px") }, "px from start"),
         h("button", { class: style === "-px" ? "on" : "", onclick: () => set("-px") }, "px from end")));
-      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point; hold Shift to line it up with another line. The value keeps its unit; the buttons switch it without moving the line. Delete removes the line and merges the two panes."));
+      parts.push(h("div", { class: "hint" }, "Drag the line between the panes to move the split point; it snaps to nearby lines (hold Alt to turn that off). The value keeps its unit; the buttons switch it without moving the line. Delete removes the line and merges the two panes."));
     }
   } else {
     parts.push(field(node, "sizes", { target: opts.target, problem: opts.problemFor("sizes") }));
@@ -2517,21 +2518,30 @@ function startDrag(e, split, i) {
   const startX = e.clientX, startY = e.clientY;
   const screenRect = $("#screen").getBoundingClientRect();
   const { scale, m } = S.view;
-  // Shift snaps the line onto the nearest parallel line elsewhere on the
-  // monitor, so the panes on both sides line up and can then be merged.
+  // The line snaps onto the nearest parallel line elsewhere on the monitor
+  // (within SNAP_PX screen pixels), so the panes on both sides line up and can
+  // then be merged. Holding Alt turns the snapping off.
   const own = split.bounds[i + 1];
   const lo = split.bounds[i], hi = split.bounds[i + 2];
   const edges = [...new Set(S.geo.leaves.flatMap((l) => (split.vertical
     ? [l.outer.x, l.outer.x + l.outer.width] : [l.outer.y, l.outer.y + l.outer.height])))]
     .filter((v) => v !== own && v > lo && v < hi);
+  const cursorTip = h("div", { class: "size-tip", style: { position: "fixed" } });
   const onMove = (ev) => {
     if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 3) return;
     moved = true;
     let coord = split.vertical ? (ev.clientX - screenRect.left) / scale + m.x : (ev.clientY - screenRect.top) / scale + m.y;
     let snapped = null;
-    if (ev.shiftKey && edges.length) {
+    if (!ev.altKey && edges.length) {
       const near = edges.map((v) => [Math.abs(v - coord), v]).sort((p, q) => p[0] - q[0])[0];
-      if (near[0] * scale < 60) { snapped = near[1]; coord = snapped; }
+      if (near[0] * scale < SNAP_PX) { snapped = near[1]; coord = snapped; }
+    }
+    if (edges.length) {
+      cursorTip.textContent = ev.altKey ? "Snapping is off"
+        : snapped !== null ? "Lined up with another line · hold Alt to turn snapping off" : "Hold Alt to turn snapping off";
+      cursorTip.style.left = `${ev.clientX + 16}px`;
+      cursorTip.style.top = `${ev.clientY + 16}px`;
+      if (!cursorTip.isConnected) document.body.append(cursorTip);
     }
     moveBoundary(split, i, coord, snapped !== null);
     computeGeometry();
@@ -2550,6 +2560,7 @@ function startDrag(e, split, i) {
   const onUp = () => {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
+    cursorTip.remove();
     if (moved && snapshot() !== before) {
       S.undo.push(before);
       S.redo = [];

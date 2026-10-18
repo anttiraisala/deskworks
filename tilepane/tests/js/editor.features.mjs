@@ -284,10 +284,11 @@ d = await doc();
 expect(d.split.dir === "columns" && d.split.at === "1110px" && d.split.a.run === "a", `merged size in px (got ${JSON.stringify(d.split)})`);
 step(`unit question: ${JSON.stringify(d.split)}`);
 
-// Shift while dragging a line snaps it onto a parallel line; the panes then
-// line up exactly and can be merged.
-await loadDoc({ name: "s", margin: 8, split: { dir: "columns", a: { dir: "rows", at: "40%", a: { run: "L1" }, b: { run: "L2" } },
-  b: { dir: "rows", at: "300px", a: {}, b: { run: "R2" } } } });
+// A dragged line snaps by itself onto a nearby parallel line, a tooltip at the cursor says that Alt turns it off,
+// and the panes then line up exactly and can be merged.
+const snapDoc = { name: "s", margin: 8, split: { dir: "columns", a: { dir: "rows", at: "40%", a: { run: "L1" }, b: { run: "L2" } },
+  b: { dir: "rows", at: "300px", a: {}, b: { run: "R2" } } } };
+await loadDoc(snapDoc);
 const hLeft = await page.evaluate(() => {
   const el = [...document.querySelectorAll(".handle.h")].find((x) => x.dataset.split === "0");
   const r = el.getBoundingClientRect();
@@ -296,17 +297,37 @@ const hLeft = await page.evaluate(() => {
 const target = await toScreen(200, 300);
 await page.mouse.move(hLeft[0], hLeft[1]);
 await page.mouse.down();
-await page.keyboard.down("Shift");
-await page.mouse.move(hLeft[0], target[1] + 12, { steps: 6 });
-expect(await page.isVisible("#snap-guide"), "snap guide shown");
+await page.mouse.move(hLeft[0], target[1] + 5, { steps: 6 });
+expect(await page.isVisible("#snap-guide"), "snap guide shown without any key");
+const tipText = await page.locator(".size-tip", { hasText: "Alt" }).first().textContent();
+expect(/hold Alt to turn snapping off/i.test(tipText), `tooltip at the cursor tells how to turn snapping off (got ${tipText})`);
 await page.mouse.up();
-await page.keyboard.up("Shift");
+expect(await page.locator(".size-tip", { hasText: "Alt" }).count() === 0, "the tooltip goes away after the drag");
 d = await doc();
 const tops = await page.evaluate(() => S.geo.leaves.map((l) => [l.leaf.run || "", l.outer.y, l.outer.height]));
 expect(/^27\.778%$/.test(d.split.a.at) && tops.find((t) => t[0] === "L1")[2] === 300, `left line snapped to 300px exactly (got ${d.split.a.at}, ${JSON.stringify(tops)})`);
 await page.locator(".pane").first().click();
 expect((await page.locator('.merge-btn[data-merge="right"]').count()) === 1, "the lined-up panes can be merged");
-step(`shift snap: at ${d.split.a.at}`);
+step(`auto snap: at ${d.split.a.at}`);
+
+// Alt turns the snapping off: the same drag ends where the mouse is.
+await loadDoc(snapDoc);
+const hLeft2 = await page.evaluate(() => {
+  const el = [...document.querySelectorAll(".handle.h")].find((x) => x.dataset.split === "0");
+  const r = el.getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2];
+});
+await page.mouse.move(hLeft2[0], hLeft2[1]);
+await page.mouse.down();
+await page.keyboard.down("Alt");
+await page.mouse.move(hLeft2[0], target[1] + 5, { steps: 6 });
+expect(!(await page.isVisible("#snap-guide")), "no snap guide with Alt held");
+expect(/snapping is off/i.test(await page.locator(".size-tip", { hasText: "Snapping" }).first().textContent()), "tooltip says snapping is off");
+await page.mouse.up();
+await page.keyboard.up("Alt");
+const heights = await page.evaluate(() => S.geo.leaves.map((l) => [l.leaf.run || "", l.outer.height]));
+expect(heights.find((t) => t[0] === "L1")[1] !== 300, `with Alt the line did not snap (got ${JSON.stringify(heights)})`);
+step("Alt turns the snapping off");
 
 expect(errors.length === 0, `no page errors: ${errors.join("; ")}`);
 await browser.close();
