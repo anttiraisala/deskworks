@@ -116,7 +116,7 @@ Command line:
 
 ```
 cascade-windows [--scope monitor|workspace|all] [--undo] [--dry-run] [--ignore-exclusions]
-                [--config FILE] [--init-config] [--edit-config] [--reset-config] [--show-config]
+                [--config FILE] [--init-config] [--edit-config [--editor COMMAND]] [--reset-config] [--show-config]
                 [--diagnose] [--list-targets] [--environment-report] [--verbose]
 ```
 
@@ -128,6 +128,7 @@ cascade-windows [--scope monitor|workspace|all] [--undo] [--dry-run] [--ignore-e
 | `--config FILE` | Use this configuration file instead of the default one. |
 | `--init-config` | Write a configuration file with all defaults, unless one exists. |
 | `--edit-config` | Create the configuration file if missing and open it in the default text editor (not the program registered for JSON files, which can be a web browser that cannot read `~/.config`). |
+| `--editor COMMAND` | With `--edit-config`: open the file with this editor instead of the default one, for example `--editor gedit`, `--editor xed`, `--editor nano` or `--editor "code --wait"`. The editor runs in the terminal until you close it, so terminal editors work too. |
 | `--reset-config` | Replace the configuration file with a fresh one holding all defaults. The old file is saved as `config.json.bak`. |
 | `--show-config` | Print the configuration file path and the settings in effect. |
 | `--migrate-config` | Remove an untouched configuration file written by an older version (the installer does this). |

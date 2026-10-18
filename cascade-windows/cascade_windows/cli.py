@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -50,7 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reset-config", action="store_true", help="replace the configuration file with a fresh one holding all defaults (the old one is saved as config.json.bak)")
     parser.add_argument("--show-config", action="store_true", help="print the configuration file path and the settings in effect")
     parser.add_argument("--migrate-config", action="store_true", help="remove an untouched configuration file written by an older version")
-    parser.add_argument("--edit-config", action="store_true", help="open the configuration file in the default editor")
+    parser.add_argument("--edit-config", action="store_true", help="open the configuration file in the default text editor")
+    parser.add_argument("--editor", metavar="COMMAND", help="with --edit-config: open the file with this editor instead, for example 'gedit', 'nano' or 'code --wait'; the command runs in this terminal until you close the editor")
     parser.add_argument("--diagnose", action="store_true", help="print information about the environment and windows")
     parser.add_argument("--environment-report", action="store_true", help="print which desktop, session type and tools were detected and what the installer would do (useful for bug reports)")
     parser.add_argument("--install-keybinding", metavar="COMMAND", help="register the keyboard shortcut for COMMAND")
@@ -158,6 +160,30 @@ def editor_command(
     return [opener, path] if opener else None
 
 
+def chosen_editor_command(editor: str, path: str, which: Callable[[str], Optional[str]] = shutil.which) -> List[str]:
+    """The command for ``--editor``: the words of ``editor`` followed by the file. Raises ValueError when the
+    editor cannot be started, with a message for the user."""
+    try:
+        words = shlex.split(editor)
+    except ValueError as problem:
+        raise ValueError("cannot read the --editor value %r: %s" % (editor, problem))
+    if not words:
+        raise ValueError("--editor needs the name of an editor")
+    if which(words[0]) is None:
+        raise ValueError("the editor %r was not found; give its name or full path with --editor" % words[0])
+    return words + [path]
+
+
+def run_chosen_editor(editor: str, path: str) -> int:
+    try:
+        command = chosen_editor_command(editor, path)
+    except ValueError as problem:
+        print("cascade-windows: %s" % problem, file=sys.stderr)
+        return 1
+    # Run in the foreground so that editors that need the terminal (nano, vim) work like the graphical ones.
+    return subprocess.run(command, check=False).returncode
+
+
 def _first_line(command: List[str]) -> str:
     try:
         result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=10)
@@ -175,8 +201,13 @@ def _run(args: argparse.Namespace) -> int:
     if args.reset_config:
         print(reset_config(path))
         return 0
+    if args.editor and not args.edit_config:
+        print("cascade-windows: --editor is used together with --edit-config", file=sys.stderr)
+        return 2
     if args.edit_config:
         write_default_config(path)
+        if args.editor:
+            return run_chosen_editor(args.editor, path)
         command = editor_command(path)
         if command is None:
             print(path)
