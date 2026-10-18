@@ -138,8 +138,8 @@ Automatic (`python3 -m unittest discover -s tests`):
 The parts that talk to GNOME Shell itself (`lib/windows.js`, `lib/service.js`, `lib/panel.js`, `extension.js`) can
 only be tested in a real GNOME session. Test them in a virtual machine:
 
-1. Get the code: `git clone https://github.com/anttiraisala/cascade-windows.git`, `cd cascade-windows`,
-   `git checkout gnome-extension`.
+1. Get the code: `git clone https://github.com/anttiraisala/deskworks.git`, `cd deskworks/cascade-windows`
+   (the GNOME support is part of `master`).
 2. `./install.sh` (it detects GNOME; use `./install.sh --backend gnome` to force it).
 3. Log out and in again. A Wayland shell only looks for new extensions when it starts.
 4. Check that it runs:

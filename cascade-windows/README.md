@@ -54,6 +54,19 @@ Uninstall:
 ./uninstall.sh --help            list the options
 ```
 
+Where the files are:
+
+| What | Location |
+|---|---|
+| The program and the `deskmap` library | `~/.local/share/cascade-windows/lib`, command `~/.local/bin/cascade-windows` |
+| **Configuration** | **`~/.config/cascade-windows/config.json`** (`cascade-windows --edit-config` creates and opens it, `--show-config` prints what is in effect) |
+| Undo data | `~/.local/state/cascade-windows/` |
+| Right-click entries (Nemo) | `~/.local/share/nemo/actions/cascade-windows-*.nemo_action` and `~/.config/nemo/actions-tree.json` |
+
+`XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_STATE_HOME` replace the default folders when they are set. After an
+uninstall run `nemo --quit` so that the desktop menu is refreshed. The installer needs the `deskmap` folder next to
+`cascade-windows`, so use a full clone of the deskworks repository.
+
 Make sure `~/.local/bin` is in your `PATH` (Ubuntu and Mint add it automatically after the first login
 once the folder exists).
 
@@ -105,7 +118,7 @@ and the other monitors are cascaded as usual.
   bottom-left workspace and, in a 2 x 2 grid, number 2 is the same as `0,1`, the top-left one.
 - `cascade-windows --list-targets` prints the numbers, positions and names to use (and warns about rules that
   match nothing right now; a monitor may simply be unplugged).
-- When you start a cascade on an excluded monitor (the monitor under the pointer, on the current workspace), a short notification tells you so: "This monitor is excluded". This applies to all three actions. With **Cascade Workspace** and **Cascade All Workspaces** the other monitors and workspaces are still cascaded and the notification says that this monitor was left alone; with **Cascade Windows** nothing is moved. Turn it off with `"excluded_notification": false`.
+- When you start a cascade on an excluded monitor (the monitor under the pointer, on the current workspace), a short notification tells you so: "This monitor is excluded". This applies to all three actions. With **Cascade Workspace** and **Cascade All Workspaces** the other monitors and workspaces are still cascaded and the notification says that this monitor was left alone; with **Cascade Windows** nothing is moved. Turn it off with `"notify": {"excluded": false}`.
 - `Ctrl+Super+Shift+C`, or `cascade-windows --ignore-exclusions`, cascades the monitor under the pointer even
   if it is excluded.
 

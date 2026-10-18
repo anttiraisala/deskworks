@@ -8,7 +8,7 @@ the extraction proceeds, and move finished facts into the library's own README.
 | Part | Comes from | Notes |
 |---|---|---|
 | `Rect` | `tilepane/src/tilepane/geometry.py` | tilepane's `Rect`; cascade's extra helpers (`intersect`, `contains`, `distance_sq`, `to_list`, `from_list`, `__str__`) were added; both tools use it |
-| Monitor detection and numbering | `tilepane/.../monitors.py` | xrandr, sway, hyprland parsing; aliases stay in tilepane |
+| Monitor detection and numbering | `tilepane/.../monitors.py` | xrandr, sway, hyprland parsing; `resolve` (numbers, connectors, aliases, `primary`, `all`) moved along unchanged, separating it from detection is open |
 | Work area | `tilepane/.../workarea.py` | `_GTK_WORKAREAS`, struts, `_NET_WORKAREA` |
 | Workspace model and numbering | `tilepane/.../workspaces.py` | the numbering of README.md |
 | Placement maths | `tilepane/.../placement.py` | frame extents, size hints, cell snap |

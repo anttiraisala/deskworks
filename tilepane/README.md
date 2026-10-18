@@ -82,7 +82,17 @@ tilepane --uninstall           # removes the program; your layouts stay
 tilepane --uninstall --purge   # also deletes your layouts in ~/.config/tilepane
 ```
 
-It shows what it will do and asks first (`--yes` skips the question). It closes the windows tilepane opened, deletes its state in `~/.local/state/tilepane`, and removes the program with the tool it was installed with (pipx or pip). Layout files you keep elsewhere and the cloned repository folder are not touched; delete the folder yourself (`rm -rf ~/tilepane`). By hand, the same is `pipx uninstall tilepane` (or `pip uninstall tilepane`) plus deleting those folders.
+It shows what it will do and asks first (`--yes` skips the question). It closes the windows tilepane opened, deletes its state in `~/.local/state/tilepane`, and removes the program with the tool it was installed with (pipx or pip). Layout files you keep elsewhere and the cloned repository folder are not touched. The clone (`~/deskworks`) also holds `cascade-windows` and `deskmap`, so delete it only when you no longer need them (`rm -rf ~/deskworks`). By hand, the same is `pipx uninstall tilepane` (or `pip uninstall tilepane`) plus deleting those folders.
+
+### Where tilepane keeps its files
+
+| What | Location |
+|---|---|
+| The program (pipx) | `~/.local/share/pipx/venvs/tilepane`, command `~/.local/bin/tilepane` |
+| Layouts and settings | `~/.config/tilepane/config.json` (`tilepane --edit` edits it in the browser; a layout file can also be anywhere, give its path) |
+| State (which windows are open) | `~/.local/state/tilepane/` |
+
+`XDG_CONFIG_HOME` and `XDG_STATE_HOME` replace `~/.config` and `~/.local/state` when they are set.
 
 ## Try the demo
 
