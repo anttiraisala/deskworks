@@ -9,7 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from . import __version__, environment, exclusions, gnome_install, keybinding, nemo_menu, undo
 from .backend import Backend, BackendError
@@ -139,6 +139,34 @@ def create_backend(allow_wayland: bool = False, settings=None, kind: str = "auto
     return X11Backend(use_dock_windows=True if settings is None else settings.workarea_dock_windows)
 
 
+def editor_command(
+    path: str,
+    which: Callable[[str], Optional[str]] = shutil.which,
+    query_default: Callable[[str], str] = lambda mime: _first_line(["xdg-mime", "query", "default", mime]),
+) -> Optional[List[str]]:
+    """The command that opens the configuration file for editing, or None when nothing can open it.
+
+    The file is plain text, so it is opened with the desktop's default text editor. ``xdg-open`` alone would use
+    the handler of the JSON type, which can be a web browser; a sandboxed browser cannot read ``~/.config`` and
+    shows "Access to the file was denied".
+    """
+    if which("xdg-mime") and which("gtk-launch"):
+        launcher = query_default("text/plain").strip()
+        if launcher.endswith(".desktop"):
+            return ["gtk-launch", launcher, path]
+    opener = which("xdg-open")
+    return [opener, path] if opener else None
+
+
+def _first_line(command: List[str]) -> str:
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    lines = result.stdout.strip().splitlines()
+    return lines[0] if lines else ""
+
+
 def _run(args: argparse.Namespace) -> int:
     path = args.config or config_path()
     if args.init_config:
@@ -149,11 +177,11 @@ def _run(args: argparse.Namespace) -> int:
         return 0
     if args.edit_config:
         write_default_config(path)
-        opener = shutil.which("xdg-open")
-        if opener is None:
+        command = editor_command(path)
+        if command is None:
             print(path)
             return 0
-        subprocess.Popen([opener, path])
+        subprocess.Popen(command)
         return 0
     if args.environment_report:
         for line in environment.build_report():
