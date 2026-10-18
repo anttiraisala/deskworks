@@ -208,6 +208,22 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(moved(result), [1, 2])
         self.assertEqual(result.excluded_windows, 0)
 
+    def test_the_pointer_flag_does_not_change_what_is_moved(self):
+        rules = [{"monitor": "HDMI-1"}]
+        for scope in (SCOPE_WORKSPACE, SCOPE_ALL):
+            result = plan(self.windows, rules, scope=scope, pointer=(50, 50))
+            self.assertTrue(result.pointer_excluded)
+            self.assertFalse(result.target_excluded)
+            elsewhere = plan(self.windows, rules, scope=scope, pointer=(2500, 50))
+            self.assertFalse(elsewhere.pointer_excluded)
+            self.assertEqual(moved(result), moved(elsewhere))
+            self.assertEqual([m.rect for m in result.moves], [m.rect for m in elsewhere.moves])
+
+    def test_the_pointer_flag_is_only_set_when_the_rules_apply(self):
+        self.assertFalse(plan(self.windows, [], scope=SCOPE_ALL).pointer_excluded)
+        self.assertFalse(plan(self.windows, [{"monitor": 0}], scope=SCOPE_ALL, ignore=True).pointer_excluded)
+        self.assertFalse(plan(self.windows, [{"monitor": 0}], scope=SCOPE_MONITOR).pointer_excluded)
+
     def test_describe_mentions_the_exclusions(self):
         text = "\n".join(plan(self.windows, [{"workspace": 2}]).describe())
         self.assertIn("2 window(s) left alone", text)
@@ -282,7 +298,55 @@ class CliTest(unittest.TestCase):
         _code, output, notify, _backend = self.run_cli(
             {"exclude": [{"monitor": 0}]}, "--scope", "workspace", windows=windows)
         self.assertIn("Cascaded 1 window(s); 1 window(s) left alone", output)
+        # The pointer is on the excluded monitor 0, so the user is told, although the rest was cascaded.
+        self.assertIn("This monitor is excluded", output)
+        notify.assert_called_once()
+
+    def test_a_workspace_or_all_cascade_started_on_an_excluded_monitor_says_so(self):
+        windows = [make_window(1, Rect(100, 100, 400, 300)), make_window(2, Rect(2000, 100, 400, 300))]
+        for scope in ("workspace", "all"):
+            code, output, notify, backend = self.run_cli(
+                {"exclude": [{"monitor": "HDMI-1"}]}, "--scope", scope, windows=list(windows), pointer=(50, 50))
+            self.assertEqual(code, 0)
+            self.assertIn("Cascaded 1 window(s); 1 window(s) left alone", output)
+            self.assertIn("This monitor is excluded", output)
+            notify.assert_called_once()
+            self.assertEqual(len([c for c in backend.calls if c[0] == "place"]), 1)
+
+    def test_no_note_when_a_workspace_cascade_starts_on_a_monitor_that_is_not_excluded(self):
+        windows = [make_window(1, Rect(100, 100, 400, 300)), make_window(2, Rect(2000, 100, 400, 300))]
+        _code, output, notify, _backend = self.run_cli(
+            {"exclude": [{"monitor": "HDMI-1"}]}, "--scope", "workspace", windows=windows, pointer=(2500, 50))
+        self.assertIn("Cascaded 1 window(s); 1 window(s) left alone", output)
+        self.assertNotIn("This monitor is excluded", output)
         notify.assert_not_called()
+
+    def test_the_note_can_be_turned_off_and_ignoring_the_exclusions_removes_it(self):
+        windows = [make_window(1, Rect(100, 100, 400, 300)), make_window(2, Rect(2000, 100, 400, 300))]
+        config = {"exclude": [{"monitor": "HDMI-1"}], "notify": {"excluded": False}}
+        _code, output, notify, _backend = self.run_cli(config, "--scope", "all", windows=list(windows))
+        self.assertIn("This monitor is excluded", output)
+        notify.assert_not_called()
+        _code, output, _notify, _backend = self.run_cli(
+            {"exclude": [{"monitor": "HDMI-1"}]}, "--scope", "all", "--ignore-exclusions", windows=list(windows))
+        self.assertNotIn("excluded", output)
+
+    def test_an_excluded_workspace_is_noticed_for_the_current_workspace(self):
+        # Number 2 is the top-left workspace, which is the current one ("0").
+        windows = [make_window(1, Rect(100, 100, 400, 300)), make_window(3, Rect(100, 100, 400, 300), workspace="1")]
+        _code, output, notify, _backend = self.run_cli(
+            {"exclude": [{"workspace": 2}]}, "--scope", "all", windows=windows)
+        self.assertIn("Cascaded 1 window(s); 1 window(s) left alone", output)
+        self.assertIn("This monitor is excluded", output)
+        notify.assert_called_once()
+
+    def test_everything_excluded_says_this_monitor_and_that_nothing_else_moved(self):
+        windows = [make_window(1, Rect(100, 100, 400, 300))]
+        _code, output, notify, _backend = self.run_cli(
+            {"exclude": [{"monitor": "HDMI-1"}]}, "--scope", "workspace", windows=windows)
+        self.assertIn("This monitor is excluded", output)
+        self.assertIn("nothing else was cascaded", output)
+        notify.assert_called_once()
 
     def test_list_targets(self):
         _code, output, _notify, _backend = self.run_cli({"exclude": [{"monitor": "VGA-9"}]}, "--list-targets")

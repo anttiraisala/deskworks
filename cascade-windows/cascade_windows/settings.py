@@ -248,8 +248,9 @@ _COMMENTS = {
         "end up too far from the edges because of an overlay that is wrongly taken for a panel."
     ),
     ("notify",): (
-        "excluded=true: show a short desktop notification when nothing was cascaded because the monitor "
-        "or workspace is excluded (see 'exclude'). The message is also printed in the terminal."
+        "excluded=true: show a short desktop notification when the monitor under the pointer is excluded "
+        "(see 'exclude'), whether nothing was cascaded because of it or the other monitors and workspaces "
+        "were cascaded without it. The message is also printed in the terminal."
     ),
 }
 

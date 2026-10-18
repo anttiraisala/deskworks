@@ -45,6 +45,7 @@ class Plan:
     groups: List[GroupSummary] = field(default_factory=list)
     excluded_windows: int = 0  # eligible windows left alone because of the exclusion rules
     target_excluded: bool = False  # the monitor of a "monitor" cascade is excluded itself
+    pointer_excluded: bool = False  # "workspace" or "all" cascade: the monitor under the pointer is excluded
 
     def describe(self) -> List[str]:
         lines = []
@@ -57,7 +58,7 @@ class Plan:
             lines.append(
                 "  0x%x %r -> %s (%s)" % (move.window.id, move.window.title[:40], move.rect, move.anchor)
             )
-        if self.target_excluded:
+        if self.target_excluded or self.pointer_excluded:
             lines.append("the monitor under the pointer is excluded in the configuration")
         if self.excluded_windows:
             lines.append("%d window(s) left alone because of the exclusion rules" % self.excluded_windows)
@@ -135,6 +136,11 @@ def build_plan(
     if target_monitor is not None and rules and is_excluded(rules, target_monitor, current_workspace, grid):
         plan.target_excluded = True
         return plan
+    if scope != SCOPE_MONITOR and rules:
+        # The cascade itself is not affected; this only lets the caller tell the user that the place they
+        # started it from is excluded.
+        pointer_monitor = find_monitor(monitors, pointer[0], pointer[1])
+        plan.pointer_excluded = is_excluded(rules, pointer_monitor, current_workspace, grid)
     regions_by_monitor = {m.index: regions_for_monitor(m, settings) for m in monitors}
 
     groups: Dict[Tuple[int, int, int], List[WindowInfo]] = {}

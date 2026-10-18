@@ -51,7 +51,7 @@ Unknown keys are ignored with a warning. Invalid values make the command stop wi
 | `workarea.dock_windows` | Treat panels and launchers that do not reserve screen space in the standard way (for example the Unity 7 launcher and top panel) as obstacles, using their position and size. Turn off if an overlay is wrongly taken for a panel. |
 | `restore_maximized` | Restore maximized windows to normal size before cascading. When `false` they are left alone. |
 | `exclude` | A list of rules for monitors and workspaces that are never cascaded. See below. Empty by default. |
-| `notify.excluded` | Show a short desktop notification when a cascade did nothing because the monitor or workspace is excluded. The message is always printed in the terminal too. |
+| `notify.excluded` | Show a short desktop notification when the monitor you started a cascade on is excluded: when nothing happened because of it, and also when a workspace or all-workspaces cascade moved the other windows but left that monitor alone. The message is always printed in the terminal too. |
 
 ## Excluding monitors and workspaces
 

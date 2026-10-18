@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The "This monitor is excluded" notice now also appears for **Cascade Workspace** and **Cascade All Workspaces** when they are started on an excluded monitor. Before, it appeared only for **Cascade Windows**. The cascade itself is unchanged: the other monitors and workspaces are cascaded as before and the excluded monitor is left alone.
 - New option `--editor COMMAND` for `--edit-config`: choose the editor that opens the configuration file (`--edit-config --editor gedit`, `--editor nano`, `--editor "code --wait"`). The command runs in the terminal until the editor is closed, so editors that need a terminal work too.
 - `--edit-config` opens the configuration file with the desktop's default text editor instead of the handler of the JSON type. When that was a sandboxed browser (for example Firefox as a snap) it showed "Access to the file was denied", because the browser cannot read `~/.config`.
 - **Changed: workspace numbering.** Workspaces in `exclude` rules and in `--list-targets` are now numbered from the bottom left corner, left to right along each row and then row by row upwards, like in the other deskworks tools (before: reading order from the top left). The grid position `"x,y"` counts `y` from the bottom: `"0,0"` is the bottom-left workspace (before: the top-left one). On a 2 x 2 grid the old numbers 0, 1, 2, 3 (top row, then bottom row) are now 2, 3, 0, 1. Existing `exclude` rules that name a workspace must be updated; run `cascade-windows --list-targets` to see the numbers.

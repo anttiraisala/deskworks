@@ -90,8 +90,19 @@ def exclusion_message(plan) -> Optional[str]:
     hint = " Use --ignore-exclusions (Ctrl+Super+Shift+C) to cascade anyway."
     if plan.target_excluded:
         return "This monitor is excluded from the cascade in the configuration." + hint
+    if plan.pointer_excluded and not plan.moves:
+        return "This monitor is excluded from the cascade in the configuration, and nothing else was cascaded." + hint
     if plan.excluded_windows and not plan.moves:
         return "Nothing was cascaded: the windows are on monitors or workspaces excluded in the configuration." + hint
+    return None
+
+
+def pointer_excluded_message(plan) -> Optional[str]:
+    """For a workspace or all cascade that did move windows: a note when the monitor it was started from is excluded."""
+    if plan.pointer_excluded and plan.moves:
+        return ("This monitor is excluded from the cascade in the configuration; its windows were left alone. "
+                "The other monitors and workspaces were cascaded. Use --ignore-exclusions (Ctrl+Super+Shift+C) "
+                "to cascade it anyway.")
     return None
 
 
@@ -289,6 +300,11 @@ def _run(args: argparse.Namespace) -> int:
     if plan.excluded_windows:
         left_alone = "; %d window(s) left alone because of the exclusion rules" % plan.excluded_windows
     print("Cascaded %d window(s)%s." % (len(plan.moves), left_alone))
+    note = pointer_excluded_message(plan)
+    if note:
+        print(note)
+        if settings.notify_excluded:
+            _notify("Cascade Windows", note, "dialog-information")
     return 0
 
 
