@@ -90,7 +90,7 @@ It shows what it will do and asks first (`--yes` skips the question). It closes 
 | What | Location |
 |---|---|
 | The program (pipx) | `~/.local/share/pipx/venvs/tilepane`, command `~/.local/bin/tilepane` |
-| Layouts and settings | `~/.config/tilepane/config.json` (`tilepane --edit` edits it in the browser; a layout file can also be anywhere, give its path) |
+| Layouts and settings | `~/.config/tilepane/config.json` (`tilepane --edit` edits it in the browser; a layout file can also be anywhere, give its path; a bare name like `tilepane metering.json` is looked up in the current directory first and then in `~/.config/tilepane`) |
 | State (which windows are open) | `~/.local/state/tilepane/` |
 
 `XDG_CONFIG_HOME` and `XDG_STATE_HOME` replace `~/.config` and `~/.local/state` when they are set.

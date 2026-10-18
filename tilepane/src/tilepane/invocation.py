@@ -7,6 +7,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .config import default_config_path
 from .demo import DemoError, parse_duration
 
 HELP = """\
@@ -14,7 +15,9 @@ usage: tilepane [options] [FILE.json | LAYOUT ...]
 
 Open terminal windows at precisely defined screen positions.
 
-  tilepane meters.json [NAME]            open a layout file (NAME if it has several)
+  tilepane meters.json [NAME]            open a layout file (NAME if it has several); a bare
+                                         file name not in this directory is looked up in
+                                         ~/.config/tilepane
   tilepane 3 5                           layouts 3 and 5 from the default config
   tilepane --json a.json --monitor 0 --json b.json --monitor 1
                                          several tasks; --monitor and --layout
@@ -119,6 +122,16 @@ def is_file_argument(arg: str) -> bool:
     return os.path.isfile(arg) or arg.lower().endswith(".json")
 
 
+def resolve_source(name: str) -> str:
+    """A bare file name (no directory part) that is not in the current directory
+    is looked up in the config directory (~/.config/tilepane). Anything with a
+    directory part, and a name found in neither place, stays as typed."""
+    if name == "-" or os.path.dirname(name) or name.startswith("~") or os.path.exists(name):
+        return name
+    candidate = os.path.join(os.path.dirname(default_config_path()), name)
+    return candidate if os.path.isfile(candidate) else name
+
+
 def parse(argv: list[str]) -> Invocation:
     inv = Invocation()
     current: Optional[Task] = None
@@ -136,7 +149,7 @@ def parse(argv: list[str]) -> Invocation:
         i += 1
         if only_positional or not arg.startswith("-") or arg == "-":
             if is_file_argument(arg):
-                current = new_task(arg)
+                current = new_task(resolve_source(arg))
             else:
                 current = current or new_task(None)
                 current.layouts.append(arg)
@@ -176,7 +189,7 @@ def parse(argv: list[str]) -> Invocation:
             raise UsageError(f"{opt} does not take a value")
 
         if opt in ("--json", "--config"):
-            current = new_task(value)
+            current = new_task(resolve_source(value))
         elif opt == "--layout":
             current = current or new_task(None)
             current.layouts.append(value)

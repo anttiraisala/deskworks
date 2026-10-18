@@ -142,3 +142,8 @@ Newest log entries last. See `CLAUDE.md` for how this file is kept.
 
 ### 2026-10-18: install instructions: PATH works in the same terminal
 - On a fresh Mint VM the owner followed the clone and install steps but skipped `pipx ensurepath`, so `tilepane` was "command not found". A program cannot change the `PATH` of a terminal that is already open, so the install instructions now also give `export PATH="$HOME/.local/bin:$PATH"` next to `pipx ensurepath` (README.md, tilepane/README.md); the troubleshooting row is unchanged. Documentation only; no tests run.
+
+### 2026-10-18: bare layout file names are looked up in the config directory
+- Requested by the owner: `tilepane metering.json` looks in the current directory and, if the file is not there, in `~/.config/tilepane`. Before this, only the current directory was used. Implemented in `invocation.resolve_source` (used for the positional file and for `--json`/`--config`); names with a directory part are never searched; the current directory wins when the file is in both; a name found nowhere stays as typed and the "file not found" message names the config directory.
+- Decisions: `--edit new.json` for a file found nowhere still creates it in the current directory; the `.json` ending stays required; `--analyze FILE` uses the same lookup (so a file existing only in the config directory is the one replaced after the usual question). Documented in SPEC.md (section "Bare file names"), README.md and `--help`.
+- Tested: 4 unit tests (found in config directory, current directory wins, names with a directory, missing everywhere). Not tried on the owner's machines.

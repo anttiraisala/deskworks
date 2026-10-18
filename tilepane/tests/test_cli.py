@@ -383,3 +383,55 @@ class CliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BareFileNameTest(unittest.TestCase):
+    """A bare file name not in the current directory is looked up in the config directory."""
+
+    def setUp(self):
+        self.cwd = os.getcwd()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.work = os.path.join(self.tmp.name, "work")
+        self.conf = os.path.join(self.tmp.name, "conf", "tilepane")
+        os.makedirs(self.work)
+        os.makedirs(self.conf)
+        self.old_env = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = os.path.join(self.tmp.name, "conf")
+        os.chdir(self.work)
+        self.addCleanup(self._restore)
+
+    def _restore(self):
+        os.chdir(self.cwd)
+        if self.old_env is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self.old_env
+
+    def _touch(self, folder, name):
+        path = os.path.join(folder, name)
+        with open(path, "w") as fh:
+            fh.write("{}")
+        return path
+
+    def test_found_in_config_directory(self):
+        path = self._touch(self.conf, "metering.json")
+        self.assertEqual(parse(["metering.json"]).tasks[0].source, path)
+        self.assertEqual(parse(["--json", "metering.json"]).tasks[0].source, path)
+
+    def test_current_directory_wins(self):
+        self._touch(self.conf, "metering.json")
+        self._touch(self.work, "metering.json")
+        self.assertEqual(parse(["metering.json"]).tasks[0].source, "metering.json")
+
+    def test_name_with_a_directory_is_not_searched(self):
+        self._touch(self.conf, "metering.json")
+        self.assertEqual(parse(["./metering.json"]).tasks[0].source, "./metering.json")
+        self.assertEqual(parse(["sub/metering.json"]).tasks[0].source, "sub/metering.json")
+
+    def test_missing_everywhere_stays_and_the_error_names_the_config_directory(self):
+        self.assertEqual(parse(["nope.json"]).tasks[0].source, "nope.json")
+        from tilepane import config
+        with self.assertRaises(config.ConfigError) as cm:
+            config.load_file("nope.json")
+        self.assertIn(self.conf, str(cm.exception.problems[0]) if hasattr(cm.exception, "problems") else str(cm.exception))

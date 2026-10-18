@@ -397,7 +397,10 @@ def load_file(path: str, *, strict: bool = False) -> ConfigFile:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
     except FileNotFoundError:
-        raise ConfigError([f"{path}: file not found"]) from None
+        where = ""
+        if not os.path.isabs(path) and not os.path.dirname(path):
+            where = f" (also looked in {os.path.dirname(default_config_path())})"
+        raise ConfigError([f"{path}: file not found{where}"]) from None
     except (OSError, UnicodeDecodeError) as exc:
         raise ConfigError([f"{path}: cannot read file: {exc}"]) from None
     return load_text(text, path, strict=strict)
