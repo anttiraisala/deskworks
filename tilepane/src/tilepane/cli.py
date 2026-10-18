@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from typing import Iterator, Optional, TextIO
 
 from deskmap import monitors, workarea
-from . import (__version__, backends, config, demo, docgen, doctor, geometry, launcher,
-               manager, opener, state)
+from . import (__version__, analyze, backends, config, demo, docgen, doctor, geometry, launcher,
+               manager, opener, processes, state)
 from .invocation import HELP, Invocation, Task, UsageError, parse
 
 
@@ -20,6 +20,8 @@ from .invocation import HELP, Invocation, Task, UsageError, parse
 DEMO_SOURCE = "<demo>"
 # State key source for the windows of --identify.
 IDENTIFY_SOURCE = "<identify>"
+# Where --analyze writes the layout when no file name is given.
+ANALYZE_FILE = "analyzed-layout.json"
 
 
 def _pane_summary(leaf: dict, when_evaluated: bool) -> str:
@@ -547,6 +549,143 @@ class _Runner:
             backend.disconnect()
         return 1 if self.failed else 0
 
+    # ------------------------------------------------------------------ --analyze
+
+    def _current_monitor(self, backend, mons: list[monitors.Monitor], wins) -> Optional[monitors.Monitor]:
+        """The monitor the user is working on: where the active window is (the terminal this was typed in),
+        else where the pointer is."""
+        point = None
+        active = backend.active_window()
+        win = next((w for w in wins if w.id == active), None)
+        if win is not None:
+            point = (win.rect.x + win.rect.width // 2, win.rect.y + win.rect.height // 2)
+        elif backend.pointer() is not None:
+            point = backend.pointer()
+        if point is None or not mons:
+            return mons[0] if mons else None
+
+        def distance(m: monitors.Monitor) -> int:
+            dx = max(m.x - point[0], 0, point[0] - (m.x + m.width - 1))
+            dy = max(m.y - point[1], 0, point[1] - (m.y + m.height - 1))
+            return dx * dx + dy * dy
+        return min(mons, key=distance)
+
+    def analyze(self, open_browser=None) -> int:
+        """--analyze: a layout file from the windows that are open on a monitor."""
+        task = self.inv.tasks[0] if self.inv.tasks else Task()
+        path = os.path.abspath(task.source or ANALYZE_FILE)
+        if os.path.isdir(path):
+            self.error(f"{path} is a directory")
+            return 1
+        if os.path.exists(path) and not self.inv.yes and not self.inv.dry_run:
+            self.error(f"{path} exists; give another file name, or --yes to replace it")
+            return 1
+        backend, reason = (self._backend, "") if self._backend else backends.choose()
+        if backend is None:
+            self.error(f"cannot reach the window system: {reason}")
+            return 1
+        try:
+            if not self._resolve_workspace(backend):
+                return 1
+            wins = backend.open_windows()
+            mons = self.monitors()
+            if not mons:
+                self.error("no monitors found")
+                return 1
+            try:
+                spec_monitor = task.monitor or self.inv.default_monitor
+                targets = (monitors.resolve_many(spec_monitor, mons, {})
+                           if spec_monitor else [self._current_monitor(backend, mons, wins)])
+            except monitors.MonitorError as exc:
+                self.error(f"--analyze: {exc}")
+                return 1
+            num = self._numbering
+            spec = self.inv.workspace
+            if spec == "all":
+                spaces = sorted(num.to_user, key=num.to_user.get) if num.count else [self._current_ws]
+            elif spec in (None, "current"):
+                spaces = [self._current_ws]
+            else:
+                spaces = [num.index(int(spec))]
+            explicit_ws = spec not in (None, "current")
+            shared: dict[int, int] = {}
+            for w in wins:
+                if w.pid is not None:
+                    shared[w.pid] = shared.get(w.pid, 0) + 1
+            layouts, summary = [], []
+            for ws in spaces:
+                for mon in targets:
+                    area = self.area(mon, "work")
+                    box = workarea.monitor_rect(mon)
+                    items = []
+                    for stack, w in enumerate(wins):
+                        if w.kind != "normal" or w.hidden:
+                            continue
+                        if w.desktop != ws and not (w.desktop is None and ws == self._current_ws):
+                            continue
+                        cx, cy = w.rect.x + w.rect.width // 2, w.rect.y + w.rect.height // 2
+                        if not (box.x <= cx < box.right and box.y <= cy < box.bottom):
+                            continue
+                        if self.inv.terminals_only and not analyze.is_terminal(w.wm_class):
+                            continue
+                        pane = analyze.pane_for(
+                            w.wm_class, w.title, w.pid, lambda pid: processes.terminal_pane(pid),
+                            shared=shared.get(w.pid, 0) > 1)
+                        items.append(analyze.Item(w.rect, pane, stack))
+                    where = f"monitor {mon.number} ({_monitor_label(mon)})" + (
+                        f", workspace {num.number(ws)}" if ws is not None and num is not None and num.count else "")
+                    if not items:
+                        summary.append(f"{where}: no windows")
+                        continue
+                    name = "analyzed"
+                    if len(targets) > 1 or len(spaces) > 1:
+                        name += (f"-workspace-{num.number(ws)}" if len(spaces) > 1 and ws is not None else "")
+                        name += f"-monitor-{mon.number}" if len(targets) > 1 else ""
+                    result = analyze.derive(area, items, name=name)
+                    if explicit_ws and ws is not None and num is not None and num.count:
+                        result.layout = {**{k: v for k, v in result.layout.items() if k != "split"},
+                                         "workspace": num.number(ws), "split": result.layout["split"]}
+                    layouts.append((mon, result))
+                    text = (f"{where}: {len(items)} window(s) -> {result.windows} pane(s)"
+                            + (f" and {result.empty} empty" if result.empty else "")
+                            + f", margin {result.margin}"
+                            + (f", outer margin {result.outer_margin}" if result.outer_margin is not None else "")
+                            + (f", differs from the screen by up to {result.deviation} px" if result.deviation > 1
+                               else ", matches the screen"))
+                    summary.append(text)
+                    summary += [f"  note: {n}" for n in result.notes if "differ" not in n]
+        finally:
+            if backend is not self._backend:
+                backend.disconnect()
+        info = self.err if self.inv.dry_run else self.out
+        for line in summary:
+            print(f"analyze: {line}", file=info)
+        if not layouts:
+            self.error("--analyze: there are no windows to make a layout of"
+                       + (" (this monitor; --monitor chooses another)" if not (task.monitor or self.inv.default_monitor) else ""))
+            return 1
+        header = {"$schema": demo.SCHEMA_URL, "version": 1}
+        body = [{**r.layout, "description": "made by tilepane --analyze"} for _m, r in layouts]
+        data = {**header, **body[0]} if len(body) == 1 else {**header, "layouts": body}
+        text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+        if self.inv.dry_run:
+            print(text, end="", file=self.out)
+            return 0
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+        except OSError as exc:
+            self.error(f"{path}: {exc.strerror or exc}")
+            return 1
+        mon_arg = f" --monitor {layouts[0][0].number}" if len(body) == 1 else ""
+        print(f"analyze: wrote {path}", file=self.out)
+        print(f"  open it: tilepane {shlex.quote(path)}{mon_arg}   edit it: tilepane --edit {shlex.quote(path)}",
+              file=self.out)
+        if self.inv.edit_after:
+            self.inv.tasks = [Task(source=path)]
+            return self.edit(open_browser)
+        return 0
+
     def edit(self, open_browser=None) -> int:
         from .editor import server as editor_server
 
@@ -722,6 +861,8 @@ def main(argv: Optional[list[str]] = None, *, out: Optional[TextIO] = None,
         return runner.list_layouts()
     if inv.action == "edit":
         return runner.edit()
+    if inv.action == "analyze":
+        return runner.analyze()
     if inv.action == "uninstall":
         return runner.uninstall(**({"ask": ask} if ask else {}))
     if inv.action == "close":

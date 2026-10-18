@@ -27,6 +27,9 @@ Open terminal windows at precisely defined screen positions.
   tilepane --identify                    a window on every monitor of every workspace,
                                          saying where it should be (checks numbering)
   tilepane --edit [FILE]                 edit a layout file in the browser
+  tilepane --analyze [FILE]              make a layout of the windows that are open on the
+                                         current monitor (--monitor, --workspace choose others;
+                                         with --edit the editor opens on it)
   tilepane --list [FILE]                 list layouts
   tilepane --explain KEY                 describe a configuration key
   tilepane --uninstall [--purge]         remove tilepane (--purge: and your layouts)
@@ -49,9 +52,11 @@ options:
   --seed S                     with --demo: repeat an earlier demo
   --save FILE                  with --demo: also write the layout to FILE
   --no-browser                 with --edit: only print the editor's address
+  --terminals-only             with --analyze: leave out windows that are not terminals
   --purge                      with --uninstall: also delete your layouts
                                (~/.config/tilepane)
-  --yes                        with --uninstall: do not ask for confirmation
+  --yes                        with --uninstall: do not ask for confirmation;
+                               with --analyze: replace the file if it exists
   -x, --exit-shell             when everything opened (or closed) without errors,
                                close the terminal tilepane was typed into
   --strict                     unknown configuration keys are errors
@@ -67,7 +72,7 @@ VALUE_OPTIONS = {"--json", "--config", "--layout", "--monitor", "--explain", "--
                  "--for", "--seed", "--save", "--workspace"}
 FLAG_OPTIONS = {"--dry-run", "--eval-when", "--strict", "--verbose", "-v", "--doctor",
                 "--close", "--toggle", "--prune", "--demo", "--identify", "--edit", "--no-browser",
-                "--exit-shell", "-x", "--uninstall", "--purge", "--yes",
+                "--exit-shell", "-x", "--uninstall", "--purge", "--yes", "--analyze", "--terminals-only",
                 "--monitors", "--workspaces", "--list", "--version", "--help", "-h"}
 # Options from SPEC.md that exist but are built in a later step.
 NOT_YET = {"--watch": 9}
@@ -106,6 +111,8 @@ class Invocation:
     exit_shell: bool = False
     purge: bool = False
     yes: bool = False
+    terminals_only: bool = False
+    edit_after: bool = False              # --analyze --edit: open the editor on the result
 
 
 def is_file_argument(arg: str) -> bool:
@@ -207,8 +214,10 @@ def parse(argv: list[str]) -> Invocation:
             inv.seed = value
         elif opt == "--save":
             inv.save = value
-        elif opt in ("--demo", "--identify"):
+        elif opt in ("--demo", "--identify", "--analyze"):
             actions.append(opt[2:])
+        elif opt == "--terminals-only":
+            inv.terminals_only = True
         elif opt == "--edit":
             actions.append("edit")
         elif opt == "--uninstall":
@@ -258,13 +267,27 @@ def parse(argv: list[str]) -> Invocation:
     if "identify" in actions:
         if inv.tasks or len(set(actions)) > 1:
             raise UsageError("--identify makes its own windows; it takes no files, layouts or other actions")
+    if "analyze" in actions:
+        others = set(actions) - {"analyze", "edit"}
+        if others:
+            raise UsageError("--analyze can only be combined with --edit")
+        if len(inv.tasks) > 1 or (inv.tasks and inv.tasks[0].layouts):
+            raise UsageError("--analyze takes one file name, where the layout is written")
+        inv.action = "analyze"
+        inv.edit_after = "edit" in actions
+        if inv.workspace not in (None, "current", "all") and not inv.workspace.isdigit():
+            raise UsageError("--workspace takes current, all or a workspace number")
+        return inv
+    if inv.terminals_only:
+        raise UsageError("--terminals-only only works with --analyze")
     if "uninstall" in actions:
         if inv.tasks or len(set(actions)) > 1:
             raise UsageError("--uninstall takes no files, layouts or other actions")
         inv.action = "uninstall"
         return inv
     if inv.purge or inv.yes:
-        raise UsageError(f"{'--purge' if inv.purge else '--yes'} only works with --uninstall")
+        raise UsageError(f"{'--purge' if inv.purge else '--yes'} only works with --uninstall"
+                         + (" (and --yes with --analyze)" if inv.yes and not inv.purge else ""))
     if inv.exit_shell and (inv.dry_run or any(a in actions for a in
                                                ("help", "version", "doctor", "monitors", "workspaces",
                                                 "explain", "list", "edit"))):

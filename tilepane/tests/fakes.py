@@ -1,6 +1,7 @@
 """Test doubles for the window backend."""
 
 from tilepane.backends import Placement, WindowInfo
+from deskmap.backends import OpenWindow
 from deskmap.placement import Extents, SizeHints
 
 
@@ -81,6 +82,20 @@ class FakeBackend:
     def vanish(self, window_id):
         """The user closed this window by hand."""
         self._open.discard(window_id)
+
+    # --- what --analyze reads: windows that exist (set `shown`, bottom to top)
+    shown: list = []
+    active = None
+    pointer_at = None
+
+    def open_windows(self):
+        return list(self.shown)
+
+    def active_window(self):
+        return self.active
+
+    def pointer(self):
+        return self.pointer_at
 
     def disconnect(self):
         self.disconnected = True

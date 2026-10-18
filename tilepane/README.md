@@ -129,6 +129,25 @@ tilepane --explain on_exit                            # describe any configurati
 
 Without installing: `PYTHONPATH=src:../deskmap/src python3 -m tilepane.cli --dry-run examples/meters.json`.
 
+## Make a layout of the windows that are open (`--analyze`)
+
+Opening a layout makes windows from a file. `--analyze` goes the other way: it looks at the windows that are open on a monitor and writes the layout they make.
+
+```
+tilepane --analyze                      # the current monitor -> analyzed-layout.json
+tilepane --analyze mine.json            # write it to mine.json
+tilepane --analyze mine.json --edit     # ... and open it in the browser editor right away
+tilepane --analyze --monitor 1          # another monitor (a number, a connector name, or "all")
+tilepane --analyze --workspace all      # every workspace (a number or "current" also work)
+tilepane --analyze --terminals-only     # leave out windows that are not terminals
+tilepane --analyze --dry-run            # print the layout, write nothing
+```
+
+- **Which monitor:** the one the active window is on (the terminal where you typed the command), or, if there is no active window, the one with the mouse pointer. `--monitor` chooses others; with several monitors or workspaces the file holds one layout for each, and a layout for a workspace remembers its workspace.
+- **Which windows:** the normal windows that are shown (not minimized) on that workspace and monitor; windows that are on every workspace count for the current one. Each becomes a pane. A terminal gets the command that runs in it, when that can be read (a window that tilepane opened gets its own commands, directory and title back; a plain `xterm` or `gnome-terminal` with a program running gets that program; several `gnome-terminal` windows share one process, so there the panes are just shells). Other windows become a shell titled with the name of the program (`Firefox: ...`), which keeps their place in the layout.
+- **The splits:** they are made so that the panes tile the work area without overlapping. The gap between windows becomes `margin` (and the distance to the edge `outer_margin`, if it is not the half of the margin); screen that no window covers becomes empty panes. Where windows lie on top of each other (a cascade) the layout cannot be the same as the screen: the windows are separated by cutting between their centres, each keeps the part on its side of the cut, and the command tells how much the panes differ from the windows.
+- **Result:** run `tilepane FILE --monitor N` to open it, or edit it first. An existing file is not replaced unless you give `--yes`.
+
 ## Edit layouts in the browser
 
 ```

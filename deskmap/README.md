@@ -30,8 +30,8 @@ It is the shared base of the tools in this repository ([`tilepane`](../tilepane/
 | `workspaces` | workspace grids, Compiz-style viewports, conversion between the window manager's index and the person's number |
 | `workarea` | per-monitor work area: `_GTK_WORKAREAS`, panel struts, `_NET_WORKAREA`, whole monitor |
 | `placement` | frame, shadow and size-hint arithmetic for exact window placement |
-| `backends` | the backend interface: `Backend`, `WindowInfo`, `Placement`, `BackendError` |
-| `backends.x11` | the X11 backend on python-xlib and EWMH: finds new windows, places them exactly, moves them between workspaces and closes them; workspace and Compiz viewport handling |
+| `backends` | the backend interface: `Backend`, `WindowInfo`, `Placement`, `OpenWindow`, `BackendError` |
+| `backends.x11` | the X11 backend on python-xlib and EWMH: finds new windows, places them exactly, moves them between workspaces and closes them; lists every open window with its visible rectangle on its own workspace (`open_windows`), the active window and the pointer; workspace and Compiz viewport handling |
 
 ## Install and test
 

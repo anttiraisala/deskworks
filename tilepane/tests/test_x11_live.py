@@ -99,6 +99,29 @@ class LiveTest(unittest.TestCase):
             time.sleep(1.0)
             self.assertEqual(self.backend.find("tilepane"), [])
 
+    def test_analyze_reads_the_windows_back(self):
+        """The windows tilepane opened are listed with their rectangles, and --analyze makes their layout again."""
+        from tilepane import analyze, processes
+        if not terminals.IMPLEMENTED["xterm"].available():
+            self.skipTest("xterm is not installed")
+        layout = {"name": "live", "margin": 8, "snap": "pixel", "split": {
+            "dir": "columns", "at": "50%", "a": {"run": "sleep 30", "title": "live-a"},
+            "b": {"dir": "rows", "a": {"run": "sleep 31"}, "b": {"run": "sleep 32"}}}}
+        leaves, results = self.open_layout("xterm", layout)
+        mine = {r.window_id: r for r in results}
+        listed = [w for w in self.backend.open_windows() if w.id in mine]
+        self.assertEqual(len(listed), 3)
+        for w in listed:
+            self.assertEqual(w.rect, mine[w.id].placement.actual)
+            self.assertEqual((w.kind, w.hidden), ("normal", False))
+        items = [analyze.Item(w.rect, analyze.pane_for(w.wm_class, w.title, w.pid, processes.terminal_pane), i)
+                 for i, w in enumerate(listed)]
+        result = analyze.derive(self.area, items)
+        self.assertEqual((result.windows, result.empty), (3, 0))
+        self.assertLessEqual(result.deviation, 1)
+        runs = sorted(lf.leaf["run"] for lf in geometry.compute(result.layout, self.area))
+        self.assertEqual(runs, ["sleep 30", "sleep 31", "sleep 32"])
+
     def test_gnome_terminal(self):
         self.check("gnome-terminal")
 

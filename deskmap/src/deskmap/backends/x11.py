@@ -15,7 +15,7 @@ from typing import Callable, Optional
 
 from ..rect import Rect
 from ..placement import Extents, SizeHints, hints_from_wm, plan, visible_rect
-from . import BackendError, Placement, WindowInfo
+from . import BackendError, OpenWindow, Placement, WindowInfo
 
 _SOURCE_APPLICATION = 1 << 12
 _HAS_XYWH = (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11)
@@ -118,6 +118,59 @@ class X11Backend:
                 except error.XError:
                     pass
         return found
+
+    def active_window(self) -> Optional[int]:
+        vals = self._cardinals(self.root, "_NET_ACTIVE_WINDOW")
+        return vals[0] if vals and vals[0] else None
+
+    def pointer(self) -> Optional[tuple[int, int]]:
+        from Xlib import error
+
+        try:
+            p = self.root.query_pointer()
+            return int(p.root_x), int(p.root_y)
+        except error.XError:
+            return None
+
+    def _atoms_of(self, win, name: str) -> set[int]:
+        return set(self._cardinals(win, name) or [])
+
+    def open_windows(self) -> list[OpenWindow]:
+        """Every window of the window list, bottom to top, with its visible rectangle in the coordinates of
+        its own workspace (so a window on another Compiz viewport is where it would be when shown)."""
+        from Xlib import error
+
+        ids = (self._cardinals(self.root, "_NET_CLIENT_LIST_STACKING")
+               or self._cardinals(self.root, "_NET_CLIENT_LIST") or [])
+        vps = self._viewports()
+        normal, dialog = self._atom("_NET_WM_WINDOW_TYPE_NORMAL"), self._atom("_NET_WM_WINDOW_TYPE_DIALOG")
+        hidden, full = self._atom("_NET_WM_STATE_HIDDEN"), self._atom("_NET_WM_STATE_FULLSCREEN")
+        out: list[OpenWindow] = []
+        for wid in ids:
+            try:
+                info = self.info(wid)
+                if info is None:
+                    continue
+                win = self._window(wid)
+                types = self._atoms_of(win, "_NET_WM_WINDOW_TYPE")
+                kind = "normal" if not types or normal in types else "dialog" if dialog in types else "other"
+                states = self._atoms_of(win, "_NET_WM_STATE")
+                frame_vals = self._cardinals(win, "_NET_FRAME_EXTENTS")
+                frame = Extents(*frame_vals[:4]) if frame_vals and len(frame_vals) >= 4 else Extents()
+                rect = self._visible_now(win, frame, self._gtk_extents(win))
+                desktop = info.desktop
+                if vps is not None:
+                    # One large desktop: the viewport the window is in is its workspace.
+                    cols, rows, w, h, vx, vy = vps
+                    absx, absy = vx + rect.x, vy + rect.y
+                    cell = self._cell(vps, absx + rect.width // 2, absy + rect.height // 2)
+                    desktop = None if info.desktop is None else cell
+                    rect = Rect(absx - (cell % cols) * w, absy - (cell // cols) * h, rect.width, rect.height)
+                out.append(OpenWindow(wid, info.wm_class, info.pid, info.title, desktop, rect, kind,
+                                      hidden in states, full in states))
+            except error.XError:
+                continue
+        return out
 
     def wait_new_window(self, before: set[int], match: Callable[[WindowInfo], bool],
                         timeout: float) -> Optional[WindowInfo]:

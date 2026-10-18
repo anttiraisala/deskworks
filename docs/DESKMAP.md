@@ -20,6 +20,8 @@ the extraction proceeds, and move finished facts into the library's own README.
 
 ## Extraction order
 
+State on 2026-10-18: the X11 backend also lists the open windows (`open_windows`: visible rectangle on the window's own workspace, class, process, title, kind, minimized, bottom-to-top order), the active window and the pointer, which tilepane's `--analyze` uses; cascade-windows has its own, richer listing that is not merged yet.
+
 State on 2026-10-17: steps 1 and 2 are done and tilepane uses the pure parts and the X11 backend from the library (part of step 3). cascade-windows uses `Rect` and the workspace numbering rule from the library (start of step 4); its own X11 backend, which is richer in some places (dock windows, struts per monitor), is not merged yet because that needs live comparison on Mint and Unity. See `PROGRESS.md`.
 
 1. Create the `deskmap` package with the pure parts and their tests (`Rect`, monitors, workspaces, work area, placement maths). Keep the tests that exist.

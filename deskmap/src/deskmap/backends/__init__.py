@@ -25,6 +25,21 @@ class WindowInfo:
     desktop: Optional[int] = None   # workspace index (see workspaces.py); None: on all, or not known
 
 
+@dataclass(frozen=True)
+class OpenWindow:
+    """A window that exists now, as `Backend.open_windows` lists it (for analysing a desktop)."""
+    id: int
+    wm_class: tuple[str, str]     # (instance, class)
+    pid: Optional[int]
+    title: str
+    desktop: Optional[int]        # workspace index (see workspaces.py); None: on every workspace
+    rect: Rect                    # the visible window with its frame, in the coordinates of its
+                                  # workspace (origin at the top left of that workspace's screen)
+    kind: str = "normal"          # "normal", "dialog" or "other" (panels, the desktop, menus, ...)
+    hidden: bool = False          # minimized
+    fullscreen: bool = False
+
+
 @dataclass
 class Placement:
     wanted: Rect                  # the layout rectangle
@@ -43,6 +58,12 @@ class Backend(Protocol):
     name: str
 
     def windows(self) -> set[int]: ...
+
+    def open_windows(self) -> list[OpenWindow]: ...      # bottom to top
+
+    def active_window(self) -> Optional[int]: ...
+
+    def pointer(self) -> Optional[tuple[int, int]]: ...  # on the current workspace
 
     def wait_new_window(self, before: set[int], match: Callable[[WindowInfo], bool],
                         timeout: float) -> Optional[WindowInfo]: ...
