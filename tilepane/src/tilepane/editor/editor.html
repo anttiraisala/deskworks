@@ -984,36 +984,55 @@ function splitRecord(path) { return S.geo.splits.find((s) => s.id === idOf(path)
 
 // ---------------------------------------------------------------- changes and undo
 
-function snapshot() { return JSON.stringify({ doc: S.doc, li: S.layoutIndex, sel: S.sel }); }
+// The preview (which monitor, and a custom size dragged out of it) is part of the history, so that a size
+// change can be undone and redone like an edit of the layout. It does not make the file dirty: it is not saved.
+function previewState() {
+  return { i: S.monitorIndex, use: !!S.useCustom, size: S.custom ? { w: S.custom.width, h: S.custom.height } : null };
+}
+function snapshot() { return JSON.stringify({ doc: S.doc, li: S.layoutIndex, sel: S.sel, mon: previewState() }); }
+function documentPart(text) { const s = JSON.parse(text); return JSON.stringify([s.doc, s.li]); }
 function restore(text) {
   const s = JSON.parse(text);
   S.doc = s.doc; S.layoutIndex = s.li; S.sel = s.sel;
+  S.monitorIndex = s.mon.i;
+  if (s.mon.size) setCustomSize(s.mon.size.w, s.mon.size.h);
+  else S.custom = null;
+  S.useCustom = s.mon.use;
+  S.lastGood = null;
+}
+// Run a change of the preview (monitor, custom size) so that it can be undone.
+function previewChange(fn) {
+  const before = snapshot();
+  fn();
+  S.lastGood = null;
+  if (snapshot() !== before) recordHistory(before);
+  render();
+}
+function recordHistory(before) {
+  S.undo.push(before);
+  if (S.undo.length > 300) S.undo.shift();
+  S.redo = [];
 }
 function change(fn) {
   const before = snapshot();
   fn();
   normalize(lay());
   if (snapshot() === before) return;
-  S.undo.push(before);
-  if (S.undo.length > 300) S.undo.shift();
-  S.redo = [];
+  recordHistory(before);
   S.dirty = true;
   render();
 }
-function undo() {
-  if (!S.undo.length) return;
-  S.redo.push(snapshot());
-  restore(S.undo.pop());
-  S.dirty = true;
+function stepHistory(from, to) {
+  if (!from.length) return;
+  const now = snapshot();
+  to.push(now);
+  const target = from.pop();
+  restore(target);
+  if (documentPart(target) !== documentPart(now)) S.dirty = true;
   render();
 }
-function redo() {
-  if (!S.redo.length) return;
-  S.undo.push(snapshot());
-  restore(S.redo.pop());
-  S.dirty = true;
-  render();
-}
+function undo() { stepHistory(S.undo, S.redo); }
+function redo() { stepHistory(S.redo, S.undo); }
 
 // ---------------------------------------------------------------- tree operations
 
@@ -2180,7 +2199,7 @@ function layoutInspector() {
   const parts = [
     h("h2", {}, `Layout: ${layoutName(l, S.layoutIndex)}`),
     h("div", { class: "sub" }, `${monitor().name}${monitor().preset ? "" : ` · ${monitor().width}×${monitor().height}`}`),
-    h("div", { class: "hint" }, "Click a pane to edit it or split it. Drag the lines between panes to resize them, a pane onto another to swap them, and the monitor's edges to try another size. Ctrl+Z undoes."),
+    h("div", { class: "hint" }, "Click a pane to edit it or split it. Drag the lines between panes to resize them, a pane onto another to swap them, and the monitor's edges to try another size. Ctrl+Z undoes any of them, also a size change; Ctrl+Y redoes."),
   ];
   parts.push(h("details", { open: true, id: "command-lines" }, h("summary", {}, "Command line"), commandsBlock(() => renderInspector())));
   parts.push(...fieldList(l, LAYOUT_MAIN, opts));
@@ -2360,7 +2379,7 @@ function renderScreenbar() {
   const parts = [
     h("span", {}, "Monitor ", h("span", { class: "size", id: "monitor-size" }, `${m.width} × ${m.height} px`)),
   ];
-  if (S.useCustom) parts.push(h("button", { onclick: () => { S.useCustom = false; S.lastGood = null; render(); }, title: "Back to the monitor chosen in the list" }, "Reset size"));
+  if (S.useCustom) parts.push(h("button", { onclick: () => previewChange(() => { S.useCustom = false; }), title: "Back to the monitor chosen in the list" }, "Reset size"));
   parts.push(h("span", {}, "Margin ",
     h("button", { onclick: () => setMargin(margin - 1), title: "Smaller gap" }, "−"), " ", input, " ",
     h("button", { onclick: () => setMargin(margin + 1), title: "Larger gap" }, "+"), " px"));
@@ -2434,6 +2453,7 @@ function startMonitorResize(e, side) {
   e.stopPropagation();
   const m0 = monitor();
   const w0 = m0.width, h0 = m0.height;
+  const before = snapshot();
   const startX = e.clientX, startY = e.clientY;
   S.fixedScale = S.view.scale;
   const tip = h("div", { class: "size-tip" });
@@ -2467,6 +2487,7 @@ function startMonitorResize(e, side) {
     tip.remove();
     S.fixedScale = null;
     S.lastGood = null;
+    if (snapshot() !== before) recordHistory(before);
     render();
   };
   window.addEventListener("pointermove", onMove);
@@ -2786,12 +2807,10 @@ async function onScreen(action) {
 
 function wire() {
   $("#layout").addEventListener("change", (e) => { S.layoutIndex = Number(e.target.value); S.sel = { kind: "layout" }; S.lastGood = null; render(); });
-  $("#monitor").addEventListener("change", (e) => {
+  $("#monitor").addEventListener("change", (e) => previewChange(() => {
     if (e.target.value === "custom") S.useCustom = true;
     else { S.monitorIndex = Number(e.target.value); S.useCustom = false; }
-    S.lastGood = null;
-    render();
-  });
+  }));
   $("#commands").addEventListener("click", openCommands);
   $("#cut-h").addEventListener("click", () => setCutMode("h"));
   $("#cut-v").addEventListener("click", () => setCutMode("v"));

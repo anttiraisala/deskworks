@@ -119,6 +119,48 @@ await page.click("text=Reset size");
 expect((await page.textContent("#monitor-size")) === before, "reset size");
 step(`monitor resize: ${before} -> ${after} -> reset`);
 
+// The preview size can be undone and redone, also in a fresh, empty editor, and it does not make the file dirty.
+await loadDoc({ name: "fresh", split: {} });
+const size0 = await page.textContent("#monitor-size");
+expect(await page.isDisabled("#undo"), "nothing to undo in a fresh editor");
+const dragCorner = async (dx, dy) => {
+  const c = await page.locator(".mon-handle.se").boundingBox();
+  await page.mouse.move(c.x + 7, c.y + 7);
+  await page.mouse.down();
+  await page.mouse.move(c.x + 7 + dx, c.y + 7 + dy, { steps: 6 });
+  await page.mouse.up();
+};
+await dragCorner(-120, -60);
+const size1 = await page.textContent("#monitor-size");
+expect(size1 !== size0, `the drag changed the size (${size0} -> ${size1})`);
+expect(!(await page.isDisabled("#undo")), "the size change can be undone");
+expect(!(await page.evaluate(() => S.dirty)), "a size change does not make the file dirty");
+await page.click("#undo");
+expect((await page.textContent("#monitor-size")) === size0, "undo restores the size");
+expect(await page.isDisabled("#undo") && !(await page.isDisabled("#redo")), "undo used up, redo available");
+await page.click("#redo");
+expect((await page.textContent("#monitor-size")) === size1, "redo brings the size back");
+await dragCorner(-60, -30);
+const size2 = await page.textContent("#monitor-size");
+await page.keyboard.press("Control+z");
+expect((await page.textContent("#monitor-size")) === size1, "Ctrl+Z undoes the second drag");
+await page.keyboard.press("Control+z");
+expect((await page.textContent("#monitor-size")) === size0, "Ctrl+Z again undoes the first drag");
+await page.keyboard.press("Control+y");
+await page.keyboard.press("Control+y");
+expect((await page.textContent("#monitor-size")) === size2, "Ctrl+Y redoes both");
+expect(!(await page.evaluate(() => S.dirty)), "the file stayed clean through undo and redo");
+await page.click('#screenbar button[title="Larger gap"]');
+expect(await page.evaluate(() => S.dirty), "an edit of the layout makes it dirty");
+await page.keyboard.press("Control+z");
+expect((await page.textContent("#monitor-size")) === size2, "undoing a layout edit leaves the preview size alone");
+await page.click("text=Reset size");
+expect(!(await page.isDisabled("#undo")), "Reset size is undoable too");
+await page.click("#undo");
+expect((await page.textContent("#monitor-size")) === size2, "undo of Reset size brings the custom size back");
+await page.click("text=Reset size");   // later checks use the monitor from the list
+step(`preview size undo/redo: ${size0} -> ${size1} -> ${size2}`);
+
 // Margin control under the preview.
 await page.click('#screenbar button[title="Larger gap"]');
 d = await doc();

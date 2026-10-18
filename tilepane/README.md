@@ -147,7 +147,7 @@ The editor opens in your browser and shows the layout on a picture of the monito
 - Settings you give every pane (a shell, a working directory, ...) are moved up the tree automatically, so they are written once; splitting a pane passes its settings to both halves.
 - **Commands** (and the top of the layout panel) shows the command lines that open, toggle or close this layout from a terminal, with Copy buttons; the monitor can be written as a number or as its name.
 - Click outside the monitor picture (or press Esc) to unselect.
-- **Undo / Redo** (Ctrl+Z, Ctrl+Y), several layouts per file (New, Copy, Delete), and the monitor to preview on.
+- **Undo / Redo** (Ctrl+Z, Ctrl+Y) for edits of the layout and for the preview too: dragging the monitor's edges to another size, choosing another monitor or custom size in the list, and "Reset size" can all be undone and redone, even in a fresh, empty editor. The preview is not saved in the file, so these steps do not mark it as changed. Several layouts per file (New, Copy, Delete), and the monitor to preview on.
 - Problems are listed at the bottom and marked on the pane; the file cannot be saved until they are fixed.
 - **Save** (Ctrl+S) writes the file. **Open on screen** saves and opens the layout on the chosen monitor for real; **Close on screen** closes it again.
 
