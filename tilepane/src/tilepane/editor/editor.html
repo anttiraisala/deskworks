@@ -2524,9 +2524,13 @@ function startDrag(e, split, i) {
   // then be merged. Holding Alt turns the snapping off.
   const own = split.bounds[i + 1];
   const lo = split.bounds[i], hi = split.bounds[i + 2];
+  // The lines of other splits count even when one of them is exactly where this line starts (that is how
+  // two lines that were lined up before are snapped together again after the line was moved away). Inside the
+  // dragged split itself the line's own start position does not count: that is the line.
+  const inside = (l) => l.path.length >= split.path.length && split.path.every((v, k) => l.path[k] === v);
   const edges = [...new Set(S.geo.leaves.flatMap((l) => (split.vertical
-    ? [l.outer.x, l.outer.x + l.outer.width] : [l.outer.y, l.outer.y + l.outer.height])))]
-    .filter((v) => v !== own && v > lo && v < hi);
+    ? [l.outer.x, l.outer.x + l.outer.width] : [l.outer.y, l.outer.y + l.outer.height])
+    .filter((v) => v > lo && v < hi && !(inside(l) && v === own))))];
   const cursorTip = h("div", { class: "size-tip", style: { position: "fixed" } });
   const onMove = (ev) => {
     if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 3) return;

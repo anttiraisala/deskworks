@@ -310,6 +310,27 @@ await page.locator(".pane").first().click();
 expect((await page.locator('.merge-btn[data-merge="right"]').count()) === 1, "the lined-up panes can be merged");
 step(`auto snap: at ${d.split.a.at}`);
 
+// Two lines that are lined up snap together again when one is dragged away and back in the same drag (the other
+// line is where the dragged one started, which must not hide it from the snapping).
+await loadDoc({ name: "again", margin: 8, split: { dir: "rows", at: "50%",
+  a: { dir: "columns", at: "50%", a: { run: "A1" }, b: { run: "A2" } }, b: { dir: "columns", at: "50%", a: { run: "B1" }, b: { run: "B2" } } } });
+const topLine = await page.evaluate(() => {
+  const el = [...document.querySelectorAll(".handle.v")].find((x) => x.dataset.split === "0");
+  const r = el.getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2];
+});
+await page.mouse.move(topLine[0], topLine[1]);
+await page.mouse.down();
+await page.mouse.move(topLine[0] + 90, topLine[1], { steps: 6 });
+expect(!(await page.isVisible("#snap-guide")), "far from the other line: no guide");
+await page.mouse.move(topLine[0] + 4, topLine[1], { steps: 6 });
+expect(await page.isVisible("#snap-guide"), "back near the other line: it snaps again within the same drag");
+await page.mouse.up();
+const xs = await page.evaluate(() => S.geo.leaves.map((l) => [l.leaf.run, l.outer.x, l.outer.width]));
+const a1 = xs.find((v) => v[0] === "A1"), b1 = xs.find((v) => v[0] === "B1");
+expect(a1[2] === b1[2], `the two vertical lines are on the same pixel (A1 ${a1[2]}, B1 ${b1[2]})`);
+step("lined-up lines snap together again after being pulled apart");
+
 // Alt turns the snapping off: the same drag ends where the mouse is.
 await loadDoc(snapDoc);
 const hLeft2 = await page.evaluate(() => {
