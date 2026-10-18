@@ -189,7 +189,7 @@ rm -rf ~/deskworks
 | `The Python X11 library is missing` | `sudo apt install python3-xlib` (or `./install.sh --install-deps`). |
 | This is a Wayland session | Both tools move X11 windows. Choose "Ubuntu on Xorg" or a Cinnamon X11 session at login. On GNOME, cascade-windows has its own extension. |
 | The right-click entries do not appear | `nemo --quit`. On Unity 7 also `pkill -9 nemo-desktop` (the session restarts it). |
-| `--edit-config` opens the wrong program | Choose the editor: `cascade-windows --edit-config --editor xed`, or set `"editor": "xed"` in the configuration file. |
+| `--edit-config` opens the wrong program | Choose the editor: `cascade-windows --edit-config --editor xed`, or set `"editor": "xed"` in the configuration file (`~/.config/cascade-windows/config.json`: a line `"editor": "xed",` among the other settings, inside the outer `{ }`). |
 | Saved `exclude` rules hit the wrong workspace | Workspace numbers changed to start at the bottom left; see `cascade-windows --list-targets`. |
 
 ## Why one repository

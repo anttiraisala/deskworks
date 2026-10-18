@@ -94,6 +94,30 @@ Known limitations on Ubuntu Unity 7 (tested with Nemo 6.0.2 on Ubuntu 24.04):
   shortcuts), not under the GNOME location, which Unity ignores. Run `./install.sh` or
   `cascade-windows --install-keybinding "<command>"` again to move an older registration.
 
+## Settings in the configuration file
+
+The settings are plain JSON keys in `~/.config/cascade-windows/config.json`. Every key is optional; this is how some of them look (the full list with defaults is in [docs/CONFIGURATION.md](docs/CONFIGURATION.md)):
+
+```json
+{
+  "margin": { "top": 40, "right": 60, "bottom": 20, "left": 80 },
+  "step": { "x": 120, "y": 40 },
+  "size_mode": "percent",
+  "percent": { "width": 70, "height": 70 },
+  "skip": { "minimized": true, "dialogs": false },
+  "notify": { "excluded": false },
+  "editor": "xed",
+  "exclude": [ { "monitor": "HDMI-1" } ]
+}
+```
+
+- `margin` and `step`: pixels of free space around the cascade and between neighbouring windows.
+- `size_mode`: `anchored`, `fit`, `percent` or `fixed`; `percent` uses the `percent` size.
+- `skip`: which kinds of windows are left alone.
+- `notify.excluded`: set to `false` to turn off the "This monitor is excluded" notification.
+- `editor`: what `--edit-config` opens the file with (`--editor` overrides it).
+- `exclude`: monitors and workspaces that are never cascaded (next section).
+
 ## Excluding monitors and workspaces
 
 Some monitors or workspaces should never be cascaded (a TV, a monitor that shows a fixed layout). List them in

@@ -238,6 +238,39 @@ Every pane can choose its own terminal (the window: `"terminal": "xterm"`) and i
     "b": { "dir": "rows", "a": { "run": "htop" }, "b": { "run": "watch -n1 sensors" } } } }
 ```
 
+### Settings in the file
+
+Settings that apply to more than one pane go higher up in the tree, and a file can hold several layouts. This is how the most common ones look in the JSON file:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/anttiraisala/deskworks/master/tilepane/src/tilepane/tilepane.schema.json",
+  "defaults": { "terminal": "auto", "shell": "bash", "cwd": "~" },
+  "monitors": { "left": 0, "main": "HDMI-1" },
+  "layouts": [
+    {
+      "name": "meters",
+      "workspace": 3,
+      "margin": 16,
+      "outer_margin": 8,
+      "split": {
+        "dir": "columns", "at": "720px",
+        "a": { "run": "htop", "title": "processes" },
+        "b": { "run": ["date", "whoami"], "on_exit": "close" }
+      }
+    },
+    { "name": "empty", "split": {} }
+  ]
+}
+```
+
+- `defaults`: values that every layout, split and pane uses unless it sets its own (here the terminal, the shell and the working directory).
+- `monitors`: your own names for `--monitor` (`tilepane meters --monitor left`); each maps to a monitor number or a connector name from `tilepane --monitors`.
+- `workspace`: the workspace the layout always opens on (0 = bottom left); `--workspace` overrides it.
+- `margin` and `outer_margin`: the gap between windows and the gap to the edge of the screen, in pixels.
+- `at`: where a split cuts: `"60%"`, `"720px"`, or negative to measure from the right or bottom (`"-200px"`).
+- `title`, `on_exit` and the other pane keys are in [docs/CONFIG.md](docs/CONFIG.md).
+
 ### Several commands in one pane
 
 Give `run` a list, and the commands run one after another in the same terminal window. Each starts when the previous one ends:
