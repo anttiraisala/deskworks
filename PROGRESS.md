@@ -139,3 +139,6 @@ Newest log entries last. See `CLAUDE.md` for how this file is kept.
 
 ### 2026-10-18: tooltips for the JSON dialog buttons
 - At the owner's request (the owner supplied the idea; the texts are mine), every button of the "JSON…" dialog has an English tooltip saying what it does. No behaviour change.
+
+### 2026-10-18: install instructions: PATH works in the same terminal
+- On a fresh Mint VM the owner followed the clone and install steps but skipped `pipx ensurepath`, so `tilepane` was "command not found". A program cannot change the `PATH` of a terminal that is already open, so the install instructions now also give `export PATH="$HOME/.local/bin:$PATH"` next to `pipx ensurepath` (README.md, tilepane/README.md); the troubleshooting row is unchanged. Documentation only; no tests run.

@@ -41,11 +41,12 @@ Install all of it in one go (packages that are already installed are skipped):
 sudo apt update
 sudo apt install git pipx python3-xlib x11-xserver-utils xterm libnotify-bin
 pipx ensurepath
+export PATH="$HOME/.local/bin:$PATH"   # the same, for this terminal right now
 ```
 
-`pipx ensurepath` adds `~/.local/bin` to your `PATH`. **Open a new terminal afterwards** (or log out and in), or
-the commands `tilepane` and `cascade-windows` are not found. In the current terminal you can also run
-`source ~/.bashrc`.
+`pipx ensurepath` adds `~/.local/bin` to your `PATH` for terminals opened from now on; the `export` line makes
+it work in the terminal you are in, so you can go on without opening a new one. If you skip both, the commands
+`tilepane` and `cascade-windows` are not found.
 
 Optional, only for a more colourful `tilepane --demo`: `htop cmatrix sl figlet fortune-mod cowsay lm-sensors`.
 

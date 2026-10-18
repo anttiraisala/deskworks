@@ -21,7 +21,8 @@ Everything in one go on Ubuntu or Mint:
 
 ```
 sudo apt install git pipx x11-xserver-utils xterm
-pipx ensurepath             # once; then open a new terminal so ~/.local/bin is on PATH
+pipx ensurepath             # once; puts ~/.local/bin on PATH in new terminals
+export PATH="$HOME/.local/bin:$PATH"   # the same for this terminal, so you need not open a new one
 ```
 
 Optional, only for a more colourful `--demo`: `htop`, `cmatrix`, `sl`, `figlet`, `fortune`, `cowsay`, `sensors` (`sudo apt install htop cmatrix sl figlet fortune-mod cowsay lm-sensors`). The demo works without them; every missing command is replaced by a plain shell loop.
