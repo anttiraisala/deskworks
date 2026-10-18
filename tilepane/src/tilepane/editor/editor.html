@@ -2187,10 +2187,10 @@ function openJson() {
   let whole = false;
   const box = h("textarea", { id: "json-text", spellcheck: "false", rows: "18" });
   const msg = h("div", { id: "json-message", class: "cmd-note" });
-  const copyBtn = h("button", { id: "json-copy", title: "Copy the text to the clipboard" }, "Copy");
-  const bReplaceLayout = h("button", { id: "json-replace-layout" }, "Replace this layout");
-  const bAdd = h("button", { id: "json-add" }, "Add as new layout");
-  const bReplaceFile = h("button", { id: "json-replace-file" }, "Replace whole file");
+  const copyBtn = h("button", { id: "json-copy", title: "Copy the text in the box to the clipboard (export). Changes nothing." }, "Copy");
+  const bReplaceLayout = h("button", { id: "json-replace-layout", title: "Replace the layout you are editing now with the JSON in the box. Other layouts stay as they are; the old name is kept if the JSON has none." }, "Replace this layout");
+  const bAdd = h("button", { id: "json-add", title: "Add the JSON in the box as a new layout next to the existing ones. Nothing is overwritten; a name that is already taken gets -2, -3, ... added. File-level keys (defaults, monitors) are ignored." }, "Add as new layout");
+  const bReplaceFile = h("button", { id: "json-replace-file", title: "Replace everything in the file (all layouts and file-level settings) with the JSON in the box. Use it when you paste a whole file." }, "Replace whole file");
   const fill = () => { box.value = jsonText(whole); msg.textContent = ""; };
   const run = (fn) => () => {
     const p = parseImport(box.value);
@@ -2212,7 +2212,7 @@ function openJson() {
     h("h2", {}, "Copy and paste JSON"),
     h("div", { class: "desc" }, "Copy the text below to export. To import, replace the text with JSON from elsewhere (a whole file, one layout, or just a split/pane tree) and choose what to do with it. Each import is one undo step."),
     scope, box, msg,
-    h("div", { class: "actions" }, copyBtn, bReplaceLayout, bAdd, bReplaceFile, h("button", { onclick: () => dlg.close() }, "Close")));
+    h("div", { class: "actions" }, copyBtn, bReplaceLayout, bAdd, bReplaceFile, h("button", { title: "Close this box without changing anything.", onclick: () => dlg.close() }, "Close")));
   dlg.addEventListener("close", () => dlg.remove());
   document.body.append(dlg);
   fill();

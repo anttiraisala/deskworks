@@ -136,3 +136,6 @@ Newest log entries last. See `CLAUDE.md` for how this file is kept.
 - Decisions of mine: one dialog for both directions instead of two buttons; the textbox is the import field, so "edit as text" also works; file-level keys are dropped when a pasted layout is added to the current file.
 - Tested: Playwright features test (dialog, bad JSON, add a bare tree, one undo step, replace whole file). Not tried on the owner's machines.
 - Tests: 382 (6 skipped).
+
+### 2026-10-18: tooltips for the JSON dialog buttons
+- At the owner's request (the owner supplied the idea; the texts are mine), every button of the "JSON…" dialog has an English tooltip saying what it does. No behaviour change.
