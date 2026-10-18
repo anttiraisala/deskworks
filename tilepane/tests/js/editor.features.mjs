@@ -21,14 +21,6 @@ const step = (msg) => console.log(`- ${msg}`);
 const doc = () => page.evaluate(() => JSON.parse(JSON.stringify(S.doc)));
 const loadDoc = (d) => page.evaluate((text) => load(text, "test.json"), JSON.stringify(d));
 const sel = () => page.evaluate(() => S.sel.kind);
-// "Cut pane": press the button of the selected pane, then click inside the pane (fx, fy are fractions of its size).
-const cutPane = async (button, pane, fx = 0.5, fy = 0.5) => {
-  const box = await pane.boundingBox();
-  await page.click(`text=${button}`);
-  await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy);
-  await page.mouse.click(box.x + box.width * fx, box.y + box.height * fy);
-};
-
 await page.goto(url);
 await page.waitForSelector(".pane");
 
@@ -56,44 +48,45 @@ step(`command lines: ${code}`);
 // Splitting moves inheriting settings up; the command stays with the first half.
 await loadDoc({ name: "t", split: { run: "htop", cwd: "/srv", shell: "zsh", title: "top" } });
 await page.locator(".pane").first().click();
-await cutPane("✂ Cut pane │", page.locator(".pane").first());
+await page.click("text=✂ Cut pane │");
 let d = await doc();
 expect(d.cwd === "/srv" && d.shell === "zsh", `settings moved up (got ${JSON.stringify(d)})`);
 expect(JSON.stringify(d.split.a) === JSON.stringify({ run: "htop", title: "top" }) && JSON.stringify(d.split.b) === "{}", "first half keeps run and title");
 step(`cut pane: ${JSON.stringify(d)}`);
 
-// "Cut pane" works like "Cut screen": a line follows the mouse and only the selected pane is cut, along the line.
+// "Cut pane" halves the selected pane at once, in the direction of the line on the button.
 await loadDoc({ name: "cp", margin: 8, split: { dir: "columns", at: "50%", a: { run: "left" }, b: { run: "right" } } });
 const labels = await page.locator("header button").allTextContents();
 expect(labels.some((t) => t.includes("Cut screen ─")) && labels.some((t) => t.includes("Cut screen │")), `Cut screen buttons (got ${JSON.stringify(labels)})`);
+expect(await page.locator("#layout-cut-h").isDisabled() && await page.locator("#layout-cut-v").isDisabled(), "with several panes and none selected Cut pane waits for a selection");
 await page.locator(".pane").first().click();
 const paneButtons = await page.locator(".actions button").allTextContents();
-expect(paneButtons.includes("✂ Cut pane ─") && paneButtons.includes("✂ Cut pane │"), `Cut pane buttons (got ${JSON.stringify(paneButtons)})`);
+expect(paneButtons.indexOf("✂ Cut pane ─") >= 0 && paneButtons.indexOf("✂ Cut pane ─") < paneButtons.indexOf("✂ Cut pane │"), `Cut pane buttons in order (got ${JSON.stringify(paneButtons)})`);
 expect(!paneButtons.some((t) => t.startsWith("Split ")), "the old Split buttons are gone");
-const leftBox = await page.locator(".pane").first().boundingBox();
 await page.click("text=✂ Cut pane ─");
-expect(await page.isVisible("#cut-overlay"), "Cut pane starts the cut mode");
-await page.mouse.move(leftBox.x + leftBox.width / 2, leftBox.y + leftBox.height / 3);
-const lineBox = await page.locator("#cut-overlay .cut-line").boundingBox();
-expect(Math.abs(lineBox.width - leftBox.width) < 12 && Math.abs(lineBox.x - leftBox.x) < 12 && lineBox.width < leftBox.width * 1.1, `the line spans only the pane (line ${lineBox.width}px, pane ${leftBox.width}px)`);
-await page.mouse.click(leftBox.x + leftBox.width / 2, leftBox.y + leftBox.height / 3);
+expect(!(await page.isVisible("#cut-overlay")), "Cut pane needs no clicking on the screen");
 d = await doc();
-expect(d.split.a.dir === "rows" && d.split.a.a.run === "left" && JSON.stringify(d.split.b) === JSON.stringify({ run: "right" }), `only the left pane was cut, top and bottom (got ${JSON.stringify(d.split)})`);
-expect(!(await page.isVisible("#cut-overlay")), "the cut mode ends after the cut");
-step("cut pane: only the selected pane, along the line");
+expect(d.split.a.dir === "rows" && d.split.a.at === "50%" && d.split.a.a.run === "left" && JSON.stringify(d.split.a.b) === "{}" && JSON.stringify(d.split.b) === JSON.stringify({ run: "right" }),
+  `the left pane was halved into top and bottom, the right one stayed (got ${JSON.stringify(d.split)})`);
+expect((await page.evaluate(() => S.sel.path.join(","))) === "0,1", "the new bottom piece is selected");
+await page.click("text=✂ Cut pane │");
+d = await doc();
+expect(d.split.a.b.dir === "columns" && d.split.a.b.at === "50%", `the selected piece was halved into left and right (got ${JSON.stringify(d.split.a)})`);
+step("cut pane halves the selected pane");
 
-// A click outside the pane, or Escape, stops Cut pane without cutting.
-await loadDoc({ name: "cp", margin: 8, split: { dir: "columns", at: "50%", a: { run: "left" }, b: { run: "right" } } });
-await page.locator(".pane").first().click();
-const rightBox = await page.locator(".pane").nth(1).boundingBox();
-const docBeforeCut = JSON.stringify(await doc());
-await page.click("text=✂ Cut pane │");
-await page.mouse.click(rightBox.x + rightBox.width / 2, rightBox.y + rightBox.height / 2);
-expect(!(await page.isVisible("#cut-overlay")) && JSON.stringify(await doc()) === docBeforeCut, "a click outside the pane stops the mode");
-await page.click("text=✂ Cut pane │");
-await page.keyboard.press("Escape");
-expect(!(await page.isVisible("#cut-overlay")) && JSON.stringify(await doc()) === docBeforeCut, "Escape stops the mode");
-step("cut pane can be stopped");
+// Nothing on the screen yet: the first rectangle is the whole screen, and it is cut in half.
+await loadDoc({ name: "cp", split: {} });
+expect(await page.evaluate(() => S.sel.kind) === "layout", "nothing selected in a fresh editor");
+expect(!(await page.locator("#layout-cut-h").isDisabled()), "Cut pane works on the empty screen");
+await page.click("#layout-cut-v");
+d = await doc();
+expect(d.split.dir === "columns" && d.split.at === "50%" && JSON.stringify(d.split.a) === "{}" && JSON.stringify(d.split.b) === "{}", `the empty screen was cut into left and right (got ${JSON.stringify(d.split)})`);
+await loadDoc({ name: "cp", split: {} });
+await page.click("#layout-cut-h");
+d = await doc();
+expect(d.split.dir === "rows" && d.split.at === "50%", `or into top and bottom (got ${JSON.stringify(d.split)})`);
+expect(!(await page.isVisible("#cut-overlay")), "no cut line is needed");
+step("cut pane on the empty screen");
 
 // Common settings rise: give both panes the same terminal.
 await loadDoc({ name: "t", split: { dir: "columns", a: { run: "a", terminal: "xterm" }, b: { run: "b" } } });
