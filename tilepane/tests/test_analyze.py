@@ -321,6 +321,19 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(opened, [self.path])
         self.assertTrue(os.path.exists(self.path))
 
+    def test_an_old_deskmap_without_the_window_list_gets_a_clear_message(self):
+        class Old:
+            name = "old"
+
+            def disconnect(self):
+                pass
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(["--analyze", self.path], out=out, err=err, detected=MONS, backend=Old(), work_areas=AREAS)
+        self.assertEqual(code, 1)
+        self.assertIn("deskmap", err.getvalue())
+        self.assertIn("runpip", err.getvalue())
+        self.assertFalse(os.path.exists(self.path))
+
     def test_no_windows_is_an_error(self):
         code, out, err = self.run_cli(["--analyze", self.path], [], active=None, pointer=(10, 10))
         self.assertEqual(code, 1)

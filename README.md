@@ -71,7 +71,13 @@ pipx install -e '.[x11]'
 - `[x11]` adds python-xlib. Without it tilepane can only compute layouts (`--dry-run`).
 - `-e` (editable) means that `git pull` updates the program without reinstalling it.
 - The shared library `deskmap` is fetched automatically from this repository's `master` branch on GitHub, so the
-  computer needs an internet connection and git during the installation.
+  computer needs an internet connection and git during the installation. That copy is a snapshot made at the
+  installation and it does not follow `git pull`. Make tilepane use the `deskmap` folder of your clone instead, so
+  that the two never differ (the new `--analyze` needs this after an update):
+
+  ```
+  pipx runpip tilepane install -e ~/deskworks/deskmap
+  ```
 - If an older tilepane is installed with pipx, remove it first with `pipx uninstall tilepane`, or add `--force`
   to the command above.
 
@@ -139,7 +145,8 @@ If `XDG_CONFIG_HOME`, `XDG_DATA_HOME` or `XDG_STATE_HOME` are set, they replace 
 ```
 cd ~/deskworks
 git pull
-cd tilepane && pipx install --force -e '.[x11]'     # also refreshes deskmap
+cd tilepane && pipx install --force -e '.[x11]'
+pipx runpip tilepane install -e ~/deskworks/deskmap   # tilepane uses the deskmap of the clone
 cd ../cascade-windows && ./install.sh
 ```
 
@@ -175,6 +182,7 @@ rm -rf ~/deskworks
 | Problem | Reason and fix |
 |---|---|
 | `tilepane: command not found` or `cascade-windows: command not found` | `~/.local/bin` is not in `PATH` yet. Run `pipx ensurepath`, then open a new terminal (or `source ~/.bashrc`). Check with `which tilepane`. |
+| `AttributeError: ... has no attribute 'open_windows'` (or another missing attribute of `deskmap`) | tilepane uses an older `deskmap` copy than the clone. Run `pipx runpip tilepane install -e ~/deskworks/deskmap`. |
 | `cascade-windows: error: unrecognized arguments: --list-targets` | An old cascade-windows is installed. Run `git pull` and `./install.sh` in `cascade-windows`. |
 | `The deskmap library was not found` during `./install.sh` | You are not in a full clone. Clone the whole repository and run the installer from `deskworks/cascade-windows`. |
 | `The Python X11 library is missing` | `sudo apt install python3-xlib` (or `./install.sh --install-deps`). |

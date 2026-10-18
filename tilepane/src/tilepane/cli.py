@@ -584,6 +584,14 @@ class _Runner:
         if backend is None:
             self.error(f"cannot reach the window system: {reason}")
             return 1
+        if not hasattr(backend, "open_windows"):
+            self.error("the deskmap library that tilepane uses is older than this tilepane and cannot list "
+                       "windows. Use the deskmap folder of your clone: in the tilepane folder run "
+                       "pipx runpip tilepane install -e ../deskmap (with the full path of that folder if "
+                       "the relative one is refused), or reinstall tilepane with pipx install --force -e '.[x11]'")
+            if backend is not self._backend:
+                backend.disconnect()
+            return 1
         try:
             if not self._resolve_workspace(backend):
                 return 1

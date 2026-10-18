@@ -56,7 +56,7 @@ In the `tilepane` directory of the clone:
 pipx install -e '.[x11]'
 ```
 
-`[x11]` pulls in python-xlib; without it tilepane can compute layouts (`--dry-run`) but cannot open windows. `-e` makes `git pull` take effect for tilepane without reinstalling. The `deskmap` library is fetched from this repository's `master` branch as a dependency; to work on `deskmap` and tilepane together, use the virtualenv install below.
+`[x11]` pulls in python-xlib; without it tilepane can compute layouts (`--dry-run`) but cannot open windows. `-e` makes `git pull` take effect for tilepane without reinstalling. The `deskmap` library is fetched from this repository's `master` branch as a dependency, as a snapshot that does not follow `git pull`. To make tilepane use the `deskmap` folder of the clone, so that the two always match, run `pipx runpip tilepane install -e ~/deskworks/deskmap` (the full path; use your clone's) after the installation. To work on `deskmap` and tilepane together, you can also use the virtualenv install below.
 
 Without pipx, in a virtualenv:
 
