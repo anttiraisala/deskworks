@@ -28,7 +28,7 @@ Unknown keys are ignored with a warning. Invalid values make the command stop wi
   "skip": { "minimized": true, "fullscreen": true, "sticky": true, "dialogs": false },
   "restore_maximized": true,
   "workarea": { "dock_windows": true },
-  "notify": { "excluded": true },
+  "excluded_notification": true,
   "editor": "",
   "exclude": []
 }
@@ -53,7 +53,7 @@ Unknown keys are ignored with a warning. Invalid values make the command stop wi
 | `restore_maximized` | Restore maximized windows to normal size before cascading. When `false` they are left alone. |
 | `editor` | The editor that `cascade-windows --edit-config` opens this file with, for example `"gedit"`, `"xed"`, `"nano"` or `"code --wait"`. Empty (the default): the desktop's default text editor. The command line option `--editor` overrides it. |
 | `exclude` | A list of rules for monitors and workspaces that are never cascaded. See below. Empty by default. |
-| `notify.excluded` | Show a short desktop notification when the monitor you started a cascade on is excluded: when nothing happened because of it, and also when a workspace or all-workspaces cascade moved the other windows but left that monitor alone. The message is always printed in the terminal too. |
+| `excluded_notification` | Show a short desktop notification ("This monitor is excluded") when the monitor you started a cascade on is excluded: when nothing happened because of it, and also when a workspace or all-workspaces cascade moved the other windows but left that monitor alone. The message is always printed in the terminal too. |
 
 ## Excluding monitors and workspaces
 

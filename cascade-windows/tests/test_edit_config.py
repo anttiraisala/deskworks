@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -122,6 +123,66 @@ class EditorSettingTest(unittest.TestCase):
         _code, chosen, popen, path = self.run_edit("{}")
         chosen.assert_not_called()
         popen.assert_called_once_with(["default-editor", path])
+
+
+class ExcludedNotificationSettingTest(unittest.TestCase):
+    def test_the_default_is_on_and_the_key_is_top_level(self):
+        self.assertTrue(Settings().excluded_notification)
+        defaults = default_settings_dict()
+        self.assertIs(defaults["excluded_notification"], True)
+        self.assertNotIn("notify", defaults)
+
+    def test_it_must_be_true_or_false(self):
+        with self.assertRaises(SettingsError):
+            settings_from_dict({"excluded_notification": "no"})
+
+    def test_the_old_name_still_works_and_is_reported(self):
+        warnings = []
+        settings = settings_from_dict({"notify": {"excluded": False}}, warnings.append)
+        self.assertFalse(settings.excluded_notification)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("excluded_notification", warnings[0])
+
+    def test_the_new_name_wins_over_the_old_one(self):
+        settings = settings_from_dict(
+            {"notify": {"excluded": False}, "excluded_notification": True}, lambda message: None)
+        self.assertTrue(settings.excluded_notification)
+
+    def test_other_keys_in_the_old_section_are_still_reported_as_unknown(self):
+        warnings = []
+        settings_from_dict({"notify": {"excluded": True, "sound": True}}, warnings.append)
+        self.assertTrue(any("notify" in message and "unknown" in message for message in warnings))
+
+    def test_the_written_default_file_explains_the_setting(self):
+        from cascade_windows.settings import documented_default_dict
+
+        documented = documented_default_dict()
+        self.assertIn("comment_excluded_notification", documented)
+        self.assertIn("notification", documented["comment_excluded_notification"])
+        self.assertIn("comment_editor", documented)
+        self.assertNotIn("notify", documented)
+
+    def test_an_untouched_old_default_file_with_the_old_notify_section_is_still_removed(self):
+        from cascade_windows.settings import remove_legacy_default_config
+
+        def old_file(notify):
+            data = default_settings_dict()
+            data["margin"] = {"top": 20, "right": 20, "bottom": 20, "left": 20}
+            data["step"] = {"x": 30, "y": 30}
+            del data["skip"]["dialogs"]
+            del data["excluded_notification"]
+            del data["editor"]
+            data["notify"] = notify
+            return data
+
+        folder = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(folder, True))
+        path = os.path.join(folder, "config.json")
+        for notify, removed in (({"excluded": True}, True), ({"excluded": False}, False)):
+            with open(path, "w") as handle:
+                json.dump(old_file(notify), handle)
+            self.assertEqual(remove_legacy_default_config(path), removed)
+            self.assertEqual(os.path.exists(path), not removed)
 
 
 if __name__ == "__main__":

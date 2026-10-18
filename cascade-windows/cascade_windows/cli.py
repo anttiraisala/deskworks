@@ -293,7 +293,7 @@ def _run(args: argparse.Namespace) -> int:
     if not plan.moves:
         message = exclusion_message(plan)
         print(message or "No windows to cascade.")
-        if message and settings.notify_excluded:
+        if message and settings.excluded_notification:
             _notify("Cascade Windows", message, "dialog-information")
         return 0
     undo.save_entries(undo.entries_from_plan(plan))
@@ -305,7 +305,7 @@ def _run(args: argparse.Namespace) -> int:
     note = pointer_excluded_message(plan)
     if note:
         print(note)
-        if settings.notify_excluded:
+        if settings.excluded_notification:
             _notify("Cascade Windows", note, "dialog-information")
     return 0
 

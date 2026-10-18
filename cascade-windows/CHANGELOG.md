@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Changed: `notify.excluded` is now `excluded_notification`** (a top-level key; the `notify` section is gone). A configuration file with the old name still works and prints a warning, and the new name wins when both are present. An untouched default file written by an earlier version is still recognised and replaced by the installer. The comments in the file written by `--edit-config` were reviewed and brought up to date: the new key and `editor` are explained, `skip` lists what it covers, and `exclude` points to the notification setting.
 - New setting `editor` in the configuration file: the editor that `--edit-config` opens the file with (for example `"editor": "xed"`). The option `--editor` overrides it; empty means the desktop's default text editor. The setting is read even when other settings in the file are invalid, so a broken file can still be opened for repair.
 - The "This monitor is excluded" notice now also appears for **Cascade Workspace** and **Cascade All Workspaces** when they are started on an excluded monitor. Before, it appeared only for **Cascade Windows**. The cascade itself is unchanged: the other monitors and workspaces are cascaded as before and the excluded monitor is left alone.
 - New option `--editor COMMAND` for `--edit-config`: choose the editor that opens the configuration file (`--edit-config --editor gedit`, `--editor nano`, `--editor "code --wait"`). The command runs in the terminal until the editor is closed, so editors that need a terminal work too.

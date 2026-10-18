@@ -105,7 +105,7 @@ and the other monitors are cascaded as usual.
   bottom-left workspace and, in a 2 x 2 grid, number 2 is the same as `0,1`, the top-left one.
 - `cascade-windows --list-targets` prints the numbers, positions and names to use (and warns about rules that
   match nothing right now; a monitor may simply be unplugged).
-- When you start a cascade on an excluded monitor (the monitor under the pointer, on the current workspace), a short notification tells you so: "This monitor is excluded". This applies to all three actions. With **Cascade Workspace** and **Cascade All Workspaces** the other monitors and workspaces are still cascaded and the notification says that this monitor was left alone; with **Cascade Windows** nothing is moved. Turn it off with `"notify": {"excluded": false}`.
+- When you start a cascade on an excluded monitor (the monitor under the pointer, on the current workspace), a short notification tells you so: "This monitor is excluded". This applies to all three actions. With **Cascade Workspace** and **Cascade All Workspaces** the other monitors and workspaces are still cascaded and the notification says that this monitor was left alone; with **Cascade Windows** nothing is moved. Turn it off with `"excluded_notification": false`.
 - `Ctrl+Super+Shift+C`, or `cascade-windows --ignore-exclusions`, cascades the monitor under the pointer even
   if it is excluded.
 

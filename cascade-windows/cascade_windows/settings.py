@@ -43,7 +43,7 @@ class Settings:
     skip_dialogs: bool = False
     restore_maximized: bool = True
     workarea_dock_windows: bool = True
-    notify_excluded: bool = True
+    excluded_notification: bool = True
     editor: str = ""
     exclude: Tuple[ExcludeRule, ...] = ()
 
@@ -73,7 +73,7 @@ _BOOL_KEYS: Dict[Tuple[str, ...], str] = {
     ("skip", "dialogs"): "skip_dialogs",
     ("restore_maximized",): "restore_maximized",
     ("workarea", "dock_windows"): "workarea_dock_windows",
-    ("notify", "excluded"): "notify_excluded",
+    ("excluded_notification",): "excluded_notification",
 }
 
 # Configuration path -> attribute, for settings that hold free text
@@ -131,12 +131,30 @@ def _is_comment_key(key: str) -> bool:
     return key == COMMENT_KEY or key.startswith(COMMENT_KEY + "_")
 
 
+def _rename_legacy_keys(data: dict, warn: Callable[[str], None]) -> dict:
+    """Accept ``notify.excluded``, the old name of ``excluded_notification``, with a warning."""
+    notify = data.get("notify")
+    if not isinstance(notify, dict) or "excluded" not in notify:
+        return data
+    data = dict(data)
+    notify = dict(notify)
+    old = notify.pop("excluded")
+    warn("'notify.excluded' is now called 'excluded_notification'; update the configuration file")
+    data.setdefault("excluded_notification", old)
+    if any(not _is_comment_key(str(key)) for key in notify):
+        data["notify"] = notify  # whatever else is in there is reported as unknown
+    else:
+        del data["notify"]
+    return data
+
+
 def settings_from_dict(data: dict, warn: Optional[Callable[[str], None]] = None) -> Settings:
     """Build Settings from a (possibly partial) nested dictionary."""
     if warn is None:
         warn = lambda message: None  # noqa: E731
     if not isinstance(data, dict):
         raise SettingsError("The configuration file must contain a JSON object")
+    data = _rename_legacy_keys(data, warn)
     settings = Settings()
     for path, value in _walk(data, (), warn):
         if path in _INT_KEYS:
@@ -199,7 +217,7 @@ def settings_to_dict(settings: Settings) -> dict:
         ("skip",),
         ("restore_maximized",),
         ("workarea",),
-        ("notify",),
+        ("excluded_notification",),
         ("editor",),
         ("exclude",),
     ]
@@ -249,8 +267,10 @@ _COMMENTS = {
         "instead, so everything stays in one cascade."
     ),
     ("skip",): (
-        "Windows that are left completely alone when true. dialogs=false: dialog windows are cascaded "
-        "too; they keep their own size and their top-right corner goes to the cascade position."
+        "Windows that are left completely alone when true: minimized windows, fullscreen windows, "
+        "windows shown on all workspaces (sticky) and dialog windows. dialogs=false (the default): "
+        "dialog windows are cascaded too; they keep their own size and their top-right corner goes to "
+        "the cascade position."
     ),
     ("workarea",): (
         "How the free area of each monitor is found. dock_windows=true: panels and launchers that do "
@@ -258,14 +278,15 @@ _COMMENTS = {
         "panel) are treated as obstacles, using their position and size. Set it to false if windows "
         "end up too far from the edges because of an overlay that is wrongly taken for a panel."
     ),
-    ("notify",): (
-        "excluded=true: show a short desktop notification when the monitor under the pointer is excluded "
-        "(see 'exclude'), whether nothing was cascaded because of it or the other monitors and workspaces "
-        "were cascaded without it. The message is also printed in the terminal."
-    ),
 }
 
 _COMMENT_AFTER = {
+    ("excluded_notification",): (
+        "true: show a short desktop notification (\"This monitor is excluded\") when you start a cascade on "
+        "a monitor that 'exclude' leaves alone, whether nothing was cascaded because of it or the other "
+        "monitors and workspaces were cascaded without it. The same message is always printed in the terminal. "
+        "false: no notification."
+    ),
     ("size_mode",): (
         "How big the windows become. 'anchored': every window keeps the same bottom-left corner in "
         "the bottom-left of the usable area; the back window reaches the top margin and the front "
@@ -293,7 +314,8 @@ _COMMENT_AFTER = {
         "of that workspace. Both: only that monitor on that workspace. Examples: "
         "{\"monitor\": \"HDMI-1\"}, {\"workspace\": 3}, {\"workspace\": \"1,0\", \"monitor\": [0, 2]}. "
         "Run 'cascade-windows --list-targets' to see the names and numbers. "
-        "Run 'cascade-windows --ignore-exclusions' (or press Ctrl+Super+Shift+C) to cascade anyway."
+        "Run 'cascade-windows --ignore-exclusions' (or press Ctrl+Super+Shift+C) to cascade anyway. "
+        "See also 'excluded_notification'."
     ),
     ("order",): (
         "Which window goes to the back. 'stacking': keep the current front-to-back order. "
@@ -361,7 +383,10 @@ def remove_legacy_default_config(path: Optional[str] = None) -> bool:
         return False
     data = _strip_comments(data)
     data.setdefault("workarea", {"dock_windows": True})  # files from before this section existed
-    data.setdefault("notify", {"excluded": True})  # files from before exclusions existed
+    notify = data.pop("notify", None)  # files from before 'excluded_notification' replaced notify.excluded
+    if notify not in (None, {"excluded": True}):
+        return False
+    data.setdefault("excluded_notification", True)
     data.setdefault("exclude", [])
     data.setdefault("editor", "")  # files from before this setting existed
     if isinstance(data.get("skip"), dict) and data["skip"].get("dialogs") is False:

@@ -239,7 +239,7 @@ class SettingsTest(unittest.TestCase):
     def test_default_is_no_rules_and_notifications_on(self):
         settings = Settings()
         self.assertEqual(settings.exclude, ())
-        self.assertTrue(settings.notify_excluded)
+        self.assertTrue(settings.excluded_notification)
         self.assertEqual(settings_to_dict(settings)["exclude"], [])
 
     def test_invalid_rules_stop_with_a_clear_message(self):
@@ -248,7 +248,7 @@ class SettingsTest(unittest.TestCase):
         self.assertIn("exclude[0]", str(context.exception))
 
     def test_notifications_can_be_turned_off(self):
-        self.assertFalse(settings_from_dict({"notify": {"excluded": False}}).notify_excluded)
+        self.assertFalse(settings_from_dict({"excluded_notification": False}).excluded_notification)
 
 
 class CliTest(unittest.TestCase):
@@ -281,7 +281,7 @@ class CliTest(unittest.TestCase):
         self.assertFalse([c for c in backend.calls if c[0] == "place"])
 
     def test_the_notification_can_be_turned_off(self):
-        config = {"exclude": [{"monitor": 0}], "notify": {"excluded": False}}
+        config = {"exclude": [{"monitor": 0}], "excluded_notification": False}
         _code, output, notify, _backend = self.run_cli(config, "--scope", "monitor")
         self.assertIn("excluded", output)
         notify.assert_not_called()
@@ -323,7 +323,7 @@ class CliTest(unittest.TestCase):
 
     def test_the_note_can_be_turned_off_and_ignoring_the_exclusions_removes_it(self):
         windows = [make_window(1, Rect(100, 100, 400, 300)), make_window(2, Rect(2000, 100, 400, 300))]
-        config = {"exclude": [{"monitor": "HDMI-1"}], "notify": {"excluded": False}}
+        config = {"exclude": [{"monitor": "HDMI-1"}], "excluded_notification": False}
         _code, output, notify, _backend = self.run_cli(config, "--scope", "all", windows=list(windows))
         self.assertIn("This monitor is excluded", output)
         notify.assert_not_called()
