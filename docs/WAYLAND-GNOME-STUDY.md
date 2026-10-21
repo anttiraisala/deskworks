@@ -73,9 +73,10 @@ Both have their own X11 implementation (397 and 831 lines). The GNOME backend ex
 - **Wayland reloads extensions only at login**, so every test round on a Wayland machine needs a log out and in (or a nested/headless shell).
 - **Scaling.** Fractional scaling and mixed-DPI monitors can make pixel-exact placing impossible for natively scaled windows.
 - **Cell snapping** (point 5) may end with sizes that are exact only to a whole cell on Wayland.
-- **Testing without the owner.** The container is Ubuntu 24.04 and `gnome-shell` 46 is installable there. Mutter can run **headless**
-  (`gnome-shell --headless --wayland --virtual-monitor 1280x720`), which would let the extension, its D-Bus service and a real terminal be tried
-  without a screen. This is an idea, not tried; if it works, most of the extension can be debugged here, and the VMs are only for the last check.
+- **Testing without the owner.** Resolved on 2026-10-21: a real GNOME Shell 46 runs headless in the container (`scripts/gnome-headless.sh`,
+  `gnome-shell --headless --wayland --virtual-monitor`, with a fake logind from python3-dbusmock). Cascade-windows' extension loaded in it on the
+  first try, `--diagnose` listed the monitor, work area and workspaces, and a real cascade of three Wayland windows (`foot`) put them at exactly the
+  rectangles asked for. So "never run in a real shell" is no longer true for Shell 46; Shell 50 (Ubuntu 26.04) and gnome-terminal are still untested.
 
 ## 6. Plan and work estimate
 
@@ -85,7 +86,7 @@ reaching "works on the machines in section 1", not for polishing.
 | Step | Work | Rounds |
 |---|---|---|
 | 0 | Try the X11 session of GNOME 24 (no code). | 1 short |
-| 1 | Try cascade-windows' existing GNOME extension on 24 and 26 (`docs/GNOME.md` has the steps); fix what breaks. Possibly run it headless here first. | 2 to 4 |
+| 1 | Cascade-windows' GNOME extension: headless Shell 46 done 2026-10-21 (works). Still to do: Shell 50 on the 26.04 VM and gnome-terminal. | 1 to 2 |
 | 2 | Protocol v2 (pid, close, move to workspace, monitor names) in extension and Python; tests with the fake shell. | 1 to 2 |
 | 3 | `deskmap` GNOME backend with the deskmap Protocol; move extension and protocol into `deskmap`; cascade uses the moved code; `choose()` and doctor. | 2 to 3 |
 | 4 | Monitors from the shell (scale, connector names); numbering unchanged. | 1 |
@@ -93,9 +94,8 @@ reaching "works on the machines in section 1", not for polishing.
 | 6 | Installer for tilepane (extension install command), docs, tests of the whole path, live checks on 24 and 26. | 1 to 2 |
 | 7 | Optional later: merge the two X11 backends and the two work-area implementations; other compositors (sway, Hyprland, KDE). | not needed for the goal |
 
-Total: roughly **10 to 16 rounds**, of which the owner's part is short each time (log in, run a command, paste). The uncertain steps are 1 and 5.
-If the headless shell works in the container, steps 1, 2, 3 and most of 5 can be done without the VMs and the count of owner rounds drops to
-about 4 to 6. Steps 0 to 1 give a first real answer ("does the extension run at all on Shell 46 and 50") quickly and are the sensible start.
+Total: roughly **9 to 14 rounds**, of which the owner's part is short each time (log in, run a command, paste). The uncertain steps are 1 and 5.
+The headless shell works in the container, so steps 2, 3 and most of 5 can be done without the VMs; the owner's rounds are for Shell 50, gnome-terminal and the last check (about 4 to 6).
 
 ## 7. Decisions for the owner
 

@@ -135,8 +135,11 @@ Automatic (`python3 -m unittest discover -s tests`):
 - `gnome-extension/tests/` holds Node tests for the pure parts of the extension (`node --test`), run from the
   Python suite when Node.js is installed. The installer is tested against a throw-away home with a fake gsettings.
 
-The parts that talk to GNOME Shell itself (`lib/windows.js`, `lib/service.js`, `lib/panel.js`, `extension.js`) can
-only be tested in a real GNOME session. Test them in a virtual machine:
+The parts that talk to GNOME Shell itself (`lib/windows.js`, `lib/service.js`, `lib/panel.js`, `extension.js`) need a real
+GNOME Shell. In a container without a screen, `scripts/gnome-headless.sh` (in the repository root) starts one with a
+virtual monitor, installs this extension into it and lets Wayland windows be cascaded; it was run with GNOME Shell 46
+(the extension loaded, `--diagnose` and a real cascade of three `foot` windows worked; the panel menu and shortcuts are not
+exercised there). On a real desktop test them in a virtual machine:
 
 1. Get the code: `git clone https://github.com/anttiraisala/deskworks.git`, `cd deskworks/cascade-windows`
    (the GNOME support is part of `master`).
