@@ -76,6 +76,44 @@ await page.click("#save");
 await page.waitForFunction(() => document.querySelector("footer .status").textContent.includes("saved"));
 step(`saved: ${await page.textContent("footer .status")}`);
 
+// Save as: the name in the header, the ... button and the File menu.
+const dirOf = (p) => p.slice(0, p.lastIndexOf("/"));
+const base = await page.evaluate(() => BOOT.path);
+await page.click("#file");
+await page.fill("#file input", "renamed");
+await page.keyboard.press("Enter");
+await page.waitForFunction((b) => BOOT.path !== b, base);
+expect((await page.evaluate(() => BOOT.path)) === `${dirOf(base)}/renamed.json`, "renaming in the header saves under the new name in the same folder");
+expect((await page.textContent("#file")).startsWith("renamed.json"), `the header shows the new name (got ${await page.textContent("#file")})`);
+const listed = await page.evaluate((d) => api("/api/list", { dir: d }).then((r) => r.entries.map((e) => e.name)), dirOf(base));
+expect(listed.includes("renamed.json") && listed.includes(base.split("/").pop()), "the old file is left in place");
+step("clicking the name saves under a new name, the old file stays");
+
+await page.click("#file-more");
+expect(await page.isVisible("#file-dialog"), "the ... button opens the file dialog");
+await page.waitForFunction(() => document.querySelector("#fd-path").value !== "");
+expect((await page.inputValue("#fd-path")) === dirOf(base), "the dialog starts in the folder of the file");
+await page.fill("#fd-name", "second");
+await page.click("#fd-go");
+await page.waitForFunction(() => BOOT.path.endsWith("/second.json"));
+expect(!(await page.isVisible("#file-dialog")), "the dialog closes after saving");
+step("the ... button: Save as in the dialog");
+
+await page.click("#file-menu");
+await page.click("#save-as");
+await page.waitForFunction(() => document.querySelector("#fd-path").value !== "");
+await page.fill("#fd-name", "second.json");                     // the current file: no question
+await page.click("#fd-go");
+await page.waitForFunction(() => !document.querySelector("#file-dialog"));
+await page.click("#file-menu");
+await page.click("#open-file");
+await page.waitForFunction(() => document.querySelector("#fd-path").value !== "");
+await page.fill("#fd-name", base.split("/").pop());
+await page.click("#fd-go");
+await page.waitForFunction((b) => BOOT.path === b, base);
+expect((await page.locator(".pane").count()) >= 3, "Open loads the chosen file");
+step("File menu: Save as, Open");
+
 if (flags.includes("--open-on-screen")) {
   await page.click("#open-screen");
   await page.waitForFunction(() => /opened on screen|exited/.test(document.querySelector("footer .status").textContent), null, { timeout: 30000 });

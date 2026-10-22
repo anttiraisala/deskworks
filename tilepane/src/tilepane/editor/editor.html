@@ -48,6 +48,22 @@ header {
 }
 header .brand { font-weight: 700; letter-spacing: 0.2px; }
 header .file { color: var(--muted); max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+header .filebox { display: inline-flex; gap: 4px; align-items: center; }
+header .filebox .file { cursor: text; border-radius: 4px; padding: 1px 4px; }
+header .filebox .file:hover { background: var(--handle-hover); color: #000; }
+header .filebox input { font: inherit; width: 24ch; }
+header .filebox button { padding: 0 6px; }
+.menu { position: relative; display: inline-block; }
+.menu-list { position: absolute; right: 0; top: 100%; z-index: 20; display: flex; flex-direction: column; gap: 2px; min-width: 150px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
+.menu-list[hidden] { display: none; }
+.menu-list button { text-align: left; border: 0; }
+dialog.tp-dialog.files { width: min(640px, 92vw); }
+#fd-path, #fd-name { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: 12px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; }
+#fd-list { height: 220px; overflow: auto; margin: 8px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+#fd-list .row { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; background: transparent; padding: 3px 8px; font-size: 13px; }
+#fd-list .row:hover, #fd-list .row.sel { background: var(--handle-hover); color: #000; }
+#fd-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+#fd-message { color: #c0392b; min-height: 1.2em; font-size: 12px; margin-top: 4px; white-space: pre-wrap; }
 header .group { display: flex; gap: 6px; align-items: center; }
 header .group label { color: var(--muted); }
 header .spacer { flex: 1; }
@@ -176,7 +192,7 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
 <body>
 <header>
   <span class="brand">tilepane</span>
-  <span class="file" id="file"></span>
+  <span class="filebox"><span class="file" id="file" tabindex="0" role="button"></span><button id="file-more" title="Choose another folder or file name (Save as)">…</button></span>
   <span class="group"><label for="layout">Layout</label><select id="layout"></select>
     <button id="new-layout" title="Add a new layout to this file">New</button>
     <button id="copy-layout" title="Copy this layout">Copy</button>
@@ -187,8 +203,12 @@ footer pre { margin: 4px 0 0; white-space: pre-wrap; font-size: 12px; color: var
   <span class="group"><button id="undo" title="Undo (Ctrl+Z)">↶ Undo</button><button id="redo" title="Redo (Ctrl+Y)">↷ Redo</button></span>
   <span class="spacer"></span>
   <span class="group">
-    <button id="new-file">New file</button>
-    <button id="open-file">Open…</button>
+    <span class="menu"><button id="file-menu" title="File menu">File ▾</button>
+      <div id="file-menu-list" class="menu-list" hidden>
+        <button id="new-file">New file</button>
+        <button id="open-file">Open…</button>
+        <button id="save-as" data-title="Save as (Ctrl+Shift+S)">Save as…</button>
+      </div></span>
     <button id="commands" title="Command lines that open this layout from a terminal">Commands</button>
     <button id="json" title="Copy this layout as JSON, or paste JSON to import it">JSON…</button>
     <button id="save" class="primary" data-title="Save (Ctrl+S)">Save</button>
@@ -2928,9 +2948,13 @@ function startEdgePane(e, hit) {
 
 // ---------------------------------------------------------------- header and footer
 
+function closeFileMenu() { $("#file-menu-list").hidden = true; }
+
 function renderHeader() {
-  $("#file").textContent = `${S.fileName}${S.dirty ? " •" : ""}`;
-  $("#file").title = S.server ? BOOT.path || S.fileName : S.fileName;
+  if (!$("#file").querySelector("input")) {
+    $("#file").textContent = `${S.fileName}${S.dirty ? " •" : ""}`;
+    $("#file").title = (S.server ? BOOT.path || S.fileName : S.fileName) + " (click to change the name)";
+  }
   const sel = $("#layout");
   sel.replaceChildren(...layouts().map((l, i) => h("option", { value: String(i), selected: i === S.layoutIndex }, layoutName(l, i))));
   $("#delete-layout").disabled = layouts().length < 2;
@@ -3106,12 +3130,15 @@ async function api(path, body) {
   return data;
 }
 
+// Writes the document to the file the editor is editing (server) or through the browser's own
+// file picker (a page opened as a file). With nothing chosen yet, it asks for a name.
 async function save() {
   flushFields();
   render();
   if (errorsCount()) { S.status = "not saved: fix the problems first"; render(); return false; }
   const text = docText();
   if (S.server) {
+    if (!BOOT.path) return saveAs();
     if (S.badDisk && !confirm("The file on disk is not valid JSON. Replace it with this layout?")) return false;
     try {
       const res = await api("/api/save", { text });
@@ -3128,8 +3155,13 @@ async function save() {
       return false;
     }
   }
+  return saveInBrowser(text, !S.fileHandle);
+}
+
+// Without the server: the browser's file picker when it has one, else a download.
+async function saveInBrowser(text, choose) {
   try {
-    if (S.fileHandle) {
+    if (S.fileHandle && !choose) {
       const w = await S.fileHandle.createWritable();
       await w.write(text);
       await w.close();
@@ -3157,8 +3189,153 @@ async function save() {
   return true;
 }
 
+// Write to a path chosen in the editor (server). Resolves to a message on failure, null on success.
+async function saveToPath(path, overwrite) {
+  flushFields();
+  render();
+  if (errorsCount()) return "Fix the problems in the layout first.";
+  try {
+    const res = await api("/api/save", { text: docText(), path, overwrite });
+    BOOT.path = res.path;
+    S.fileName = res.name;
+    S.serverProblems = [];
+    S.badDisk = false;
+    S.dirty = false;
+    S.status = `saved ${new Date().toLocaleTimeString()}` + (res.warnings && res.warnings.length ? ` (${res.warnings.length} warning(s))` : "");
+    render();
+    return null;
+  } catch (e) {
+    if (e.data && e.data.exists) {
+      const more = e.data.not_a_layout ? "\n\nThis file does not look like a tilepane layout." : "";
+      if (confirm(`${e.data.path} already exists. Replace it?${more}`)) return saveToPath(path, true);
+      return "Not saved.";
+    }
+    if (e.data && e.data.errors) return e.data.errors.join("\n");
+    return e.message;
+  }
+}
+
+// The file dialog of the server editor: a folder list, the path and the file name.
+// mode "save": choose where to write; mode "open": choose a file to edit.
+function fileDialog(mode, startName) {
+  return new Promise((resolve) => {
+    let finished = false;
+    const dlg = h("dialog", { class: "tp-dialog files", id: "file-dialog" });
+    const path = h("input", { id: "fd-path", spellcheck: "false", title: "The folder; type a path and press Enter" });
+    const name = h("input", { id: "fd-name", spellcheck: "false", placeholder: "file name.json" });
+    const list = h("div", { id: "fd-list" });
+    const msg = h("div", { id: "fd-message" });
+    const bar = h("div", { id: "fd-bar" });
+    const go = h("button", { class: "primary", id: "fd-go" }, mode === "save" ? "Save" : "Open");
+    const done = (v) => { if (finished) return; finished = true; dlg.close(); dlg.remove(); resolve(v); };
+    let current = "";
+    const show = async (dir) => {
+      let info;
+      try { info = await api("/api/list", { dir }); } catch (e) { msg.textContent = e.message; return; }
+      current = info.dir;
+      path.value = info.dir;
+      msg.textContent = info.error || "";
+      bar.replaceChildren(
+        h("button", { title: "Up one folder", onclick: () => show(info.parent) }, "↑ Up"),
+        h("button", { onclick: () => show(info.home) }, "Home"),
+        h("button", { onclick: () => show(info.config_dir), title: info.config_dir }, "Config folder"),
+        ...(info.recent.length ? [ h("select", { id: "fd-recent", title: "Recently used files", onchange: (e) => {
+          const v = e.target.value;
+          if (!v) return;
+          const cut = v.lastIndexOf("/");
+          show(v.slice(0, cut) || "/").then(() => { name.value = v.slice(cut + 1); });
+        } }, h("option", { value: "" }, "Recent files…"), ...info.recent.map((r) => h("option", { value: r }, r)))] : []));
+      list.replaceChildren(...info.entries.map((en) => h("button", {
+        class: "row", title: en.kind === "dir" ? "Open the folder" : "Use this file name",
+        onclick: () => { if (en.kind === "dir") show(`${info.dir.replace(/\/$/, "")}/${en.name}`); else name.value = en.name; },
+        ondblclick: () => { if (en.kind === "file") { name.value = en.name; accept(); } },
+      }, en.kind === "dir" ? `📁 ${en.name}` : en.name)));
+      if (!info.entries.length) list.append(h("div", { style: { padding: "8px", color: "var(--muted)" } }, "No folders or .json files here."));
+    };
+    const accept = async () => {
+      let file = name.value.trim();
+      if (!file) { msg.textContent = "Type a file name."; return; }
+      if (!/\.json$/i.test(file)) file += ".json";
+      const full = file.startsWith("/") || file.startsWith("~") ? file : `${current.replace(/\/$/, "")}/${file}`;
+      go.disabled = true;
+      const problem = await (mode === "save" ? saveToPath(full, false) : openPath(full));
+      go.disabled = false;
+      if (problem) msg.textContent = problem; else done(true);
+    };
+    path.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); show(path.value); } });
+    name.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); accept(); } });
+    go.addEventListener("click", accept);
+    dlg.addEventListener("cancel", () => done(false));
+    dlg.append(h("h2", {}, mode === "save" ? "Save as" : "Open"),
+      h("div", { class: "desc" }, mode === "save" ? "Choose the folder and the file name. The file ends in .json." : "Choose a layout file."),
+      path, bar, list, name, msg,
+      h("div", { class: "actions" }, go, h("button", { onclick: () => done(false) }, "Cancel")));
+    name.value = startName || "";
+    document.body.append(dlg);
+    dlg.showModal();
+    show(BOOT.path ? BOOT.path.slice(0, BOOT.path.lastIndexOf("/")) || "/" : "").then(() => name.focus());
+  });
+}
+
+async function saveAs() {
+  flushFields();
+  if (errorsCount()) { S.status = "not saved: fix the problems first"; render(); return false; }
+  if (!S.server) return saveInBrowser(docText(), true);
+  return fileDialog("save", S.fileName);
+}
+
+// Changes the name from the header: the file is saved under the new name in the same folder.
+function editFileName() {
+  const box = $("#file");
+  if (box.querySelector("input")) return;
+  const input = h("input", { value: S.fileName, spellcheck: "false", title: "Enter saves under this name in the same folder; Esc cancels" });
+  let ended = false;
+  const finish = async (apply) => {
+    if (ended) return;
+    ended = true;
+    const value = input.value.trim();
+    box.replaceChildren();
+    renderHeader();
+    if (!apply || !value || value === S.fileName) return;
+    const file = /\.json$/i.test(value) ? value : `${value}.json`;
+    if (S.server) {
+      const dir = BOOT.path ? BOOT.path.slice(0, BOOT.path.lastIndexOf("/") + 1) : "";
+      if (!dir) { await saveAs(); return; }
+      const problem = await saveToPath(dir + file, false);
+      if (problem) { S.status = problem.split("\n")[0]; render(); }
+    } else {
+      S.fileName = file;
+      S.fileHandle = null;
+      S.dirty = true;
+      render();
+    }
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); finish(true); }
+    if (e.key === "Escape") { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener("blur", () => finish(false));
+  box.replaceChildren(input);
+  input.focus();
+  input.select();
+}
+
+// Server editor: the file is read by the server (so that the path is known) and becomes the current file.
+async function openPath(path) {
+  try {
+    const res = await api("/api/read", { path });
+    if (!load(res.text, res.name)) return "That file is not a layout file.";
+    BOOT.path = res.path;
+    render();
+    return null;
+  } catch (e) {
+    return e.message;
+  }
+}
+
 async function openFile() {
   if (S.dirty && !confirm("Discard the unsaved changes?")) return;
+  if (S.server) { await fileDialog("open", ""); return; }
   if (window.showOpenFilePicker) {
     try {
       const [handle] = await window.showOpenFilePicker({ types: [{ description: "tilepane layout", accept: { "application/json": [".json"] } }] });
@@ -3235,6 +3412,14 @@ function wire() {
   $("#undo").addEventListener("click", undo);
   $("#redo").addEventListener("click", redo);
   $("#save").addEventListener("click", save);
+  $("#save-as").addEventListener("click", () => { closeFileMenu(); saveAs(); });
+  $("#file-more").addEventListener("click", saveAs);
+  $("#file").addEventListener("click", editFileName);
+  $("#file").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target === $("#file")) editFileName(); });
+  $("#file-menu").addEventListener("click", (e) => { e.stopPropagation(); $("#file-menu-list").hidden = !$("#file-menu-list").hidden; });
+  $("#file-menu-list").addEventListener("click", closeFileMenu);
+  document.addEventListener("click", closeFileMenu);
+  window.addEventListener("beforeunload", (e) => { if (S.dirty) { e.preventDefault(); e.returnValue = ""; } });
   // A click on the monitor between panes, or anywhere outside it, clears the selection.
   $("#screen").addEventListener("pointerdown", () => { S.sel = { kind: "layout" }; render(); });
   $("#stage").addEventListener("pointerdown", (e) => {
@@ -3244,7 +3429,7 @@ function wire() {
   });
   if (S.server) {
     $("#new-file").remove();
-    $("#open-file").remove();
+    $("#open-file").addEventListener("click", openFile);
     $("#open-screen").addEventListener("click", () => onScreen("open"));
     $("#close-screen").addEventListener("click", () => onScreen("close"));
   } else {
@@ -3257,7 +3442,7 @@ function wire() {
   window.addEventListener("keydown", (e) => {
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
     const mod = e.ctrlKey || e.metaKey;
-    if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
+    if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); if (e.shiftKey) saveAs(); else save(); return; }
     if (typing) return;
     if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
     else if (mod && (e.key.toLowerCase() === "y" || (e.key.toLowerCase() === "z" && e.shiftKey))) { e.preventDefault(); redo(); }

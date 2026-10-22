@@ -105,7 +105,7 @@ Done and tested:
 - `--demo` and `--for` (the windows close after the given time)
 - `--analyze`: makes a layout file of the windows that are open on a monitor (the opposite of opening a layout; commands of terminals are read back, overlapping windows are separated by cuts), optionally opens it in the editor (`--edit`)
 - shell choice per pane
-- the browser editor (`--edit`): splitting panes and resizing by dragging (copy and paste of the layout JSON in a dialog, Shift-drag leaves the old line and makes a new empty pane, also from the edge of the monitor),
+- the browser editor (`--edit`): splitting panes and resizing by dragging (Save, Save as and Open with a file dialog of its own, clicking the file name to change it, copy and paste of the layout JSON in a dialog, Shift-drag leaves the old line and makes a new empty pane, also from the edge of the monitor),
   swapping panes by dragging, a cut line across the whole screen (Cut screen) and halving the selected pane (Cut pane), merging
   panes (arrows or the split line + Delete), setting the screen size by
   dragging, choosing the desktop, command lines that can be copied, common

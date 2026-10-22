@@ -71,8 +71,9 @@ class ServerTest(unittest.TestCase):
         with open(self.path, "w") as fh:
             json.dump(LAYOUT, fh)
         self.calls = []
+        self.prefs = os.path.join(self.tmp.name, "prefs", "editor.json")
         self.srv = editor_server.EditorServer(self.path, lambda: MONITORS, cli=self.fake_cli,
-                                              workspaces=lambda: 4)
+                                              workspaces=lambda: 4, prefs_path=self.prefs)
         self.thread = threading.Thread(target=self.srv.serve, daemon=True)
         self.thread.start()
         self.addCleanup(self.stop)
@@ -129,13 +130,88 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(json.loads(data["text"]), LAYOUT)
         self.assertEqual((data["name"], data["monitors"], data["workspaces"]), ("layout.json", MONITORS, 4))
 
-    def test_save_writes_only_the_opened_file(self):
+    def test_save_without_a_path_writes_the_current_file(self):
         text = json.dumps({"name": "new", "split": {}}, indent=2) + "\n"
-        status, data, _ = self.request("POST", "/api/save", {"text": text, "path": "/tmp/elsewhere.json"})
+        status, data, _ = self.request("POST", "/api/save", {"text": text})
         self.assertEqual(status, 200, data)
         self.assertEqual(Path(self.path).read_text(), text)
-        self.assertFalse(os.path.exists("/tmp/elsewhere.json"))
         self.assertEqual(sorted(os.listdir(self.tmp.name)), ["layout.json"])
+
+    def test_save_as_writes_the_new_file_and_makes_it_current(self):
+        text = json.dumps({"name": "new", "split": {}}, indent=2) + "\n"
+        other = os.path.join(self.tmp.name, "other.json")
+        before = Path(self.path).read_text()
+        status, data, _ = self.request("POST", "/api/save", {"text": text, "path": other})
+        self.assertEqual((status, data["path"], data["name"]), (200, other, "other.json"), data)
+        self.assertEqual(Path(other).read_text(), text)
+        self.assertEqual(Path(self.path).read_text(), before)      # the old file is left alone
+        status, data, _ = self.request("GET", "/api/state")
+        self.assertEqual(data["path"], other)
+        remembered = json.loads(Path(self.prefs).read_text())
+        self.assertEqual((remembered["last_dir"], remembered["recent"][0]), (self.tmp.name, other))
+
+    def test_save_as_anywhere_the_system_allows_but_only_json(self):
+        text = json.dumps({"name": "new", "split": {}})
+        for bad in ("notes.txt", "", "~/.bashrc", self.tmp.name + "/"):
+            with self.subTest(bad=bad):
+                status, data, _ = self.request("POST", "/api/save", {"text": text, "path": bad})
+                self.assertEqual(status, 400, data)
+        status, data, _ = self.request("POST", "/api/save", {"text": text, "path": "/nonexistent-dir/x.json"})
+        self.assertEqual(status, 400)
+        self.assertIn("does not exist", data["error"])
+
+    def test_save_as_asks_before_replacing_a_file(self):
+        text = json.dumps({"name": "new", "split": {}})
+        other = os.path.join(self.tmp.name, "other.json")
+        Path(other).write_text('{"hello": 1}')
+        status, data, _ = self.request("POST", "/api/save", {"text": text, "path": other})
+        self.assertEqual((status, data["exists"], data["not_a_layout"]), (409, True, True))
+        self.assertEqual(Path(other).read_text(), '{"hello": 1}')
+        Path(other).write_text(json.dumps(LAYOUT))
+        status, data, _ = self.request("POST", "/api/save", {"text": text, "path": other})
+        self.assertEqual((status, data["not_a_layout"]), (409, False))
+        status, data, _ = self.request("POST", "/api/save", {"text": text, "path": other, "overwrite": True})
+        self.assertEqual(status, 200, data)
+        self.assertEqual(Path(other).read_text(), text)
+
+    def test_save_as_the_current_file_needs_no_confirmation(self):
+        text = json.dumps({"name": "new", "split": {}})
+        status, data, _ = self.request("POST", "/api/save", {"text": text, "path": self.path})
+        self.assertEqual(status, 200, data)
+
+    def test_save_as_validates_the_layout(self):
+        other = os.path.join(self.tmp.name, "other.json")
+        status, data, _ = self.request("POST", "/api/save", {"text": '{"split": {"run": 3}}', "path": other})
+        self.assertEqual(status, 422)
+        self.assertFalse(os.path.exists(other))
+
+    def test_list_shows_folders_and_json_files_and_remembers_the_last_folder(self):
+        os.mkdir(os.path.join(self.tmp.name, "sub"))
+        Path(self.tmp.name, "notes.txt").write_text("x")
+        Path(self.tmp.name, ".hidden.json").write_text("{}")
+        status, data, _ = self.request("POST", "/api/list", {"dir": self.tmp.name})
+        self.assertEqual(status, 200)
+        self.assertEqual(data["dir"], self.tmp.name)
+        self.assertEqual(data["entries"], [{"name": "sub", "kind": "dir"}, {"name": "layout.json", "kind": "file"}])
+        status, data, _ = self.request("POST", "/api/list", {"dir": self.tmp.name + "/missing/deeper"})
+        self.assertEqual(data["dir"], self.tmp.name)                  # the nearest folder that exists
+        other = os.path.join(self.tmp.name, "sub", "o.json")
+        self.request("POST", "/api/save", {"text": json.dumps({"split": {}}), "path": other})
+        status, data, _ = self.request("POST", "/api/list", {})
+        self.assertEqual((data["dir"], data["recent"]), (os.path.join(self.tmp.name, "sub"), [other]))
+
+    def test_read_opens_a_file_and_makes_it_current(self):
+        other = os.path.join(self.tmp.name, "other.json")
+        Path(other).write_text('{"split": {}}')
+        status, data, _ = self.request("POST", "/api/read", {"path": other})
+        self.assertEqual((status, data["text"], data["name"]), (200, '{"split": {}}', "other.json"))
+        self.assertEqual(self.request("GET", "/api/state")[1]["path"], other)
+        for bad, code in ((os.path.join(self.tmp.name, "none.json"), 404), ("x.txt", 400)):
+            self.assertEqual(self.request("POST", "/api/read", {"path": bad})[0], code)
+
+    def test_the_new_routes_need_the_token(self):
+        for route in ("/api/list", "/api/read"):
+            self.assertEqual(self.request("POST", route, {"path": self.path}, token=False)[0], 403)
 
     def test_invalid_layout_is_not_saved(self):
         before = Path(self.path).read_text()
